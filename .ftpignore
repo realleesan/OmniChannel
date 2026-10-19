@@ -1,0 +1,22 @@
+# Các thư mục quản lý Git và CI/CD
+.git/
+.github/
+.gitignore
+
+# Tài liệu và hướng dẫn
+README.md
+docs/
+
+# Module Gateway Node.js chạy trên Render (Không upload lên InfinityFree PHP)
+omnichannel-webhook-gateway/
+
+# CSDL nạp qua phpMyAdmin (Không cần đặt trên web root)
+database.sql
+
+# File cấu hình deploy
+.ftpignore
+.ftp-deploy-sync-state-v4.json
+
+# File hệ điều hành
+.DS_Store
+Thumbs.db

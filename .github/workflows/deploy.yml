@@ -1,0 +1,48 @@
+name: 🚀 Deploy PHP Project to InfinityFree
+
+on:
+  push:
+    branches:
+      - main
+  
+  workflow_dispatch:
+
+jobs:
+  web-deploy:
+    name: 🎉 Syncing PHP Code
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🚚 Get latest code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2 # Chỉ lấy 2 commit gần nhất để so sánh file khác biệt nhanh hơn
+
+      # Tự động sinh file .env từ GitHub Secrets trên môi trường runner (Tuyệt đối không hardcode)
+      - name: 📝 Tạo file .env từ GitHub Secrets
+        run: |
+          cat << 'EOF' > .env
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASS=${{ secrets.DB_PASS }}
+          DB_PORT=3306
+          APP_ENV=production
+          RENDER_GATEWAY_URL=${{ secrets.RENDER_GATEWAY_URL }}
+          GATEWAY_SECRET_KEY=${{ secrets.GATEWAY_SECRET_KEY }}
+          EOF
+
+      - name: 📂 Sync files via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ./htdocs/
+          local-dir: ./
+          # --- CÁC THAM SỐ TỐI ƯU ---
+          protocol: ftp
+          port: 21
+          state-name: .ftp-deploy-sync-state-v4.json
+          dangerous-clean-slate: false
+          timeout: 60000 # Tăng thời gian chờ response lên 60 giây để tránh đứt kết nối

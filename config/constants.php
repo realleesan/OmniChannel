@@ -8,11 +8,29 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Tự động nạp file .env nếu có ở thư mục gốc
+$envFile = dirname(__DIR__) . '/.env';
+if (file_exists($envFile)) {
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || strpos($line, '#') === 0) continue;
+        if (strpos($line, '=') !== false) {
+            list($envKey, $envVal) = explode('=', $line, 2);
+            $envKey = trim($envKey);
+            $envVal = trim($envVal, " \t\n\r\0\x0B\"'");
+            putenv("{$envKey}={$envVal}");
+            $_ENV[$envKey] = $envVal;
+            $_SERVER[$envKey] = $envVal;
+        }
+    }
+}
+
 // Thiết lập múi giờ Việt Nam
 date_default_timezone_set('Asia/Ho_Chi_Minh');
 
-// Đường dẫn URL gốc hệ thống
-$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
+$serverPort = $_SERVER['SERVER_PORT'] ?? 80;
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $serverPort == 443) ? "https://" : "http://";
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $scriptDir = dirname($_SERVER['SCRIPT_NAME'] ?? '');
 $scriptDir = str_replace('\\', '/', $scriptDir);

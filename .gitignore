@@ -1,0 +1,14 @@
+# Không commit file môi trường chứa mật khẩu thật lên GitHub
+.env
+
+# Bỏ qua tài liệu chứa key nhạy cảm nếu có
+docs/key.md
+
+# File log và tạm thời
+*.log
+.DS_Store
+Thumbs.db
+
+# Dependencies Node.js nếu có chạy test gateway
+node_modules/
+npm-debug.log
