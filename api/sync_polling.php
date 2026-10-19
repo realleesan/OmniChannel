@@ -38,6 +38,37 @@ $labelModel = new Label();
 $currentUser = $userModel->findById($userId);
 $userStatus = $currentUser ? $currentUser['status'] : 'OFFLINE';
 
+// 1.5. Tự động rút tin nhắn từ Render Gateway (Webchat/Facebook/Zalo) về CSDL MySQL
+$gatewayUrl = defined('RENDER_GATEWAY_URL') ? RENDER_GATEWAY_URL : '';
+if (!empty($gatewayUrl)) {
+    if (!isset($_SESSION['last_gateway_poll']) || (time() - $_SESSION['last_gateway_poll']) >= 2) {
+        $_SESSION['last_gateway_poll'] = time();
+        $ch = curl_init(rtrim($gatewayUrl, '/') . '/api/messages/poll');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        $pollRes = curl_exec($ch);
+        curl_close($ch);
+
+        if ($pollRes) {
+            $pollJson = json_decode($pollRes, true);
+            if (!empty($pollJson['success']) && !empty($pollJson['messages'])) {
+                require_once __DIR__ . '/../controllers/ChatController.php';
+                $chatCtrl = new ChatController();
+                foreach ($pollJson['messages'] as $m) {
+                    $chatCtrl->receiveCustomerMessage(
+                        $m['channel'],
+                        $m['external_sender_id'],
+                        $m['sender_name'],
+                        $m['content'],
+                        $m['attachment_url'] ?? null
+                    );
+                }
+            }
+        }
+    }
+}
+
 // 2. Lấy danh sách hội thoại theo bộ lọc mới (chuẩn plan.md)
 $conversations = $convModel->getFilteredList($userId, $tab, $unrepliedScope, $search, $labelId, $channel);
 
