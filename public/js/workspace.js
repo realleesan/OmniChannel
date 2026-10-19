@@ -350,8 +350,6 @@ function renderChatHeader(conv) {
         avatarChannelIcon.className = `partner-channel-mini-badge badge-channel-${conv.channel || 'WEBCHAT'}`;
     }
 
-    const activeChannelBadge = document.getElementById('activeChannelBadge');
-    if (activeChannelBadge) activeChannelBadge.innerHTML = `${channelCfg.icon} ${channelCfg.label}`;
 
     const tagBadge = document.getElementById('activeTagBadge');
     if (tagBadge) {
@@ -539,7 +537,7 @@ function renderConversationView(detail) {
         });
     } else {
         viewport.innerHTML = `
-            <div style="text-align:center;padding:50px 16px;color:#94a3b8;font-size:13px;">
+            <div class="chat-empty-state" id="chatEmptyConversationState" style="text-align:center;padding:50px 16px;color:#94a3b8;font-size:13px;">
                 <i class="fa-regular fa-comments" style="font-size:28px;margin-bottom:8px;display:block;opacity:0.4;"></i>
                 Chưa có tin nhắn trong cuộc trò chuyện này. Hãy gửi tin nhắn để bắt đầu tư vấn.
             </div>
@@ -585,9 +583,9 @@ function handleActiveConversationSync(activeData) {
 
     // Gỡ bỏ trạng thái empty state hoặc placeholder nếu có
     const viewport = document.getElementById('messagesViewport');
-    const placeholder = viewport.querySelector('.chat-empty-state, .chat-loading-placeholder');
-    if (placeholder && new_messages && new_messages.length > 0) {
-        placeholder.remove();
+    const placeholders = viewport.querySelectorAll('.chat-empty-state, .chat-loading-placeholder, #chatEmptyConversationState, #chatEmptyState');
+    if (placeholders.length > 0 && new_messages && new_messages.length > 0) {
+        placeholders.forEach(p => p.remove());
     }
 
     // Bổ sung các tin nhắn mới (chống trùng lặp tuyệt đối)
@@ -637,10 +635,8 @@ function appendMessageBubble(msg, isNew = false) {
     }
 
     // Gỡ bỏ placeholder nếu còn tồn tại
-    const placeholder = viewport.querySelector('.chat-empty-state, .chat-loading-placeholder');
-    if (placeholder) {
-        placeholder.remove();
-    }
+    const placeholders = viewport.querySelectorAll('.chat-empty-state, .chat-loading-placeholder, #chatEmptyConversationState, #chatEmptyState');
+    placeholders.forEach(p => p.remove());
 
     const isStaff = (msg.sender_type === 'STAFF');
 
@@ -745,6 +741,22 @@ async function sendMessage(attachmentUrl = null) {
                     cache.messages.push(data.data);
                 }
             }
+            // Bổ trợ kép: Trình duyệt gửi trực tiếp tới Render Gateway để khách nhận ngay lập tức
+            const activeConv = (AppState.conversations || []).find(c => c.id == AppState.activeConvId) || 
+                               AppState.conversationsCache[AppState.activeConvId]?.conversation;
+            if (activeConv && activeConv.channel === 'WEBCHAT' && window.APP_CONFIG?.RENDER_GATEWAY_URL) {
+                const gatewayUrl = window.APP_CONFIG.RENDER_GATEWAY_URL.replace(/\/+$/, '');
+                fetch(`${gatewayUrl}/api/webchat/reply`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        customer_id: activeConv.external_sender_id,
+                        content: content,
+                        staff_name: data.data.staff_name || 'Nhân viên tư vấn'
+                    })
+                }).catch(e => console.warn('Browser direct reply push warning:', e));
+            }
+
             scrollChatToBottom();
             runSyncPolling();
         } else {
@@ -844,7 +856,15 @@ function renderProfileSidebar(profile, conv) {
     const customerName = profile.customer_name || conv.sender_name || 'Khách Hàng';
     document.getElementById('profileCustomerName').innerText = customerName;
     document.getElementById('rightCustomerAvatar').innerText = customerName.charAt(0).toUpperCase();
-    document.getElementById('rightChannelSubtext').innerText = `Kênh ${conv.channel || 'Webchat'} • #${conv.id}`;
+
+    const rightAvatarChannelIcon = document.getElementById('rightAvatarChannelIcon');
+    if (rightAvatarChannelIcon) {
+        const channelCfg = CHANNEL_CONFIG[conv.channel] || { icon: '<i class="fa-solid fa-comment"></i>', label: conv.channel || 'Webchat', class: 'badge-channel-WEBCHAT' };
+        rightAvatarChannelIcon.innerHTML = channelCfg.icon;
+        rightAvatarChannelIcon.className = `partner-channel-mini-badge badge-channel-large badge-channel-${conv.channel || 'WEBCHAT'}`;
+    }
+
+    document.getElementById('rightChannelSubtext').innerText = `#${conv.id}`;
 
     document.getElementById('profilePreferredSize').innerText = profile.preferred_size || 'Chưa xác định';
     document.getElementById('profileRecentPurchases').innerText = profile.recent_purchases || 'Chưa có thông tin đơn cũ';

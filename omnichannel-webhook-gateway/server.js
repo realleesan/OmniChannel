@@ -337,6 +337,16 @@ app.post('/api/webchat/reply', (req, res) => {
         webchatSessions[customer_id] = { customerId: customer_id, customerName: 'Khách Web', messages: [] };
     }
 
+    // Chống trùng lặp tin nhắn nếu cả PHP backend và Browser frontend cùng đẩy trong 6 giây
+    const isDuplicate = webchatSessions[customer_id].messages.some(m => 
+        m.sender_type === 'STAFF' && 
+        m.content === content && 
+        (Date.now() - (m.id || 0)) < 6000
+    );
+    if (isDuplicate) {
+        return res.json({ success: true, message: 'Đã tiếp nhận (bỏ qua trùng lặp)' });
+    }
+
     const msgId = Date.now();
     const replyMsg = {
         id: msgId,

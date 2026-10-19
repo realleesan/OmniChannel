@@ -168,6 +168,25 @@
                 cursor: pointer !important;
                 margin-left: 4px !important;
             }
+            .omni-header-btn {
+                background: rgba(255, 255, 255, 0.18) !important;
+                border: none !important;
+                width: 26px !important;
+                height: 26px !important;
+                border-radius: 50% !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                cursor: pointer !important;
+                color: #FFFFFF !important;
+                transition: background 0.2s !important;
+                padding: 0 !important;
+                outline: none !important;
+                flex-shrink: 0 !important;
+            }
+            .omni-header-btn:hover { background: rgba(255, 255, 255, 0.35) !important; }
+            .omni-header-btn svg { width: 14px !important; height: 14px !important; fill: #FFFFFF !important; }
+
             .omni-close-btn {
                 background: transparent !important;
                 border: none !important;
@@ -473,9 +492,14 @@
                         <div class="omni-header-subtitle" id="omniHeaderSubtitle">Thường phản hồi trong vài phút</div>
                     </div>
                 </div>
-                <button class="omni-close-btn" id="omniCloseBtn" title="Đóng cửa sổ chat">
-                    <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-                </button>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <button class="omni-header-btn" id="omniResetBtn" title="Bắt đầu phiên trò chuyện mới (Xóa lịch sử)">
+                        <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                    </button>
+                    <button class="omni-close-btn" id="omniCloseBtn" title="Đóng cửa sổ chat">
+                        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                    </button>
+                </div>
             </div>
 
             <!-- VIEW 1: PRE-CHAT FORM (XIN THÔNG TIN KHÁCH) -->
@@ -525,6 +549,9 @@
 
                     <div class="omni-form-footer-note">
                         Thông tin được lưu tự động cho các lần truy cập tiếp theo.
+                        <div id="omniClearDataRow" style="margin-top:8px;display:none;">
+                            <a href="javascript:void(0)" id="omniBtnClearStoredData" style="color:#EF4444;text-decoration:underline;cursor:pointer;font-size:11.5px;">Xóa phiên đã lưu & làm mới</a>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -546,9 +573,15 @@
         document.body.appendChild(launcher);
         document.body.appendChild(chatBox);
 
-        // Gắn sự kiện Launcher và Close
+        // Gắn sự kiện Launcher, Close và Reset Session
         launcher.addEventListener('click', toggleChat);
         chatBox.querySelector('#omniCloseBtn').addEventListener('click', toggleChat);
+
+        const resetBtn = chatBox.querySelector('#omniResetBtn');
+        if (resetBtn) resetBtn.addEventListener('click', resetSession);
+
+        const btnClearData = chatBox.querySelector('#omniBtnClearStoredData');
+        if (btnClearData) btnClearData.addEventListener('click', resetSession);
 
         // Sự kiện gửi tin nhắn trong Conversation View
         const input = chatBox.querySelector('#omniWidgetInput');
@@ -635,6 +668,11 @@
             btnCancelEdit.style.display = isEditing ? 'block' : 'none';
         }
 
+        const clearRow = document.getElementById('omniClearDataRow');
+        if (clearRow) {
+            clearRow.style.display = (session.customerName || session.customerId) ? 'block' : 'none';
+        }
+
         setTimeout(() => {
             if (inputName) inputName.focus();
         }, 100);
@@ -650,10 +688,10 @@
         if (prechatView) prechatView.style.display = 'none';
         if (convView) convView.style.display = 'flex';
 
-        // Cập nhật Subtitle hiển thị tên khách và nút đổi thông tin
+        // Cập nhật Subtitle hiển thị tên khách, nút đổi tên và nút bắt đầu mới
         if (subtitle) {
             const displayName = session.customerName || 'Quý khách';
-            subtitle.innerHTML = `Xin chào, <strong>${escapeHtml(displayName)}</strong> · <a href="javascript:void(0)" id="omniBtnEditProfile">Đổi tên</a>`;
+            subtitle.innerHTML = `Xin chào, <strong>${escapeHtml(displayName)}</strong> · <a href="javascript:void(0)" id="omniBtnEditProfile">Đổi tên</a> · <a href="javascript:void(0)" id="omniBtnResetSession" style="color:#FEE2E2;margin-left:4px;" title="Xóa lịch sử và bắt đầu lại">Bắt đầu mới</a>`;
             const editBtn = subtitle.querySelector('#omniBtnEditProfile');
             if (editBtn) {
                 editBtn.addEventListener('click', (e) => {
@@ -661,11 +699,45 @@
                     showPrechatView(true);
                 });
             }
+            const resetLink = subtitle.querySelector('#omniBtnResetSession');
+            if (resetLink) {
+                resetLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    resetSession();
+                });
+            }
         }
 
         setTimeout(() => {
             if (input) input.focus();
         }, 100);
+    }
+
+    // Xóa sạch phiên chat và bắt đầu mới hoàn toàn
+    function resetSession() {
+        if (!confirm('Bạn có chắc chắn muốn xóa phiên chat hiện tại và bắt đầu cuộc trò chuyện mới?')) {
+            return;
+        }
+        try {
+            localStorage.removeItem(STORAGE_KEY);
+        } catch (e) {}
+        session = {
+            customerId: '',
+            customerName: '',
+            customerPhone: '',
+            conversationId: null,
+            lastMsgId: 0
+        };
+        stopPolling();
+        const msgContainer = document.getElementById('omniWidgetMessages');
+        if (msgContainer) msgContainer.innerHTML = '';
+        const inputName = document.getElementById('omniInputName');
+        const inputPhone = document.getElementById('omniInputPhone');
+        const inputInitial = document.getElementById('omniInputInitialMsg');
+        if (inputName) inputName.value = '';
+        if (inputPhone) inputPhone.value = '';
+        if (inputInitial) inputInitial.value = '';
+        showPrechatView(false);
     }
 
     // Xử lý nộp form Pre-Chat
@@ -761,13 +833,17 @@
                 const container = document.getElementById('omniWidgetMessages');
                 if (data.messages && data.messages.length > 0) {
                     renderMessageHistory(data.messages);
-                } else if (container && container.children.length === 0) {
-                    container.innerHTML = `
-                        <div id="omniEmptyHint" style="text-align:center;padding:26px 16px;color:#94a3b8;font-size:13px;">
-                            <div style="font-weight:600;color:#334155;margin-bottom:6px;">Chào mừng ${escapeHtml(session.customerName || 'bạn')}!</div>
-                            Hãy nhập tin nhắn bên dưới để trò chuyện cùng nhân viên tư vấn.
-                        </div>
-                    `;
+                } else {
+                    session.lastMsgId = 0;
+                    saveSession();
+                    if (container && container.children.length === 0) {
+                        container.innerHTML = `
+                            <div id="omniEmptyHint" style="text-align:center;padding:26px 16px;color:#94a3b8;font-size:13px;">
+                                <div style="font-weight:600;color:#334155;margin-bottom:6px;">Chào mừng ${escapeHtml(session.customerName || 'bạn')}!</div>
+                                Hãy nhập tin nhắn bên dưới để trò chuyện cùng nhân viên tư vấn.
+                            </div>
+                        `;
+                    }
                 }
             }
         } catch (e) {
@@ -846,7 +922,7 @@
                     if (msg.id > session.lastMsgId) {
                         session.lastMsgId = msg.id;
                         if (msg.sender_type === 'STAFF') {
-                            appendMessage('STAFF', msg.content, msg.time_formatted || 'Vừa xong');
+                            appendMessage('STAFF', msg.content, msg.time_formatted || 'Vừa xong', msg.id);
                         }
                     }
                 });
@@ -855,10 +931,14 @@
         } catch (e) {}
     }
 
-    function appendMessage(senderType, content, time) {
+    function appendMessage(senderType, content, time, msgId = null) {
         const container = document.getElementById('omniWidgetMessages');
         if (!container) return;
+
+        if (msgId && document.getElementById(`omni-msg-${msgId}`)) return;
+
         const div = document.createElement('div');
+        if (msgId) div.id = `omni-msg-${msgId}`;
         div.className = `omni-msg ${senderType.toLowerCase()}`;
         div.innerHTML = `
             <div class="omni-bubble">${escapeHtml(content)}</div>
@@ -872,10 +952,13 @@
         const container = document.getElementById('omniWidgetMessages');
         if (!container) return;
         container.innerHTML = '';
+        let maxId = 0;
         messages.forEach(msg => {
-            appendMessage(msg.sender_type, msg.content, msg.time_formatted || '');
-            if (msg.id > session.lastMsgId) session.lastMsgId = msg.id;
+            appendMessage(msg.sender_type, msg.content, msg.time_formatted || '', msg.id);
+            if (msg.id && msg.id > maxId) maxId = msg.id;
         });
+        session.lastMsgId = maxId;
+        saveSession();
     }
 
     function saveSession() {

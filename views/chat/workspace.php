@@ -192,7 +192,6 @@ if (isset($_GET['logout'])) {
                 <div class="partner-meta-block">
                     <div class="partner-name-row">
                         <span class="partner-name" id="activeSenderName">Khách Hàng</span>
-                        <span id="activeChannelBadge" class="channel-pill-badge"><i class="fa-solid fa-comments"></i> Webchat</span>
                         <span id="activeTagBadge" class="card-tag-badge" style="display:none;"></span>
                     </div>
                     <div class="partner-submeta-row">
@@ -276,7 +275,12 @@ if (isset($_GET['logout'])) {
 
         <!-- Thẻ đại diện danh tính khách hàng -->
         <div class="customer-profile-card">
-            <div class="customer-avatar-large" id="rightCustomerAvatar">?</div>
+            <div class="partner-avatar-wrapper avatar-wrapper-large">
+                <div class="customer-avatar-large" id="rightCustomerAvatar">?</div>
+                <span class="partner-channel-mini-badge badge-channel-large" id="rightAvatarChannelIcon">
+                    <i class="fa-solid fa-comments"></i>
+                </span>
+            </div>
             <div class="customer-primary-meta">
                 <div class="customer-name-heading">
                     <span id="profileCustomerName">Đang tải...</span>
@@ -284,7 +288,7 @@ if (isset($_GET['logout'])) {
                         <i class="fa-solid fa-pen"></i>
                     </button>
                 </div>
-                <div class="customer-channel-subtext" id="rightChannelSubtext">Kênh Webchat</div>
+                <div class="customer-channel-subtext" id="rightChannelSubtext">#1</div>
             </div>
         </div>
 
