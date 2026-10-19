@@ -499,7 +499,7 @@ if (isset($_GET['logout'])) {
         RENDER_GATEWAY_URL: '<?= addslashes(RENDER_GATEWAY_URL) ?>'
     };
 </script>
-<script src="../../public/js/workspace.js"></script>
+<script src="../../public/js/workspace.js?v=<?= time() ?>"></script>
 
 </body>
 </html>
