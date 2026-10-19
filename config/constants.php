@@ -10,6 +10,10 @@ if (session_status() === PHP_SESSION_NONE) {
 
 // Tự động nạp file .env nếu có ở thư mục gốc
 $envFile = dirname(__DIR__) . '/.env';
+if (!file_exists($envFile)) {
+    $envFile = __DIR__ . '/../.env';
+}
+
 if (file_exists($envFile)) {
     $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
     foreach ($lines as $line) {
@@ -19,11 +23,34 @@ if (file_exists($envFile)) {
             list($envKey, $envVal) = explode('=', $line, 2);
             $envKey = trim($envKey);
             $envVal = trim($envVal, " \t\n\r\0\x0B\"'");
-            putenv("{$envKey}={$envVal}");
+            
+            // Nạp vào cả 3 nơi để tránh hosting chặn hàm putenv()
+            if (function_exists('putenv')) {
+                @putenv("{$envKey}={$envVal}");
+            }
             $_ENV[$envKey] = $envVal;
             $_SERVER[$envKey] = $envVal;
         }
     }
+}
+
+/**
+ * Hàm đọc biến môi trường an toàn, tương thích mọi loại hosting (kể cả khi putenv bị tắt)
+ */
+function env($key, $default = '') {
+    if (isset($_ENV[$key]) && $_ENV[$key] !== '') {
+        return $_ENV[$key];
+    }
+    if (isset($_SERVER[$key]) && $_SERVER[$key] !== '') {
+        return $_SERVER[$key];
+    }
+    if (function_exists('getenv')) {
+        $val = @getenv($key);
+        if ($val !== false && $val !== '') {
+            return $val;
+        }
+    }
+    return $default;
 }
 
 // Thiết lập múi giờ Việt Nam

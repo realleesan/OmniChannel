@@ -1,7 +1,7 @@
 <?php
 /**
  * OMNICHANNEL CHAT SYSTEM - DATABASE CONNECTION (PDO)
- * Đọc 100% từ biến môi trường (.env) - Tuyệt đối không hardcode mật khẩu
+ * Đọc từ biến môi trường (.env) an toàn qua hàm env()
  */
 
 require_once __DIR__ . '/constants.php';
@@ -11,12 +11,32 @@ class Database {
 
     public static function getConnection(): PDO {
         if (self::$instance === null) {
-            // Lấy trực tiếp từ biến môi trường được nạp từ .env
-            $host = getenv('DB_HOST') ?: '127.0.0.1';
-            $db   = getenv('DB_NAME') ?: 'omnichannel_chat';
-            $user = getenv('DB_USER') ?: 'root';
-            $pass = (getenv('DB_PASS') !== false) ? getenv('DB_PASS') : '';
-            $port = getenv('DB_PORT') ?: 3306;
+            // Lấy từ biến môi trường đã được hàm env() xử lý an toàn
+            $host = env('DB_HOST', '');
+            $db   = env('DB_NAME', '');
+            $user = env('DB_USER', '');
+            $pass = env('DB_PASS', '');
+            $port = env('DB_PORT', 3306);
+
+            // Nếu DB_HOST rỗng, kiểm tra thêm trong db_config.php nếu có
+            if (empty($host) && file_exists(__DIR__ . '/db_config.php')) {
+                require_once __DIR__ . '/db_config.php';
+                if (defined('IF_DB_HOST') && !empty(IF_DB_HOST)) {
+                    $host = IF_DB_HOST;
+                    $db   = IF_DB_NAME;
+                    $user = IF_DB_USER;
+                    $pass = IF_DB_PASS;
+                    $port = defined('IF_DB_PORT') ? IF_DB_PORT : 3306;
+                }
+            }
+
+            // Mặc định fallback nếu vẫn rỗng
+            if (empty($host)) {
+                $host = '127.0.0.1';
+                $db   = 'omnichannel_chat';
+                $user = 'root';
+                $pass = '';
+            }
 
             $dsn = "mysql:host={$host};port={$port};dbname={$db};charset=utf8mb4";
             $options = [
@@ -33,13 +53,24 @@ class Database {
                 $errorMsg = "Không thể kết nối Cơ sở Dữ liệu: " . $e->getMessage();
                 
                 if ($isApi) {
-                    jsonResponse(false, ['error' => $errorMsg], 'Database Connection Error', 500);
+                    jsonResponse(false, ['error' => $errorMsg, 'host' => $host, 'db' => $db], 'Database Connection Error', 500);
                 } else {
-                    die("<div style='font-family:sans-serif;padding:30px;max-width:600px;margin:50px auto;border:2px solid #ef4444;border-radius:10px;background:#fef2f2;color:#991b1b;'>
+                    $envPath = dirname(__DIR__) . '/.env';
+                    $hasEnv = file_exists($envPath) ? "Đã tìm thấy (.env tồn tại trên hosting)" : "Không tìm thấy (chưa có file .env trên hosting)";
+                    
+                    die("<div style='font-family:sans-serif;padding:30px;max-width:650px;margin:50px auto;border:2px solid #ef4444;border-radius:10px;background:#fef2f2;color:#991b1b;'>
                         <h2 style='margin-top:0'>⚠️ Lỗi Kết nối Cơ sở Dữ liệu (MySQL)</h2>
                         <p><strong>Chi tiết lỗi:</strong> " . htmlspecialchars($e->getMessage()) . "</p>
-                        <hr style='border:none;border-top:1px solid #fca5a5;margin:15px 0;'>
-                        <p>Vui lòng kiểm tra lại thông số trong file <code>.env</code> (DB_HOST, DB_NAME, DB_USER, DB_PASS).</p>
+                        <div style='background:#fee2e2;border:1px solid #fca5a5;padding:12px;border-radius:6px;font-size:13px;margin:15px 0;'>
+                            <div><strong>Trạng thái file .env:</strong> $hasEnv</div>
+                            <div><strong>Host đang kết nối:</strong> <code>" . htmlspecialchars($host) . "</code></div>
+                            <div><strong>CSDL:</strong> <code>" . htmlspecialchars($db) . "</code> | <strong>User:</strong> <code>" . htmlspecialchars($user) . "</code></div>
+                        </div>
+                        <p style='font-size:13px;line-height:1.5;'>
+                            <strong>Nguyên nhân 'Connection refused':</strong><br>
+                            Khi host hiển thị là <code>127.0.0.1</code> hoặc rỗng, tức là hosting InfinityFree chưa đọc được thông số MySQL từ file <code>.env</code>.
+                            Trên InfinityFree, MySQL đặt tại <code>sql310.infinityfree.com</code> (không phải 127.0.0.1).
+                        </p>
                     </div>");
                 }
             }
