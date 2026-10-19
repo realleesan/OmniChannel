@@ -150,7 +150,7 @@ class Conversation {
             $conv['labels'] = $labelsMap[$conv['id']] ?? [];
 
             // Định dạng ngày giờ ngắn cho Respond.io card: vd 14:30 hoặc 22/07
-            $msgTime = strtotime($conv['last_message_at']);
+            $msgTime = !empty($conv['last_message_at']) ? strtotime($conv['last_message_at']) : time();
             if (date('Y-m-d') === date('Y-m-d', $msgTime)) {
                 $conv['short_time'] = date('H:i', $msgTime);
             } else {

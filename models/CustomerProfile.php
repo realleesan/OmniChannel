@@ -33,8 +33,10 @@ class CustomerProfile {
             return $this->getByConversationId($conversationId);
         }
 
-        $profile['scan_version_label'] = 'v' . number_format($profile['scan_version'], 1);
-        $profile['last_scanned_formatted'] = date('H:i - d/m', strtotime($profile['last_scanned_at']));
+        $scanVer = !empty($profile['scan_version']) ? (float)$profile['scan_version'] : 1.0;
+        $profile['scan_version_label'] = 'v' . number_format($scanVer, 1);
+        $scannedTime = !empty($profile['last_scanned_at']) ? strtotime($profile['last_scanned_at']) : time();
+        $profile['last_scanned_formatted'] = date('H:i - d/m', $scannedTime);
         return $profile;
     }
 

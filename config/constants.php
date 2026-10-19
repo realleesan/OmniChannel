@@ -3,6 +3,10 @@
  * OMNICHANNEL CHAT SYSTEM - SYSTEM CONSTANTS & CONFIGURATION
  */
 
+// Tắt in cảnh báo lỗi/deprecated trực tiếp ra output để không làm hỏng chuỗi JSON trên PHP 8.4
+ini_set('display_errors', '0');
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_NOTICE & ~E_WARNING);
+
 // Bắt đầu session nếu chưa có
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -91,12 +95,14 @@ define('TAGS', [
  * Trả về JSON chuẩn hóa cho các API endpoint
  */
 function jsonResponse($success, $data = [], $message = '', $statusCode = 200) {
-    http_response_code($statusCode);
+    // Luôn giữ HTTP 200 để tránh Apache/InfinityFree nuốt mất dữ liệu JSON và thay bằng file HTML lỗi
+    http_response_code(200);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
         'success'   => $success,
         'message'   => $message,
         'data'      => $data,
+        'status'    => $statusCode,
         'timestamp' => date('Y-m-d H:i:s')
     ], JSON_UNESCAPED_UNICODE);
     exit;

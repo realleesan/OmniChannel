@@ -385,26 +385,77 @@ async function selectConversation(convId) {
     `;
 
     try {
-        const res = await fetch(`../../api/chat_action.php?action=get_conversation&id=${convId}`);
-        const data = await res.json();
+        // Gọi thẳng qua sync_polling (đã được xác thực hoạt động ổn định trên hosting)
+        const pollParams = new URLSearchParams({
+            tab: AppState.currentTab,
+            unreplied_scope: AppState.unrepliedScope,
+            search: AppState.searchQuery,
+            label_id: AppState.selectedLabelId || 0,
+            channel: AppState.selectedChannel || '',
+            active_conv_id: convId,
+            last_msg_id: 0
+        });
+
+        const res = await fetch(`../../api/sync_polling.php?${pollParams.toString()}`);
+        const text = await res.text();
+        
+        let data = null;
+        try {
+            data = JSON.parse(text);
+        } catch (pe) {
+            // Lọc chuỗi JSON thuần nếu máy chủ chèn thông báo warning/deprecated phía trước
+            const sIdx = text.indexOf('{');
+            const eIdx = text.lastIndexOf('}');
+            if (sIdx !== -1 && eIdx !== -1) {
+                data = JSON.parse(text.substring(sIdx, eIdx + 1));
+            }
+        }
 
         // Kiểm tra xem người dùng có bấm chuyển sang khách khác trong lúc đang tải không
         if (AppState.activeConvId !== convId || thisRequestId !== AppState.fetchRequestId) {
-            return; // Đã đổi khách, bỏ qua kết quả cũ để chống mix tin nhắn
+            return;
         }
 
-        if (data.success && data.data) {
+        if (data && data.active_conversation) {
+            const detail = {
+                conversation: data.active_conversation.conversation,
+                is_mine: data.active_conversation.is_mine,
+                is_view_only: data.active_conversation.is_view_only,
+                messages: data.active_conversation.new_messages || [],
+                profile: data.active_conversation.profile,
+                assigned_labels: data.active_conversation.assigned_labels || []
+            };
+
             // LƯU VÀO CACHE TRÌNH DUYỆT ĐỂ LẦN SAU MỞ LẠI TRONG 0MS
-            AppState.conversationsCache[convId] = data.data;
-            renderConversationView(data.data);
-            runSyncPolling();
+            AppState.conversationsCache[convId] = detail;
+            renderConversationView(detail);
         } else {
-            viewport.innerHTML = `
-                <div style="text-align:center;padding:50px 16px;color:#ef4444;font-size:13px;">
-                    <i class="fa-solid fa-triangle-exclamation" style="font-size:28px;margin-bottom:8px;display:block;"></i>
-                    Không thể tải nội dung hội thoại: ${escapeHtml(data.message || 'Lỗi kết nối')}
-                </div>
-            `;
+            // Thử fallback qua chat_action.php nếu sync_polling chưa trả active_conversation
+            const fallbackRes = await fetch(`../../api/chat_action.php?action=get_conversation&id=${convId}`);
+            const fbText = await fallbackRes.text();
+            let fbData = null;
+            try {
+                fbData = JSON.parse(fbText);
+            } catch (e) {
+                const sIdx = fbText.indexOf('{');
+                const eIdx = fbText.lastIndexOf('}');
+                if (sIdx !== -1 && eIdx !== -1) fbData = JSON.parse(fbText.substring(sIdx, eIdx + 1));
+            }
+
+            if (fbData && fbData.success && fbData.data) {
+                AppState.conversationsCache[convId] = fbData.data;
+                renderConversationView(fbData.data);
+            } else {
+                viewport.innerHTML = `
+                    <div style="text-align:center;padding:50px 16px;color:#ef4444;font-size:13px;">
+                        <i class="fa-solid fa-triangle-exclamation" style="font-size:28px;margin-bottom:8px;display:block;"></i>
+                        Không thể tải nội dung hội thoại. 
+                        <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="selectConversation(${convId})">
+                            <i class="fa-solid fa-rotate-right"></i> Thử lại
+                        </button>
+                    </div>
+                `;
+            }
         }
     } catch (err) {
         console.error('Lỗi tải chi tiết hội thoại:', err);
@@ -412,7 +463,10 @@ async function selectConversation(convId) {
             viewport.innerHTML = `
                 <div style="text-align:center;padding:50px 16px;color:#ef4444;font-size:13px;">
                     <i class="fa-solid fa-triangle-exclamation" style="font-size:28px;margin-bottom:8px;display:block;"></i>
-                    Lỗi kết nối khi tải hội thoại. Vui lòng thử lại.
+                    Lỗi kết nối khi tải hội thoại. 
+                    <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="selectConversation(${convId})">
+                        <i class="fa-solid fa-rotate-right"></i> Bấm để thử lại
+                    </button>
                 </div>
             `;
         }
