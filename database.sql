@@ -100,3 +100,21 @@ INSERT INTO users (id, username, password, fullname, avatar, status, current_cha
 (2, 'nv1', '$2y$10$WanQ/dHJ8jTGKgPDdnrcauGlde3FvMb05IcE7XcKV/C9ihdiyuu/S', 'Nguyễn Văn Quân', 'quan.png', 'ONLINE', 0),
 (3, 'nv2', '$2y$10$WanQ/dHJ8jTGKgPDdnrcauGlde3FvMb05IcE7XcKV/C9ihdiyuu/S', 'Trần Thị Phương', 'phuong.png', 'ONLINE', 0);
 
+-- ========================================================
+-- KHỞI TẠO DANH MỤC SẢN PHẨM MẪU (PHỤC VỤ BIẾN ĐỘNG TEMPLATE)
+-- ========================================================
+INSERT INTO products (id, product_code, name, price, stock_status) VALUES
+(1, 'SP01', 'Áo Thun Oversize Cotton 100%', 189000, 'CÒN HÀNG'),
+(2, 'SP02', 'Quần Jeans Slimfit Co Giãn', 320000, 'CÒN HÀNG'),
+(3, 'SP03', 'Áo Khoác Bomber Kaki 2 Lớp', 450000, 'CÒN HÀNG');
+
+-- ========================================================
+-- KHỞI TẠO MẪU CÂU TRẢ LỜI NHANH (CANNED RESPONSES)
+-- ========================================================
+INSERT INTO templates (id, shortcut, title, content, created_by_user_id) VALUES
+(1, '/chao', 'Lời chào khách hàng', 'Dạ em chào anh/chị ạ! Em có thể hỗ trợ gì cho mình hôm nay ạ?', 1),
+(2, '/size', 'Tư vấn bảng size', 'Dạ bảng size chuẩn bên em: Size S (45-53kg), Size M (54-62kg), Size L (63-70kg), Size XL (71-80kg). Anh/chị cho em xin chiều cao và cân nặng để em tư vấn chuẩn nhất nha!', 1),
+(3, '/sp', 'Thông tin sản phẩm & giá', 'Dạ sản phẩm [ten_sp] (Mã: [ma_sp]) hiện đang có giá ưu đãi là [gia] ạ! Shop đang sẵn hàng gửi ngay trong ngày ạ.', 1),
+(4, '/stk', 'Thông tin chuyển khoản', 'Dạ thông tin thanh toán của bên em: Ngân hàng MB Bank - STK: 0987654321 - Chủ TK: OMNICHANNEL STORE. Nội dung: [ma_sp] + SĐT của anh/chị ạ.', 1),
+(5, '/ship', 'Chính sách vận chuyển & Freeship', 'Dạ bên em hỗ trợ Freeship cho đơn từ 2 sản phẩm trở lên, hoặc đơn thanh toán chuyển khoản trước ạ!', 1);
+

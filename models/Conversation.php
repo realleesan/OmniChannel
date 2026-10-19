@@ -92,22 +92,60 @@ class Conversation {
             $params[':search'] = '%' . trim($search) . '%';
         }
 
-        // Sắp xếp: Hội thoại có tin mới nhất lên trên
-        $sql .= " ORDER BY c.last_message_at DESC";
+        // Sắp xếp theo ưu tiên: Nếu lọc Chưa trả lời thì tin chờ lâu nhất lên trước (FIFO), ngược lại tin chưa trả lời lên trước rồi đến tin mới nhất
+        if ($onlyUnreplied) {
+            $sql .= " ORDER BY c.last_message_at ASC";
+        } else {
+            $sql .= " ORDER BY (c.status = 'UNREPLIED') DESC, c.last_message_at DESC";
+        }
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         $conversations = $stmt->fetchAll();
 
-        // Bổ sung cờ xác định quyền (is_mine, is_view_only)
+        // Bổ sung cờ xác định quyền (is_mine, is_view_only) và thời gian chờ
         foreach ($conversations as &$conv) {
             $conv['is_mine'] = ($conv['assigned_user_id'] == $currentUserId);
-            // Khóa View-Only nếu hội thoại đã được gán cho nhân viên khác
             $conv['is_view_only'] = (!empty($conv['assigned_user_id']) && $conv['assigned_user_id'] != $currentUserId);
             $conv['time_ago'] = timeAgo($conv['last_message_at']);
+
+            $waitingSeconds = time() - strtotime($conv['last_message_at']);
+            $waitingMinutes = max(0, floor($waitingSeconds / 60));
+            $conv['waiting_minutes'] = $waitingMinutes;
+            if ($conv['status'] === 'UNREPLIED') {
+                if ($waitingMinutes < 1) {
+                    $conv['waiting_label'] = 'Chờ phản hồi';
+                } elseif ($waitingMinutes < 60) {
+                    $conv['waiting_label'] = "Chờ {$waitingMinutes}p";
+                } else {
+                    $conv['waiting_label'] = "Chờ " . floor($waitingMinutes / 60) . "h";
+                }
+            } else {
+                $conv['waiting_label'] = '';
+            }
         }
 
         return $conversations;
+    }
+
+    /**
+     * Đếm số lượng hội thoại theo từng tab phục vụ badge real-time
+     */
+    public function getCounts($currentUserId) {
+        $stmt = $this->db->prepare("
+            SELECT 
+                COUNT(*) as total_all,
+                SUM(CASE WHEN assigned_user_id = :uid THEN 1 ELSE 0 END) as total_mine,
+                SUM(CASE WHEN status = 'UNREPLIED' THEN 1 ELSE 0 END) as total_unreplied
+            FROM conversations
+        ");
+        $stmt->execute([':uid' => $currentUserId]);
+        $row = $stmt->fetch();
+        return [
+            'all'       => (int)($row['total_all'] ?? 0),
+            'mine'      => (int)($row['total_mine'] ?? 0),
+            'unreplied' => (int)($row['total_unreplied'] ?? 0)
+        ];
     }
 
     public function updateLastMessage($id, $content, $status = null) {

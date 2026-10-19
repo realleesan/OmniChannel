@@ -79,28 +79,45 @@ if (isset($_GET['logout'])) {
          ==================================================== -->
     <aside class="zone-sidebar-left">
         <div class="sidebar-controls">
-            <!-- Ô tìm kiếm hội thoại -->
+            <!-- Header Hộp thư -->
+            <div class="inbox-header-row">
+                <div class="inbox-title">
+                    <i class="fa-solid fa-inbox"></i>
+                    <span>Hộp Thư Hội Thoại</span>
+                </div>
+                <span class="inbox-total-pill" id="totalConvCount">0 hội thoại</span>
+            </div>
+
+            <!-- Ô tìm kiếm hội thoại gọn gàng -->
             <div class="search-box-wrapper">
                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                <input type="text" id="searchInput" class="search-input" placeholder="Tìm theo tên khách, SĐT, tin nhắn..." oninput="handleSearch(this.value)">
+                <input type="text" id="searchInput" class="search-input" placeholder="Tìm theo tên, SĐT, tin nhắn..." oninput="handleSearch(this.value)">
+                <span class="search-shortcut-badge">Ctrl K</span>
             </div>
 
-            <!-- UC2.2: 2 Tab lọc Tất cả vs Của tôi -->
+            <!-- Segmented Tabs: Tất cả | Của tôi | Chờ trả lời -->
             <div class="filter-tabs-row">
-                <button type="button" class="tab-btn active" id="tabAll" onclick="switchTab('all')">Tất cả</button>
-                <button type="button" class="tab-btn" id="tabMine" onclick="switchTab('mine')">Của tôi</button>
+                <button type="button" class="tab-btn active" id="tabAll" onclick="switchTab('all')">
+                    <span>Tất cả</span>
+                    <span class="tab-badge" id="badgeAll">0</span>
+                </button>
+                <button type="button" class="tab-btn" id="tabMine" onclick="switchTab('mine')">
+                    <span>Của tôi</span>
+                    <span class="tab-badge" id="badgeMine">0</span>
+                </button>
+                <button type="button" class="tab-btn unreplied-tab-btn" id="chipUnreplied" onclick="toggleUnrepliedFilter()" title="Lọc các tin nhắn khách đang chờ lâu nhất (FIFO)">
+                    <span class="unreplied-pulse-dot"></span>
+                    <span>Chờ trả lời</span>
+                    <span class="tab-badge badge-unreplied" id="badgeUnreplied">0</span>
+                </button>
             </div>
-
-            <!-- UC1.2: Nút chip lọc Chưa trả lời -->
-            <button type="button" class="chip-unreplied-filter" id="chipUnreplied" onclick="toggleUnrepliedFilter()">
-                <i class="fa-regular fa-circle-dot"></i> Chưa trả lời
-            </button>
         </div>
 
-        <!-- Danh sách thẻ cuộc hội thoại -->
+        <!-- Danh sách thẻ cuộc hội thoại (Respond.io Style) -->
         <div class="conversations-list" id="conversationsContainer">
-            <div style="text-align:center;padding:30px;color:#94a3b8;font-size:13px;">
-                <i class="fa-solid fa-spinner fa-spin"></i> Đang tải danh sách hội thoại...
+            <div class="conversations-loading">
+                <i class="fa-solid fa-circle-notch fa-spin"></i>
+                <span>Đang tải danh sách hội thoại...</span>
             </div>
         </div>
     </aside>
@@ -112,42 +129,56 @@ if (isset($_GET['logout'])) {
         <!-- Header khung chat hội thoại đang chọn -->
         <div class="chat-center-header" id="chatHeader" style="display:none;">
             <div class="chat-partner-info">
-                <div class="partner-avatar" id="activeAvatar">?</div>
-                <div>
-                    <div class="partner-name" id="activeSenderName">Khách Hàng</div>
-                    <div class="partner-meta">
-                        <span id="activeChannelBadge"><i class="fa-solid fa-comments"></i> Webchat</span>
-                        <span>•</span>
+                <div class="partner-avatar-wrapper">
+                    <div class="partner-avatar" id="activeAvatar">?</div>
+                    <span class="partner-channel-mini-badge" id="activeAvatarChannelIcon"><i class="fa-solid fa-comments"></i></span>
+                </div>
+                <div class="partner-meta-block">
+                    <div class="partner-name-row">
+                        <span class="partner-name" id="activeSenderName">Khách Hàng</span>
+                        <span id="activeChannelBadge" class="channel-pill-badge"><i class="fa-solid fa-comments"></i> Webchat</span>
                         <span id="activeTagBadge" class="card-tag-badge">Đang tư vấn</span>
+                    </div>
+                    <div class="partner-submeta-row">
+                        <span class="waiting-timer-chip" id="activeWaitingChip" style="display:none;">
+                            <i class="fa-regular fa-clock"></i> <span id="activeWaitingTime">Chờ phản hồi</span>
+                        </span>
+                        <span class="partner-assignee-text" id="activeAssigneeText">Phụ trách: Chưa gán</span>
                     </div>
                 </div>
             </div>
-            <div id="activeLockIndicator"></div>
+            <div class="chat-header-actions" id="activeLockIndicator"></div>
+        </div>
+
+        <!-- UC2.2: Banner Khóa View-Only khi khách thuộc quyền nhân viên khác -->
+        <div class="view-only-lock-banner" id="viewOnlyLockBanner" style="display:none;">
+            <div class="lock-banner-icon"><i class="fa-solid fa-shield-halved"></i></div>
+            <div class="lock-banner-body">
+                <div class="lock-banner-title">CHẾ ĐỘ CHỈ XEM (VIEW-ONLY)</div>
+                <div class="lock-banner-desc" id="viewOnlyLockText">
+                    Hội thoại đang được phụ trách bởi nhân viên khác. Bạn không có quyền gửi tin nhắn.
+                </div>
+            </div>
         </div>
 
         <!-- Khu vực tin nhắn cuộn -->
         <div class="chat-messages-viewport" id="messagesViewport">
-            <div style="text-align:center;margin:auto;color:#94a3b8;font-size:14px;">
-                <i class="fa-regular fa-comments" style="font-size:48px;margin-bottom:12px;display:block;opacity:0.5;"></i>
-                Chọn một cuộc trò chuyện từ danh sách bên trái để bắt đầu tư vấn
+            <div class="chat-empty-state">
+                <div class="empty-icon-circle">
+                    <i class="fa-regular fa-comments"></i>
+                </div>
+                <h3>Chọn cuộc trò chuyện để bắt đầu</h3>
+                <p>Tin nhắn đa kênh được tự động đồng bộ theo thời gian thực</p>
             </div>
-        </div>
-
-        <!-- UC2.2: Banner màu xám Khóa View-Only khi khách thuộc quyền nhân viên khác -->
-        <div class="view-only-lock-banner" id="viewOnlyLockBanner" style="display:none;">
-            <i class="fa-solid fa-lock"></i>
-            <span id="viewOnlyLockText">
-                Chế độ Chỉ xem (View-only) – Hội thoại đang được phụ trách bởi nhân viên khác. Bạn không có quyền gửi tin nhắn.
-            </span>
         </div>
 
         <!-- Khung nhập liệu tin nhắn (Ẩn khi bị khóa View-Only) -->
         <div class="chat-input-container" id="chatInputArea" style="display:none;">
-            <!-- Gợi ý template khi gõ phím tắt -->
+            <!-- Autocomplete Popup khi gõ phím tắt / -->
             <div class="template-shortcut-preview" id="shortcutPreviewBar">
-                <span id="shortcutPreviewText"><i class="fa-regular fa-lightbulb"></i> Gợi ý: Gõ <strong>/</strong> để chọn mẫu câu trả lời nhanh</span>
-                <button type="button" style="background:none;border:none;cursor:pointer;color:#4f46e5;font-weight:700;" onclick="applyShortcutDirectly()">
-                    Điền ngay <i class="fa-solid fa-arrow-right"></i>
+                <span id="shortcutPreviewText"><i class="fa-solid fa-bolt"></i> Gợi ý: Gõ <strong>/</strong> để chọn mẫu câu trả lời nhanh</span>
+                <button type="button" class="btn-apply-shortcut" onclick="applyShortcutDirectly()">
+                    <span>Điền mẫu</span> <i class="fa-solid fa-arrow-turn-down"></i>
                 </button>
             </div>
 
@@ -163,7 +194,7 @@ if (isset($_GET['logout'])) {
 
                     <!-- UC3.2: Popup Thêm mẫu tin nhắn nhanh -->
                     <button type="button" class="icon-action-btn" title="Tạo thêm mẫu tin nhắn nhanh" onclick="openTemplateModal()">
-                        <i class="fa-solid fa-plus-circle"></i>
+                        <i class="fa-solid fa-bolt"></i>
                     </button>
 
                     <!-- Nút gửi tin nhắn -->
@@ -177,83 +208,129 @@ if (isset($_GET['logout'])) {
     </main>
 
     <!-- ====================================================
-         PHÂN VÙNG 3: SIDEBAR PHẢI (Hồ sơ Agent & Gắn nhãn)
+         PHÂN VÙNG 3: SIDEBAR PHẢI (TÓM TẮT THÔNG TIN & CRM - Respond.io Style)
          ==================================================== -->
     <aside class="zone-sidebar-right" id="rightSidebar" style="display:none;">
-        <!-- Thẻ hồ sơ khách hàng -->
-        <div class="profile-card-widget">
-            <div class="profile-header-meta">
-                <span class="profile-title">Thẻ Hồ Sơ Khách Hàng</span>
-                <span class="profile-version-chip" id="scanVersionBadge">v1.0</span>
+        <div class="sidebar-right-header">
+            <div class="sidebar-right-title">
+                <i class="fa-solid fa-id-card-clip"></i>
+                <span>Tóm Tắt Khách Hàng</span>
             </div>
+            <span class="profile-version-chip" id="scanVersionBadge">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> v1.0
+            </span>
+        </div>
 
-            <div class="profile-info-group">
-                <div class="profile-field-row">
-                    <span class="field-label">Tên khách hàng:</span>
-                    <div class="field-value-wrap">
-                        <span id="profileCustomerName">Đang tải...</span>
-                        <i class="fa-solid fa-pen-to-square btn-inline-edit" title="Sửa tên" onclick="editFieldPrompt('customer_name', 'Tên khách hàng')"></i>
-                    </div>
+        <!-- Thẻ đại diện danh tính khách hàng -->
+        <div class="customer-profile-card">
+            <div class="customer-avatar-large" id="rightCustomerAvatar">?</div>
+            <div class="customer-primary-meta">
+                <div class="customer-name-heading">
+                    <span id="profileCustomerName">Đang tải...</span>
+                    <button type="button" class="btn-edit-icon" title="Chỉnh sửa tên khách hàng" onclick="editFieldPrompt('customer_name', 'Tên khách hàng')">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
                 </div>
-
-                <div class="profile-field-row">
-                    <span class="field-label">Size thường mặc:</span>
-                    <div class="field-value-wrap">
-                        <span id="profilePreferredSize">Chưa xác định</span>
-                        <i class="fa-solid fa-pen-to-square btn-inline-edit" title="Sửa size" onclick="editFieldPrompt('preferred_size', 'Kích cỡ thường mặc')"></i>
-                    </div>
-                </div>
-
-                <div class="profile-field-row">
-                    <span class="field-label">Đơn hàng mua gần nhất:</span>
-                    <div class="field-value-wrap">
-                        <span id="profileRecentPurchases" style="font-size:12.5px;font-weight:500;color:#475569;">Chưa có đơn cũ</span>
-                    </div>
-                </div>
+                <div class="customer-channel-subtext" id="rightChannelSubtext">Kênh Webchat</div>
             </div>
         </div>
 
-        <!-- UC3.3: Huy hiệu Đỏ cảnh báo Boom Hàng -->
+        <!-- UC3.3: Thẻ Cảnh báo Rủi ro Bùng hàng -->
         <div class="boom-risk-warning-badge" id="boomRiskBadge" style="display:none;">
-            <i class="fa-solid fa-triangle-exclamation boom-icon"></i>
-            <div>
-                <div class="boom-text-title">CẢNH BÁO RỦI RO ĐẶT HÀNG</div>
-                <div class="boom-text-desc" id="boomRiskNote">Lịch sử: Từng từ chối nhận hàng. Đề nghị xác nhận kỹ thông tin đơn trước khi gửi.</div>
+            <div class="boom-badge-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            <div class="boom-badge-content">
+                <div class="boom-text-title">CẢNH BÁO RỦI RO BÙNG HÀNG</div>
+                <div class="boom-text-desc" id="boomRiskNote">
+                    Phát hiện lịch sử từ chối nhận hàng. Đề nghị yêu cầu đặt cọc trước khi giao!
+                </div>
             </div>
         </div>
 
-        <!-- UC3.3: Nút Quét lại dữ liệu Agent -->
+        <div class="safe-customer-badge" id="safeCustomerBadge" style="display:none;">
+            <i class="fa-solid fa-circle-check"></i>
+            <span>Khách hàng uy tín - Chưa ghi nhận rủi ro hoàn đơn</span>
+        </div>
+
+        <!-- Thuộc tính bóc tách thông tin khách hàng (Customer Attributes) -->
+        <div class="profile-section-widget">
+            <div class="section-widget-title">
+                <i class="fa-solid fa-sliders"></i> Thông Tin Bóc Tách
+            </div>
+
+            <!-- Size thường mặc -->
+            <div class="attribute-item-box">
+                <div class="attr-header">
+                    <span class="attr-label"><i class="fa-solid fa-shirt"></i> Size thường mặc:</span>
+                    <button type="button" class="btn-edit-inline" onclick="editFieldPrompt('preferred_size', 'Kích cỡ thường mặc')">
+                        <i class="fa-solid fa-pen-to-square"></i> Sửa
+                    </button>
+                </div>
+                <div class="attr-value-pill" id="profilePreferredSize">Chưa xác định</div>
+                <div class="quick-size-row">
+                    <span class="quick-size-hint">Chọn nhanh:</span>
+                    <button type="button" class="size-chip-btn" onclick="quickSetSize('S')">S</button>
+                    <button type="button" class="size-chip-btn" onclick="quickSetSize('M')">M</button>
+                    <button type="button" class="size-chip-btn" onclick="quickSetSize('L')">L</button>
+                    <button type="button" class="size-chip-btn" onclick="quickSetSize('XL')">XL</button>
+                </div>
+            </div>
+
+            <!-- Sản phẩm quan tâm / Mua gần nhất -->
+            <div class="attribute-item-box">
+                <div class="attr-header">
+                    <span class="attr-label"><i class="fa-solid fa-bag-shopping"></i> Mua gần nhất:</span>
+                    <button type="button" class="btn-edit-inline" onclick="editFieldPrompt('recent_purchases', 'Sản phẩm mua gần nhất')">
+                        <i class="fa-solid fa-pen-to-square"></i> Sửa
+                    </button>
+                </div>
+                <div class="attr-value-text" id="profileRecentPurchases">Chưa có thông tin đơn cũ</div>
+            </div>
+
+            <!-- Thời gian cập nhật gần nhất -->
+            <div class="attr-footer-time">
+                <span>Cập nhật lần cuối:</span>
+                <strong id="profileLastUpdated">Vừa xong</strong>
+            </div>
+        </div>
+
+        <!-- UC3.3: Nút Kích hoạt Agent Quét Lại -->
         <button type="button" class="btn-rescan-agent" id="btnRescanAgent" onclick="triggerAgentScan()">
             <i class="fa-solid fa-wand-magic-sparkles"></i>
-            <span>QUÉT DỮ LIỆU TỰ ĐỘNG</span>
+            <span>QUÉT LẠI HỒ SƠ (AI AGENT)</span>
         </button>
 
-        <!-- UC3.4: Bộ chọn Gắn nhãn trạng thái -->
+        <!-- UC3.4: Bộ chọn Gắn nhãn trạng thái tiến độ -->
         <div class="tag-selector-widget">
-            <span class="profile-title">Gắn Nhãn Hội Thoại</span>
+            <div class="section-widget-title">
+                <i class="fa-solid fa-tags"></i> Tiến Độ Tư Vấn
+            </div>
             <div class="tag-options-list">
-                <label class="tag-radio-label">
+                <label class="tag-radio-label tag-opt-consulting">
                     <input type="radio" name="convTagRadio" value="DANG_TU_VAN" onchange="handleTagChange(this.value)">
-                    <span class="tag-color-indicator" style="background:#10B981;"></span>
-                    <span>Đang tư vấn</span>
+                    <span class="tag-indicator-dot"></span>
+                    <span class="tag-label-text">Đang tư vấn</span>
+                    <i class="fa-solid fa-check tag-check-icon"></i>
                 </label>
 
-                <label class="tag-radio-label">
+                <label class="tag-radio-label tag-opt-closed">
                     <input type="radio" name="convTagRadio" value="DA_CHOT" onchange="handleTagChange(this.value)">
-                    <span class="tag-color-indicator" style="background:#3B82F6;"></span>
-                    <span>Đã chốt đơn</span>
+                    <span class="tag-indicator-dot"></span>
+                    <span class="tag-label-text">Đã chốt đơn</span>
+                    <i class="fa-solid fa-check tag-check-icon"></i>
                 </label>
 
-                <label class="tag-radio-label">
+                <label class="tag-radio-label tag-opt-pending">
                     <input type="radio" name="convTagRadio" value="CHO_CHUYEN_KHOAN" onchange="handleTagChange(this.value)">
-                    <span class="tag-color-indicator" style="background:#F59E0B;"></span>
-                    <span>Chờ chuyển khoản</span>
+                    <span class="tag-indicator-dot"></span>
+                    <span class="tag-label-text">Chờ chuyển khoản</span>
+                    <i class="fa-solid fa-check tag-check-icon"></i>
                 </label>
 
-                <label class="tag-radio-label">
+                <label class="tag-radio-label tag-opt-boom">
                     <input type="radio" name="convTagRadio" value="BOOM_HANG" onchange="handleTagChange(this.value)">
-                    <span class="tag-color-indicator" style="background:#EF4444;"></span>
-                    <span>Rủi ro hoàn hàng</span>
+                    <span class="tag-indicator-dot"></span>
+                    <span class="tag-label-text">Rủi ro hoàn hàng</span>
+                    <i class="fa-solid fa-check tag-check-icon"></i>
                 </label>
             </div>
         </div>

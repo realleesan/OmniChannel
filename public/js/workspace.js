@@ -1,7 +1,7 @@
 /**
  * JAVASCRIPT: workspace.js
- * Quản lý tương tác thời gian thực, polling AJAX (2.5s), phím tắt /1,
- * khóa View-only, đổi ca trực, Agent bóc tách và gắn nhãn hội thoại
+ * Quản lý tương tác thời gian thực, polling AJAX (2.5s), phím tắt template,
+ * khóa View-only, đổi ca trực, Agent bóc tách và gắn nhãn hội thoại (Respond.io Style)
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -21,11 +21,11 @@ const AppState = {
 };
 
 const CHANNEL_CONFIG = {
-    'WEBCHAT':  { icon: '<i class="fa-solid fa-comments" style="color:#10B981;"></i>', label: 'Webchat' },
-    'FACEBOOK': { icon: '<i class="fa-brands fa-facebook-messenger" style="color:#1877F2;"></i>', label: 'Facebook' },
-    'ZALO':     { icon: '<i class="fa-solid fa-comment-dots" style="color:#0068FF;"></i>', label: 'Zalo' },
-    'SHOPEE':   { icon: '<i class="fa-solid fa-bag-shopping" style="color:#EE4D2D;"></i>', label: 'Shopee' },
-    'TIKTOK':   { icon: '<i class="fa-brands fa-tiktok" style="color:#000000;"></i>', label: 'TikTok' }
+    'WEBCHAT':  { icon: '<i class="fa-solid fa-comments"></i>', label: 'Webchat', class: 'badge-channel-WEBCHAT' },
+    'FACEBOOK': { icon: '<i class="fa-brands fa-facebook-messenger"></i>', label: 'Facebook Messenger', class: 'badge-channel-FACEBOOK' },
+    'ZALO':     { icon: '<i class="fa-solid fa-comment-dots"></i>', label: 'Zalo Chat', class: 'badge-channel-ZALO' },
+    'SHOPEE':   { icon: '<i class="fa-solid fa-bag-shopping"></i>', label: 'Shopee Chat', class: 'badge-channel-SHOPEE' },
+    'TIKTOK':   { icon: '<i class="fa-brands fa-tiktok"></i>', label: 'TikTok Shop', class: 'badge-channel-TIKTOK' }
 };
 
 const TAG_LABELS = {
@@ -41,11 +41,23 @@ function initWorkspace() {
 
     // 2. Kích hoạt chu kỳ Polling AJAX định kỳ 2.5 giây
     AppState.pollingInterval = setInterval(runSyncPolling, 2500);
+
+    // 3. Phím tắt Ctrl + K để tìm kiếm
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) searchInput.focus();
+        }
+    });
 }
 
 /**
  * Thực thi Polling đồng bộ tin nhắn và trạng thái ca trực mỗi 2.5s
  */
+let renderPollCounter = 0;
+let isRenderPolling = false;
+
 async function runSyncPolling() {
     try {
         const params = new URLSearchParams({
@@ -69,6 +81,11 @@ async function runSyncPolling() {
         // Cập nhật trạng thái ca trực của nhân viên ở Header nếu có thay đổi
         updateHeaderShiftStatus(data.current_user_status);
 
+        // Cập nhật số lượng đếm trên badge các tab
+        if (data.counts) {
+            updateTabBadges(data.counts);
+        }
+
         // Cập nhật danh sách thẻ hội thoại bên trái
         renderConversationsList(data.conversations);
 
@@ -87,8 +104,9 @@ async function runSyncPolling() {
     }
 }
 
-let renderPollCounter = 0;
-let isRenderPolling = false;
+/**
+ * Kéo tin nhắn từ Render Webhook Gateway về InfinityFree
+ */
 async function pollRenderGateway() {
     if (!window.APP_CONFIG || !window.APP_CONFIG.RENDER_GATEWAY_URL || isRenderPolling) return;
     isRenderPolling = true;
@@ -115,6 +133,25 @@ async function pollRenderGateway() {
 }
 
 /**
+ * Cập nhật số lượng đếm trên các Badge Tab
+ */
+function updateTabBadges(counts) {
+    const elAll = document.getElementById('badgeAll');
+    const elMine = document.getElementById('badgeMine');
+    const elUnreplied = document.getElementById('badgeUnreplied');
+    const elTotal = document.getElementById('totalConvCount');
+
+    if (elAll) elAll.innerText = counts.all || '0';
+    if (elMine) elMine.innerText = counts.mine || '0';
+    if (elUnreplied) {
+        elUnreplied.innerText = counts.unreplied || '0';
+    }
+    if (elTotal) {
+        elTotal.innerText = `${counts.all || 0} hội thoại`;
+    }
+}
+
+/**
  * Lấy danh sách hội thoại ban đầu
  */
 async function fetchConversations(selectFirst = false) {
@@ -129,6 +166,9 @@ async function fetchConversations(selectFirst = false) {
         const data = await res.json();
 
         if (data.success && data.conversations) {
+            if (data.counts) {
+                updateTabBadges(data.counts);
+            }
             renderConversationsList(data.conversations);
 
             // Tự động chọn hội thoại đầu tiên nếu chưa chọn hội thoại nào
@@ -142,13 +182,14 @@ async function fetchConversations(selectFirst = false) {
 }
 
 /**
- * Hiển thị danh sách thẻ hội thoại ở Sidebar Trái
+ * Hiển thị danh sách thẻ hội thoại ở Sidebar Trái (Respond.io Style)
  */
 function renderConversationsList(conversations) {
     const container = document.getElementById('conversationsContainer');
     if (!conversations || conversations.length === 0) {
         container.innerHTML = `
             <div style="text-align:center;padding:40px 16px;color:#94a3b8;font-size:13px;">
+                <i class="fa-regular fa-folder-open" style="font-size:32px;margin-bottom:8px;display:block;opacity:0.4;"></i>
                 Không có hội thoại nào phù hợp
             </div>
         `;
@@ -158,33 +199,47 @@ function renderConversationsList(conversations) {
     let html = '';
     conversations.forEach(conv => {
         const isActive = (conv.id == AppState.activeConvId);
-        const channelCfg = CHANNEL_CONFIG[conv.channel] || { icon: '<i class="fa-solid fa-comment"></i>', label: conv.channel };
+        const channelCfg = CHANNEL_CONFIG[conv.channel] || { icon: '<i class="fa-solid fa-comment"></i>', label: conv.channel, class: 'badge-channel-WEBCHAT' };
         const tagLabel = TAG_LABELS[conv.tag] || conv.tag;
         const assignedName = conv.assigned_fullname || 'Chưa gán';
-        const assignedAvatar = conv.assigned_fullname ? conv.assigned_fullname.charAt(0) : '?';
+        const assignedAvatar = conv.assigned_fullname ? conv.assigned_fullname.charAt(0).toUpperCase() : '?';
         const isUnreplied = (conv.status === 'UNREPLIED');
+        const initial = (conv.sender_name || 'K').charAt(0).toUpperCase();
 
         html += `
-            <div class="conversation-card ${isActive ? 'active' : ''}" onclick="selectConversation(${conv.id})">
-                ${isUnreplied ? '<div class="unread-indicator-dot" title="Tin nhắn chưa phản hồi"></div>' : ''}
+            <div class="conversation-card ${isActive ? 'active' : ''} ${isUnreplied ? 'is-unreplied' : ''}" onclick="selectConversation(${conv.id})">
+                <div class="card-avatar-wrap">
+                    <div class="card-avatar-circle">${escapeHtml(initial)}</div>
+                    <span class="card-channel-mini-badge badge-channel-${conv.channel}">
+                        ${channelCfg.icon}
+                    </span>
+                </div>
                 
-                <div class="card-top-row">
-                    <div class="card-sender-info">
-                        <span class="channel-badge-icon">${channelCfg.icon}</span>
-                        <span class="card-sender-name">${escapeHtml(conv.sender_name)}</span>
+                <div class="card-content-block">
+                    <div class="card-header-line">
+                        <span class="card-sender-name" title="${escapeHtml(conv.sender_name)}">${escapeHtml(conv.sender_name)}</span>
+                        ${isUnreplied ? `
+                            <span class="card-waiting-chip" title="Thời gian khách đang chờ">
+                                <i class="fa-regular fa-clock"></i> ${conv.waiting_label || 'Chờ'}
+                            </span>
+                        ` : `
+                            <span class="card-time-ago">${conv.time_ago}</span>
+                        `}
                     </div>
-                    <span class="card-time-ago">${conv.time_ago}</span>
-                </div>
 
-                <div class="card-last-message">
-                    ${conv.last_message ? escapeHtml(conv.last_message) : '<i>[Bắt đầu hội thoại]</i>'}
-                </div>
+                    <div class="card-snippet-text ${isUnreplied ? 'unreplied-text' : ''}">
+                        ${conv.last_message ? escapeHtml(conv.last_message) : '<i>[Bắt đầu hội thoại]</i>'}
+                    </div>
 
-                <div class="card-bottom-row">
-                    <span class="card-tag-badge tag-${conv.tag}">${tagLabel}</span>
-                    <div class="assigned-staff-badge" title="Người phụ trách ca">
-                        <span class="mini-staff-avatar">${assignedAvatar}</span>
-                        <span>${escapeHtml(assignedName)}</span>
+                    <div class="card-footer-line">
+                        <span class="card-tag-pill tag-${conv.tag}">
+                            <span class="tag-dot"></span>
+                            <span>${tagLabel}</span>
+                        </span>
+                        <div class="assigned-staff-chip" title="Phụ trách: ${escapeHtml(assignedName)}">
+                            <span class="mini-staff-avatar">${assignedAvatar}</span>
+                            <span>${escapeHtml(assignedName)}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -225,16 +280,38 @@ function renderConversationView(detail) {
     const { conversation, is_mine, is_view_only, messages, profile } = detail;
 
     // 1. Hiển thị Header khung chat
-    const channelCfg = CHANNEL_CONFIG[conversation.channel] || { icon: '<i class="fa-solid fa-comment"></i>', label: conversation.channel };
+    const channelCfg = CHANNEL_CONFIG[conversation.channel] || { icon: '<i class="fa-solid fa-comment"></i>', label: conversation.channel, class: 'badge-channel-WEBCHAT' };
     document.getElementById('chatHeader').style.display = 'flex';
     document.getElementById('rightSidebar').style.display = 'flex';
     document.getElementById('activeSenderName').innerText = conversation.sender_name;
-    document.getElementById('activeAvatar').innerText = conversation.sender_name.charAt(0);
+    document.getElementById('activeAvatar').innerText = (conversation.sender_name || 'K').charAt(0).toUpperCase();
+
+    const avatarChannelIcon = document.getElementById('activeAvatarChannelIcon');
+    if (avatarChannelIcon) {
+        avatarChannelIcon.innerHTML = channelCfg.icon;
+        avatarChannelIcon.className = `partner-channel-mini-badge badge-channel-${conversation.channel}`;
+    }
+
     document.getElementById('activeChannelBadge').innerHTML = `${channelCfg.icon} ${channelCfg.label}`;
     
     const tagBadge = document.getElementById('activeTagBadge');
     tagBadge.innerText = TAG_LABELS[conversation.tag] || conversation.tag;
     tagBadge.className = `card-tag-badge tag-${conversation.tag}`;
+
+    // Cập nhật waiting time & assignee text
+    const waitingChip = document.getElementById('activeWaitingChip');
+    const waitingTime = document.getElementById('activeWaitingTime');
+    if (conversation.status === 'UNREPLIED') {
+        waitingChip.style.display = 'inline-flex';
+        waitingTime.innerText = conversation.waiting_label || 'Chờ phản hồi';
+    } else {
+        waitingChip.style.display = 'none';
+    }
+
+    const assigneeText = document.getElementById('activeAssigneeText');
+    if (assigneeText) {
+        assigneeText.innerText = `Phụ trách: ${conversation.assigned_fullname || 'Chưa gán'}`;
+    }
 
     // 2. Xử lý cơ chế khóa View-Only (UC2.2)
     AppState.isViewOnly = is_view_only;
@@ -242,13 +319,11 @@ function renderConversationView(detail) {
     const inputArea = document.getElementById('chatInputArea');
 
     if (is_view_only) {
-        // Khóa cứng ô chat, hiện banner xám
         lockBanner.style.display = 'flex';
         inputArea.style.display = 'none';
         document.getElementById('viewOnlyLockText').innerText = 
-            `🔒 Chế độ Chỉ xem (View-only) – Hội thoại đang được phụ trách bởi ${conversation.assigned_fullname}. Bạn không có quyền gửi tin nhắn.`;
+            `Hội thoại đang được phụ trách bởi ${conversation.assigned_fullname || 'nhân viên khác'}. Bạn không có quyền gửi tin nhắn.`;
     } else {
-        // Mở khóa nhập liệu bình thường
         lockBanner.style.display = 'none';
         inputArea.style.display = 'block';
     }
@@ -280,6 +355,8 @@ function handleActiveConversationSync(activeData) {
         if (is_view_only) {
             lockBanner.style.display = 'flex';
             inputArea.style.display = 'none';
+            document.getElementById('viewOnlyLockText').innerText = 
+                `Hội thoại đang được phụ trách bởi ${conversation.assigned_fullname || 'nhân viên khác'}. Bạn không có quyền gửi tin nhắn.`;
         } else {
             lockBanner.style.display = 'none';
             inputArea.style.display = 'block';
@@ -315,18 +392,19 @@ function appendMessageBubble(msg, isNew = false) {
     if (msg.attachment_url) {
         attachmentHtml = `
             <div>
-                <a href="${msg.attachment_url}" target="_blank">
-                    <img src="${msg.attachment_url}" class="message-attachment-img" alt="Ảnh đính kèm">
+                <a href="${escapeHtml(msg.attachment_url)}" target="_blank">
+                    <img src="${escapeHtml(msg.attachment_url)}" class="message-attachment-img" alt="Ảnh đính kèm">
                 </a>
             </div>
         `;
     }
 
     div.innerHTML = `
-        <div class="message-meta-header">${senderTitle} • ${msg.time_formatted || ''}</div>
+        <div class="message-meta-header">${escapeHtml(senderTitle)}</div>
         <div class="message-bubble">
             ${escapeHtml(msg.content)}
             ${attachmentHtml}
+            <div class="message-timestamp">${msg.time_formatted || ''}</div>
         </div>
     `;
 
@@ -375,7 +453,7 @@ async function sendMessage(attachmentUrl = null) {
         if (data.success && data.data) {
             appendMessageBubble(data.data, true);
             scrollChatToBottom();
-            runSyncPolling(); // Lập tức đồng bộ lại danh sách thẻ
+            runSyncPolling();
         } else {
             alert(data.message || 'Không thể gửi tin nhắn');
         }
@@ -394,14 +472,14 @@ function handleChatKeyDown(e) {
 }
 
 /**
- * UC3.1: Nhận diện phím tắt mẫu tin nhắn /1
+ * UC3.1: Nhận diện phím tắt mẫu tin nhắn /
  */
 let shortcutTimeout = null;
 function handleShortcutDetect(e) {
     const val = e.target.value;
     const previewBar = document.getElementById('shortcutPreviewBar');
 
-    if (val.trim() === '/1' || val.trim().startsWith('/')) {
+    if (val.trim().startsWith('/')) {
         previewBar.style.display = 'flex';
         clearTimeout(shortcutTimeout);
         shortcutTimeout = setTimeout(() => {
@@ -419,7 +497,10 @@ async function fetchResolvedShortcut(shortcut) {
         if (data.success && data.data) {
             window.CURRENT_RESOLVED_TEMPLATE = data.data.compiled_content;
             document.getElementById('shortcutPreviewText').innerHTML = 
-                `<i class="fa-regular fa-lightbulb"></i> Gợi ý: Gõ <strong>${shortcut}</strong> để điền mẫu <em>${escapeHtml(data.data.template.title)}</em>`;
+                `<i class="fa-solid fa-bolt"></i> Mẫu: <strong>${escapeHtml(data.data.template.title)}</strong> (<em>${escapeHtml(shortcut)}</em>)`;
+        } else {
+            document.getElementById('shortcutPreviewText').innerHTML = 
+                `<i class="fa-solid fa-circle-question"></i> Đang tìm mẫu tin cho <strong>${escapeHtml(shortcut)}</strong>...`;
         }
     } catch (err) {
         console.warn('Lỗi kiểm tra shortcut:', err);
@@ -465,31 +546,64 @@ async function handleAttachmentUpload(input) {
 }
 
 /**
- * Cập nhật Sidebar Phải (Hồ sơ Agent & Gắn nhãn)
+ * Cập nhật Sidebar Phải (Hồ sơ Khách Hàng 360 & Tóm tắt - Respond.io Style)
  */
 function renderProfileSidebar(profile, conv) {
     if (!profile) return;
 
-    document.getElementById('profileCustomerName').innerText = profile.customer_name || conv.sender_name;
+    const customerName = profile.customer_name || conv.sender_name || 'Khách Hàng';
+    document.getElementById('profileCustomerName').innerText = customerName;
+    document.getElementById('rightCustomerAvatar').innerText = customerName.charAt(0).toUpperCase();
+    document.getElementById('rightChannelSubtext').innerText = `Kênh ${conv.channel || 'Webchat'} • Hội thoại #${conv.id}`;
+
     document.getElementById('profilePreferredSize').innerText = profile.preferred_size || 'Chưa xác định';
-    document.getElementById('profileRecentPurchases').innerText = profile.recent_purchases || 'Chưa có đơn cũ';
-    document.getElementById('scanVersionBadge').innerText = profile.scan_version_label || `v${profile.scan_version}.0`;
+    document.getElementById('profileRecentPurchases').innerText = profile.recent_purchases || 'Chưa có thông tin đơn cũ';
+    document.getElementById('scanVersionBadge').innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> ${profile.scan_version_label || ('v' + (profile.scan_version || 1) + '.0')}`;
+
+    const lastUpdatedEl = document.getElementById('profileLastUpdated');
+    if (lastUpdatedEl) {
+        lastUpdatedEl.innerText = profile.last_scanned_formatted || 'Vừa xong';
+    }
 
     // Huy hiệu cảnh báo Boom Hàng
     const boomBadge = document.getElementById('boomRiskBadge');
+    const safeBadge = document.getElementById('safeCustomerBadge');
     if (profile.is_boom_risk == 1) {
-        boomBadge.style.display = 'flex';
-        if (profile.boom_note) {
+        if (boomBadge) boomBadge.style.display = 'flex';
+        if (safeBadge) safeBadge.style.display = 'none';
+        if (profile.boom_note && document.getElementById('boomRiskNote')) {
             document.getElementById('boomRiskNote').innerText = profile.boom_note;
         }
     } else {
-        boomBadge.style.display = 'none';
+        if (boomBadge) boomBadge.style.display = 'none';
+        if (safeBadge) safeBadge.style.display = 'flex';
     }
 
     // Chọn đúng Radio nhãn hội thoại
     const radios = document.getElementsByName('convTagRadio');
     for (let r of radios) {
         r.checked = (r.value === conv.tag);
+    }
+}
+
+/**
+ * Chọn nhanh kích cỡ thường mặc (S, M, L, XL)
+ */
+async function quickSetSize(size) {
+    if (!AppState.activeConvId) return;
+    const targetSize = 'Size ' + size;
+    document.getElementById('profilePreferredSize').innerText = targetSize;
+
+    try {
+        const formData = new FormData();
+        formData.append('action', 'update_field');
+        formData.append('conversation_id', AppState.activeConvId);
+        formData.append('field', 'preferred_size');
+        formData.append('value', targetSize);
+
+        await fetch('../../api/customer_action.php', { method: 'POST', body: formData });
+    } catch (e) {
+        console.error('Lỗi cập nhật size nhanh:', e);
     }
 }
 
@@ -515,19 +629,23 @@ async function triggerAgentScan() {
         const data = await res.json();
 
         if (data.success && data.data) {
+            const checkedRadio = document.querySelector('input[name="convTagRadio"]:checked');
+            const currentTag = checkedRadio ? checkedRadio.value : 'DANG_TU_VAN';
+
             setTimeout(() => {
-                renderProfileSidebar(data.data, { tag: 'CHO_CHUYEN_KHOAN', sender_name: data.data.customer_name });
+                renderProfileSidebar(data.data, { tag: currentTag, sender_name: data.data.customer_name, channel: 'WEBCHAT', id: AppState.activeConvId });
                 btn.classList.remove('scanning');
-                btn.innerHTML = '<i class="fa-solid fa-check"></i> <span>ĐÃ BÓC TÁCH XONG (v2.0)</span>';
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> <span>ĐÃ BÓC TÁCH XONG</span>';
                 
                 setTimeout(() => {
-                    btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> <span>QUÉT LẠI DỮ LIỆU (AGENT) ⟳</span>';
+                    btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> <span>QUÉT LẠI HỒ SƠ (AI AGENT)</span>';
                 }, 2000);
-            }, 600); // Tạo độ trễ hiệu ứng quét
+            }, 500);
         }
     } catch (err) {
         console.error('Lỗi quét dữ liệu Agent:', err);
         btn.classList.remove('scanning');
+        btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> <span>QUÉT LẠI HỒ SƠ (AI AGENT)</span>';
     }
 }
 
@@ -537,9 +655,14 @@ async function triggerAgentScan() {
 async function editFieldPrompt(fieldName, fieldTitle) {
     if (!AppState.activeConvId) return;
 
-    const currentVal = (fieldName === 'preferred_size') ? 
-        document.getElementById('profilePreferredSize').innerText :
-        document.getElementById('profileCustomerName').innerText;
+    let currentVal = '';
+    if (fieldName === 'preferred_size') {
+        currentVal = document.getElementById('profilePreferredSize').innerText;
+    } else if (fieldName === 'recent_purchases') {
+        currentVal = document.getElementById('profileRecentPurchases').innerText;
+    } else {
+        currentVal = document.getElementById('profileCustomerName').innerText;
+    }
 
     const newVal = prompt(`Nhập ${fieldTitle} mới:`, currentVal);
     if (newVal === null || newVal.trim() === '' || newVal.trim() === currentVal) return;
@@ -560,6 +683,8 @@ async function editFieldPrompt(fieldName, fieldTitle) {
         if (data.success) {
             if (fieldName === 'preferred_size') {
                 document.getElementById('profilePreferredSize').innerText = newVal.trim();
+            } else if (fieldName === 'recent_purchases') {
+                document.getElementById('profileRecentPurchases').innerText = newVal.trim();
             } else {
                 document.getElementById('profileCustomerName').innerText = newVal.trim();
                 document.getElementById('activeSenderName').innerText = newVal.trim();
@@ -589,12 +714,9 @@ async function handleTagChange(tagValue) {
         const data = await res.json();
 
         if (data.success) {
-            // Cập nhật badge trên header
             const tagBadge = document.getElementById('activeTagBadge');
             tagBadge.innerText = TAG_LABELS[tagValue] || tagValue;
             tagBadge.className = `card-tag-badge tag-${tagValue}`;
-
-            // Cập nhật lại danh sách bên trái
             runSyncPolling();
         }
     } catch (err) {
@@ -644,17 +766,25 @@ function updateHeaderShiftStatus(status) {
  */
 function switchTab(tab) {
     AppState.currentTab = tab;
+    AppState.unrepliedOnly = false;
     document.getElementById('tabAll').classList.toggle('active', tab === 'all');
     document.getElementById('tabMine').classList.toggle('active', tab === 'mine');
+    document.getElementById('chipUnreplied').classList.remove('active');
     fetchConversations();
 }
 
 /**
- * Bật/tắt lọc Chưa trả lời
+ * Bật/tắt lọc Chưa trả lời (FIFO)
  */
 function toggleUnrepliedFilter() {
     AppState.unrepliedOnly = !AppState.unrepliedOnly;
     document.getElementById('chipUnreplied').classList.toggle('active', AppState.unrepliedOnly);
+    if (AppState.unrepliedOnly) {
+        document.getElementById('tabAll').classList.remove('active');
+        document.getElementById('tabMine').classList.remove('active');
+    } else {
+        document.getElementById(AppState.currentTab === 'mine' ? 'tabMine' : 'tabAll').classList.add('active');
+    }
     fetchConversations();
 }
 

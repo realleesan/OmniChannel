@@ -56,16 +56,14 @@ if ($activeConvId) {
     }
 }
 
-// 4. (Tùy chọn) Kéo tin nhắn từ Render Webhook Gateway nếu có cài đặt
-// InfinityFree cho phép gọi cURL HTTPS ra ngoài cổng 443
-if (defined('RENDER_GATEWAY_URL') && !empty(RENDER_GATEWAY_URL)) {
-    // Có thể thực hiện polling nhẹ nhàng hoặc dựa vào client-side
-}
+// 4. Lấy thống kê số lượng hội thoại theo từng tab (Tất cả, Của tôi, Chưa trả lời)
+$counts = $convModel->getCounts($userId);
 
 echo json_encode([
     'success'              => true,
     'current_user_status'  => $userStatus,
     'conversations'        => $conversations,
+    'counts'               => $counts,
     'active_conversation'  => $activeConversationData,
     'timestamp'            => time()
 ], JSON_UNESCAPED_UNICODE);
