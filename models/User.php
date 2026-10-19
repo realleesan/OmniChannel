@@ -25,6 +25,20 @@ class User {
         return $stmt->fetch();
     }
 
+    public function create($username, $password, $fullname, $avatar = 'default_avatar.png') {
+        $hash = password_hash($password, PASSWORD_BCRYPT);
+        $stmt = $this->db->prepare("
+            INSERT INTO users (username, password, fullname, avatar, status, current_chat_count)
+            VALUES (:username, :password, :fullname, :avatar, 'ONLINE', 0)
+        ");
+        return $stmt->execute([
+            ':username' => trim($username),
+            ':password' => $hash,
+            ':fullname' => trim($fullname),
+            ':avatar'   => $avatar
+        ]);
+    }
+
     public function updateStatus($id, $status) {
         $status = in_array($status, ['ONLINE', 'OFFLINE']) ? $status : 'OFFLINE';
         $stmt = $this->db->prepare("UPDATE users SET status = :status WHERE id = :id");

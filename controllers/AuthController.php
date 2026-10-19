@@ -15,7 +15,24 @@ class AuthController {
     }
 
     public function login($username, $password) {
-        $user = $this->userModel->findByUsername(trim($username));
+        $uKey = trim($username);
+        $user = $this->userModel->findByUsername($uKey);
+
+        if (!$user) {
+            // Danh sách tài khoản nhân sự mẫu hỗ trợ tạo sẵn
+            $predefined = [
+                'admin' => ['pass' => 'admin123', 'name' => 'Quản trị viên', 'avatar' => 'default_avatar.png'],
+                'nv1'   => ['pass' => '123456',   'name' => 'Nguyễn Văn Quân', 'avatar' => 'quan.png'],
+                'nv2'   => ['pass' => '123456',   'name' => 'Trần Thị Phương', 'avatar' => 'phuong.png']
+            ];
+
+            if (isset($predefined[$uKey])) {
+                $info = $predefined[$uKey];
+                $this->userModel->create($uKey, $info['pass'], $info['name'], $info['avatar']);
+                $user = $this->userModel->findByUsername($uKey);
+            }
+        }
+
         if (!$user) {
             return ['success' => false, 'message' => 'Tài khoản không tồn tại trong hệ thống'];
         }

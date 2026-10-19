@@ -126,6 +126,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .btn-submit-login:hover {
             background: #4338CA;
             box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+        }
+        .sample-accounts-box {
+            margin-top: 24px;
+            padding-top: 18px;
+            border-top: 1px dashed #CBD5E1;
+            text-align: left;
+        }
+        .sample-title {
+            font-size: 11.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #64748B;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .sample-btn-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+        .sample-login-chip {
+            padding: 9px 8px;
+            background: #F8FAFC;
+            border: 1px solid #E2E8F0;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            text-align: left;
+        }
+        .sample-login-chip:hover {
+            background: #EEF2FF;
+            border-color: #6366F1;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(99, 102, 241, 0.15);
+        }
+        .sample-login-chip i {
+            font-size: 15px;
+            color: #4F46E5;
+        }
+        .chip-info {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.25;
+            overflow: hidden;
+        }
+        .chip-name {
+            font-size: 11.5px;
+            font-weight: 700;
+            color: #1E293B;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+        }
+        .chip-pass {
+            font-size: 10px;
+            color: #94A3B8;
+        }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -158,7 +221,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <i class="fa-solid fa-arrow-right-to-bracket" style="margin-left:6px;"></i>
         </button>
     </form>
+
+    <div class="sample-accounts-box">
+        <div class="sample-title">
+            <i class="fa-solid fa-users-gear"></i> Tài khoản nhân viên mẫu:
+        </div>
+        <div class="sample-btn-grid">
+            <button type="button" class="sample-login-chip" onclick="fillAccount('nv1', '123456')" title="Bấm để đăng nhập nhanh với NV1">
+                <i class="fa-solid fa-user-tie"></i>
+                <div class="chip-info">
+                    <span class="chip-name">Quân (NV1)</span>
+                    <span class="chip-pass">123456</span>
+                </div>
+            </button>
+            <button type="button" class="sample-login-chip" onclick="fillAccount('nv2', '123456')" title="Bấm để đăng nhập nhanh với NV2">
+                <i class="fa-solid fa-user-check"></i>
+                <div class="chip-info">
+                    <span class="chip-name">Phương (NV2)</span>
+                    <span class="chip-pass">123456</span>
+                </div>
+            </button>
+            <button type="button" class="sample-login-chip" onclick="fillAccount('admin', 'admin123')" title="Bấm để đăng nhập nhanh với Admin">
+                <i class="fa-solid fa-shield-halved"></i>
+                <div class="chip-info">
+                    <span class="chip-name">Admin</span>
+                    <span class="chip-pass">admin123</span>
+                </div>
+            </button>
+        </div>
+    </div>
 </div>
+
+<script>
+function fillAccount(u, p) {
+    document.getElementById('username').value = u;
+    document.getElementById('password').value = p;
+    document.querySelector('form').submit();
+}
+</script>
 
 </body>
 </html>

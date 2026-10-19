@@ -66,8 +66,8 @@ $basePath = preg_replace('/(\/api|\/views|\/controllers|\/public).*$/', '', $scr
 define('BASE_URL', rtrim($protocol . $host . $basePath, '/'));
 
 // Cấu hình Render Webhook Gateway URL (nơi tiếp nhận Webhook ngoài)
-define('RENDER_GATEWAY_URL', getenv('RENDER_GATEWAY_URL') ?: 'https://omnichannel-webhook-gateway.onrender.com');
-define('GATEWAY_SECRET_KEY', getenv('GATEWAY_SECRET_KEY') ?: 'omnichannel_secret_ba_2026');
+define('RENDER_GATEWAY_URL', env('RENDER_GATEWAY_URL', 'https://omnichannel-webhook-gateway.onrender.com'));
+define('GATEWAY_SECRET_KEY', env('GATEWAY_SECRET_KEY', 'omnichannel_secret_ba_2026'));
 
 // Định nghĩa các kênh hỗ trợ
 define('CHANNELS', [

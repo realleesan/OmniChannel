@@ -76,8 +76,41 @@ async function runSyncPolling() {
         if (AppState.activeConvId && data.active_conversation) {
             handleActiveConversationSync(data.active_conversation);
         }
+
+        // Kéo tin nhắn từ Render Webhook Gateway mỗi 5 giây (2 chu kỳ)
+        renderPollCounter++;
+        if (renderPollCounter % 2 === 0) {
+            pollRenderGateway();
+        }
     } catch (err) {
         console.warn('Lỗi Polling đồng bộ:', err);
+    }
+}
+
+let renderPollCounter = 0;
+let isRenderPolling = false;
+async function pollRenderGateway() {
+    if (!window.APP_CONFIG || !window.APP_CONFIG.RENDER_GATEWAY_URL || isRenderPolling) return;
+    isRenderPolling = true;
+    try {
+        const url = window.APP_CONFIG.RENDER_GATEWAY_URL.replace(/\/+$/, '');
+        const res = await fetch(`${url}/api/messages/poll`, { mode: 'cors' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && data.messages && data.messages.length > 0) {
+            for (const msg of data.messages) {
+                await fetch('../../api/webhook_receive.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(msg)
+                });
+            }
+            fetchConversations(false);
+        }
+    } catch (e) {
+        // Render free tier có thể đang ngủ
+    } finally {
+        isRenderPolling = false;
     }
 }
 

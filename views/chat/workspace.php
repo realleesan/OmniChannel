@@ -307,7 +307,8 @@ if (isset($_GET['logout'])) {
         CURRENT_USERNAME: '<?= addslashes($currentUser['username']) ?>',
         CURRENT_FULLNAME: '<?= addslashes($currentUser['fullname']) ?>',
         CURRENT_STATUS: '<?= addslashes($currentUser['status']) ?>',
-        BASE_URL: '<?= addslashes(BASE_URL) ?>'
+        BASE_URL: '<?= addslashes(BASE_URL) ?>',
+        RENDER_GATEWAY_URL: '<?= addslashes(RENDER_GATEWAY_URL) ?>'
     };
 </script>
 <script src="../../public/js/workspace.js"></script>

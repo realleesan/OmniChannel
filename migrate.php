@@ -194,9 +194,11 @@ CREATE TABLE customer_profiles (
 
 SET FOREIGN_KEY_CHECKS = 1;
 
--- Khởi tạo tài khoản quản trị viên mặc định
+-- Khởi tạo tài khoản quản trị viên và nhân sự mẫu
 INSERT INTO users (id, username, password, fullname, avatar, status, current_chat_count) VALUES
-(1, 'admin', '$2y$10$lbYfEQEySZDYVHIWqWC/n..SQ/TpTBMgd7kdtkdsBrwmw2aMPLptG', 'Quản trị viên', 'default_avatar.png', 'ONLINE', 0);
+(1, 'admin', '$2y$10$lbYfEQEySZDYVHIWqWC/n..SQ/TpTBMgd7kdtkdsBrwmw2aMPLptG', 'Quản trị viên', 'default_avatar.png', 'ONLINE', 0),
+(2, 'nv1', '$2y$10$WanQ/dHJ8jTGKgPDdnrcauGlde3FvMb05IcE7XcKV/C9ihdiyuu/S', 'Nguyễn Văn Quân', 'quan.png', 'ONLINE', 0),
+(3, 'nv2', '$2y$10$WanQ/dHJ8jTGKgPDdnrcauGlde3FvMb05IcE7XcKV/C9ihdiyuu/S', 'Trần Thị Phương', 'phuong.png', 'ONLINE', 0);
 SQL;
         }
 
