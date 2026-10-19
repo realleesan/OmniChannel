@@ -164,44 +164,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             color: #4F46E5;
         }
     </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 
 <div class="login-card">
-    <div class="login-logo">💬</div>
+    <div class="login-logo"><i class="fa-solid fa-headset" style="color:white;font-size:26px;"></i></div>
     <h2 class="login-title">Hệ thống Hội thoại Đa kênh</h2>
-    <p class="login-subtitle">Omnichannel CRM Chat Workspace v1.0</p>
+    <p class="login-subtitle">Omnichannel Unified Agent Workspace</p>
 
     <?php if (!empty($errorMsg)): ?>
         <div class="alert-error">
-            ⚠️ <?= htmlspecialchars($errorMsg) ?>
+            <i class="fa-solid fa-triangle-exclamation"></i> <?= htmlspecialchars($errorMsg) ?>
         </div>
     <?php endif; ?>
 
     <form method="POST" action="">
         <div class="form-group-login">
             <label for="username">Tên tài khoản</label>
-            <input type="text" id="username" name="username" class="login-input" placeholder="nv1 hoặc nv2" required autofocus>
+            <input type="text" id="username" name="username" class="login-input" placeholder="Tên đăng nhập" required autofocus>
         </div>
 
         <div class="form-group-login">
             <label for="password">Mật khẩu</label>
-            <input type="password" id="password" name="password" class="login-input" placeholder="Mặc định: 123456" required>
+            <input type="password" id="password" name="password" class="login-input" placeholder="Nhập mật khẩu" required>
         </div>
 
-        <button type="submit" class="btn-submit-login">Đăng nhập vào Ca trực ➔</button>
+        <button type="submit" class="btn-submit-login">
+            <span>Đăng nhập ca trực</span>
+            <i class="fa-solid fa-arrow-right-to-bracket" style="margin-left:6px;"></i>
+        </button>
     </form>
 
     <div class="demo-accounts-box">
-        <div class="demo-title">💡 Chọn nhanh tài khoản Demo thuyết trình:</div>
+        <div class="demo-title"><i class="fa-regular fa-lightbulb"></i> Tài khoản mẫu:</div>
         <div class="demo-btn-row">
             <button type="button" class="quick-login-chip" onclick="fillAccount('nv1', '123456')">
-                <span>👨‍💼</span>
-                <strong>NV1: Quân</strong>
+                <i class="fa-solid fa-user-tie" style="color:#4F46E5;"></i>
+                <strong>Quân (NV1)</strong>
             </button>
             <button type="button" class="quick-login-chip" onclick="fillAccount('nv2', '123456')">
-                <span>👩‍💼</span>
-                <strong>NV2: Phương</strong>
+                <i class="fa-solid fa-user-check" style="color:#4F46E5;"></i>
+                <strong>Phương (NV2)</strong>
             </button>
         </div>
     </div>

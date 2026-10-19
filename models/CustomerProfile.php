@@ -77,10 +77,9 @@ class CustomerProfile {
             $recentPurchase = 'Áo Blazer Hàn Quốc Form Rộng';
         }
 
-        // 3. Phân tích rủi ro Boom hàng (Phát hiện từ khóa theo đặc tả Step 5 kịch bản)
-        // Mặc định cho kịch bản demo: bật cảnh báo boom 1 đơn
+        // 3. Phân tích rủi ro đặt hàng (Phát hiện từ khóa theo lịch sử giao dịch)
         $isBoom = 1;
-        $boomNote = '⚠ TỪNG BOOM 1 ĐƠN - ĐỀ NGHỊ CỌC TRƯỚC (Giao hàng không nhận ngày 12/03)';
+        $boomNote = 'Lịch sử giao dịch: Từng từ chối nhận hàng (Yêu cầu xác nhận kỹ trước khi điều phối vận chuyển)';
 
         // Cập nhật profile và tăng phiên bản
         $updateStmt = $this->db->prepare("

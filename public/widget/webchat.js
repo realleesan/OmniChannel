@@ -31,7 +31,7 @@
         localStorage.setItem('omnichannel_customer_id', customerId);
     }
 
-    let customerName = localStorage.getItem('omnichannel_customer_name') || 'Thu Hà (Khách Web)';
+    let customerName = localStorage.getItem('omnichannel_customer_name') || 'Khách Webchat';
     let activeConvId = localStorage.getItem('omnichannel_active_conv_id') || null;
     let lastMsgId = 0;
     let isWidgetOpen = false;
@@ -43,10 +43,12 @@
         <div class="webchat-window" id="wcWindow">
             <div class="webchat-header">
                 <div class="webchat-header-info">
-                    <div class="webchat-avatar-badge">💬</div>
+                    <div class="webchat-avatar-badge">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    </div>
                     <div class="webchat-title-group">
                         <h4>Tư Vấn Trực Tuyến</h4>
-                        <p>● Thường trả lời trong vài giây</p>
+                        <p>Thường trả lời trong vài giây</p>
                     </div>
                 </div>
                 <button type="button" class="webchat-close-btn" id="wcCloseBtn">&times;</button>
@@ -59,18 +61,20 @@
 
             <div class="webchat-body" id="wcMessagesBody">
                 <div class="wc-msg staff">
-                    Xin chào! Shop có thể hỗ trợ tư vấn mẫu váy áo hoặc kiểm tra size nào cho bạn hôm nay ạ?
+                    Xin chào! Chúng tôi có thể hỗ trợ thông tin hoặc giải đáp thắc mắc gì cho bạn hôm nay?
                 </div>
             </div>
 
             <div class="webchat-footer">
                 <input type="text" id="wcTextInput" class="webchat-input" placeholder="Nhập tin nhắn..." autocomplete="off">
-                <button type="button" id="wcSendBtn" class="webchat-send-btn">➤</button>
+                <button type="button" id="wcSendBtn" class="webchat-send-btn" title="Gửi tin nhắn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                </button>
             </div>
         </div>
 
         <div class="webchat-bubble-toggle" id="wcToggleBtn" title="Chat với nhân viên tư vấn">
-            💬
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
         </div>
     `;
     document.body.appendChild(root);

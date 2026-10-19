@@ -33,7 +33,7 @@ if (!$currentUser) {
      ======================================================== -->
 <header class="app-header">
     <div class="brand-section">
-        <div class="brand-logo">💬</div>
+        <div class="brand-logo"><i class="fa-solid fa-network-wired" style="color:white;font-size:18px;"></i></div>
         <div>
             <div class="brand-title">HỆ THỐNG QUẢN LÝ HỘI THOẠI ĐA KÊNH</div>
             <div class="brand-subtitle">Omnichannel Unified Agent Workspace</div>
@@ -43,7 +43,7 @@ if (!$currentUser) {
     <div class="header-actions">
         <!-- Nút mở Bảng giả lập kênh để test demo -->
         <a href="simulator.php" target="_blank" class="header-link-btn" title="Mở bộ giả lập bắn tin Facebook / Zalo">
-            <i class="fa-solid fa-satellite-dish"></i> Giả Lập Kênh (Simulator)
+            <i class="fa-solid fa-tower-broadcast"></i> Giả Lập Kênh
         </a>
 
         <!-- Nút mở trang Webchat khách hàng test -->
@@ -55,8 +55,8 @@ if (!$currentUser) {
         <div class="shift-status-pill" id="shiftStatusPill">
             <span class="status-dot <?= $currentUser['status'] === 'ONLINE' ? 'online' : '' ?>" id="shiftDot"></span>
             <select class="shift-select" id="shiftSelect" onchange="handleShiftChange(this.value)">
-                <option value="ONLINE" <?= $currentUser['status'] === 'ONLINE' ? 'selected' : '' ?>>● Đang trực tuyến</option>
-                <option value="OFFLINE" <?= $currentUser['status'] === 'OFFLINE' ? 'selected' : '' ?>>○ Rời ca trực</option>
+                <option value="ONLINE" <?= $currentUser['status'] === 'ONLINE' ? 'selected' : '' ?>>Đang trực tuyến</option>
+                <option value="OFFLINE" <?= $currentUser['status'] === 'OFFLINE' ? 'selected' : '' ?>>Rời ca trực</option>
             </select>
         </div>
 
@@ -126,7 +126,7 @@ if (isset($_GET['logout'])) {
                 <div>
                     <div class="partner-name" id="activeSenderName">Khách Hàng</div>
                     <div class="partner-meta">
-                        <span id="activeChannelBadge">💬 Webchat</span>
+                        <span id="activeChannelBadge"><i class="fa-solid fa-comments"></i> Webchat</span>
                         <span>•</span>
                         <span id="activeTagBadge" class="card-tag-badge">Đang tư vấn</span>
                     </div>
@@ -155,8 +155,10 @@ if (isset($_GET['logout'])) {
         <div class="chat-input-container" id="chatInputArea" style="display:none;">
             <!-- Gợi ý template khi gõ phím tắt -->
             <div class="template-shortcut-preview" id="shortcutPreviewBar">
-                <span id="shortcutPreviewText">💡 Gợi ý phím tắt: Gõ <strong>/1</strong> để điền mẫu tư vấn Váy Dạ Tweed SP01</span>
-                <button type="button" style="background:none;border:none;cursor:pointer;color:#4f46e5;font-weight:700;" onclick="applyShortcutDirectly()">Điền ngay ➔</button>
+                <span id="shortcutPreviewText"><i class="fa-regular fa-lightbulb"></i> Gợi ý: Gõ <strong>/1</strong> để điền mẫu tư vấn nhanh</span>
+                <button type="button" style="background:none;border:none;cursor:pointer;color:#4f46e5;font-weight:700;" onclick="applyShortcutDirectly()">
+                    Điền ngay <i class="fa-solid fa-arrow-right"></i>
+                </button>
             </div>
 
             <div class="chat-input-wrapper">
@@ -225,15 +227,15 @@ if (isset($_GET['logout'])) {
         <div class="boom-risk-warning-badge" id="boomRiskBadge" style="display:none;">
             <i class="fa-solid fa-triangle-exclamation boom-icon"></i>
             <div>
-                <div class="boom-text-title">⚠ CẢNH BÁO RỦI RO BOOM HÀNG</div>
-                <div class="boom-text-desc" id="boomRiskNote">Khách từng có lịch sử đặt nhưng không nhận. Đề nghị yêu cầu cọc trước khi ship!</div>
+                <div class="boom-text-title">CẢNH BÁO RỦI RO ĐẶT HÀNG</div>
+                <div class="boom-text-desc" id="boomRiskNote">Lịch sử: Từng từ chối nhận hàng. Đề nghị xác nhận kỹ thông tin đơn trước khi gửi.</div>
             </div>
         </div>
 
         <!-- UC3.3: Nút Quét lại dữ liệu Agent -->
         <button type="button" class="btn-rescan-agent" id="btnRescanAgent" onclick="triggerAgentScan()">
             <i class="fa-solid fa-wand-magic-sparkles"></i>
-            <span>QUÉT LẠI DỮ LIỆU (AGENT) ⟳</span>
+            <span>QUÉT DỮ LIỆU TỰ ĐỘNG</span>
         </button>
 
         <!-- UC3.4: Bộ chọn Gắn nhãn trạng thái -->
@@ -261,7 +263,7 @@ if (isset($_GET['logout'])) {
                 <label class="tag-radio-label">
                     <input type="radio" name="convTagRadio" value="BOOM_HANG" onchange="handleTagChange(this.value)">
                     <span class="tag-color-indicator" style="background:#EF4444;"></span>
-                    <span>Khách boom</span>
+                    <span>Rủi ro hoàn hàng</span>
                 </label>
             </div>
         </div>

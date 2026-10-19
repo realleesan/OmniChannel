@@ -167,10 +167,10 @@ require_once __DIR__ . '/../../config/constants.php';
 <div class="sim-container">
     <div class="sim-header">
         <div class="sim-title">
-            <span style="font-size:28px;">📡</span>
+            <i class="fa-solid fa-tower-broadcast" style="font-size:24px;color:#6366F1;"></i>
             <div>
                 <div>Màn Hình Giả Lập Kênh & Webhook (Channel Simulator)</div>
-                <div style="font-size:12px;color:#94a3b8;font-weight:400;">Mô phỏng tin nhắn từ Facebook Messenger, Zalo OA, Shopee bắn vào API hệ thống</div>
+                <div style="font-size:12px;color:#94a3b8;font-weight:400;">Mô phỏng tin nhắn từ Facebook Messenger, Zalo OA, Shopee vào API hệ thống</div>
             </div>
         </div>
         <a href="workspace.php" class="header-link-btn" style="background:#4F46E5;border:none;">
@@ -180,25 +180,25 @@ require_once __DIR__ . '/../../config/constants.php';
 
     <!-- KỊCH BẢN THUYẾT TRÌNH CÓ SẴN (1-CLICK DEMO) -->
     <div class="sim-preset-card">
-        <div class="sim-preset-title">⚡ Kịch bản Demo Nhanh (1-Click Khách Gửi Tin):</div>
+        <div class="sim-preset-title"><i class="fa-solid fa-bolt" style="color:#F59E0B;"></i> Kịch bản Mô Phỏng Kênh:</div>
         <div class="preset-grid">
             <!-- Preset 1: Khách Facebook Thu Hà -->
             <button type="button" class="preset-btn" onclick="firePreset('FACEBOOK', 'fb_thuha_01', 'Nguyễn Thị Thu Hà', 'Shop ơi mẫu Váy Dạ Tweed SP01 còn size M không?')">
-                <span class="preset-channel preset-fb">📘 FACEBOOK</span>
+                <span class="preset-channel preset-fb"><i class="fa-brands fa-facebook-messenger"></i> FACEBOOK</span>
                 <div class="preset-name">Nguyễn Thị Thu Hà</div>
                 <div class="preset-msg">"Shop ơi mẫu Váy Dạ Tweed SP01 còn size M không?"</div>
             </button>
 
             <!-- Preset 2: Khách Zalo Hoàng Nam -->
             <button type="button" class="preset-btn" onclick="firePreset('ZALO', 'zl_hoangnam_99', 'Hoàng Nam', 'Chào shop, mình muốn hỏi đơn này có ship hỏa tốc sang Long Biên chiều nay được không?')">
-                <span class="preset-channel preset-zl">🔵 ZALO CHAT</span>
+                <span class="preset-channel preset-zl"><i class="fa-solid fa-comment-dots"></i> ZALO CHAT</span>
                 <div class="preset-name">Hoàng Nam</div>
                 <div class="preset-msg">"Ship hỏa tốc sang Long Biên trong chiều nay được không?"</div>
             </button>
 
             <!-- Preset 3: Khách Shopee Phương Linh -->
             <button type="button" class="preset-btn" onclick="firePreset('SHOPEE', 'sp_phuonglinh', 'Phương Linh', 'Dạ shop ơi mẫu áo blazer có kèm đai thắt lưng không ạ?')">
-                <span class="preset-channel preset-sp">🟠 SHOPEE</span>
+                <span class="preset-channel preset-sp"><i class="fa-solid fa-bag-shopping"></i> SHOPEE</span>
                 <div class="preset-name">Phương Linh</div>
                 <div class="preset-msg">"Mẫu áo blazer có kèm đai thắt lưng không ạ?"</div>
             </button>
@@ -207,7 +207,7 @@ require_once __DIR__ . '/../../config/constants.php';
 
     <!-- TÙY BIẾN GỬI TIN NHẮN BẤT KỲ -->
     <div class="sim-custom-form">
-        <div class="sim-preset-title">🛠️ Tùy biến dữ liệu gửi (Custom Webhook Payload):</div>
+        <div class="sim-preset-title"><i class="fa-solid fa-sliders"></i> Tùy biến thông số gửi (Custom Payload):</div>
 
         <div class="form-row">
             <div class="form-group">

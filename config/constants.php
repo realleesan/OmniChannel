@@ -44,11 +44,11 @@ define('GATEWAY_SECRET_KEY', getenv('GATEWAY_SECRET_KEY') ?: 'omnichannel_secret
 
 // Định nghĩa các kênh hỗ trợ
 define('CHANNELS', [
-    'WEBCHAT'  => ['name' => 'Webchat Trực Tiếp', 'icon' => '💬', 'color' => '#10B981'],
-    'FACEBOOK' => ['name' => 'Facebook Messenger', 'icon' => '📘', 'color' => '#1877F2'],
-    'ZALO'     => ['name' => 'Zalo Chat',         'icon' => '🔵', 'color' => '#0068FF'],
-    'SHOPEE'   => ['name' => 'Shopee Chat',        'icon' => '🟠', 'color' => '#EE4D2D'],
-    'TIKTOK'   => ['name' => 'TikTok Shop',        'icon' => '⚫', 'color' => '#000000']
+    'WEBCHAT'  => ['name' => 'Webchat',            'icon' => 'fa-solid fa-comments',           'color' => '#10B981'],
+    'FACEBOOK' => ['name' => 'Facebook Messenger', 'icon' => 'fa-brands fa-facebook-messenger', 'color' => '#1877F2'],
+    'ZALO'     => ['name' => 'Zalo Chat',          'icon' => 'fa-solid fa-comment-dots',       'color' => '#0068FF'],
+    'SHOPEE'   => ['name' => 'Shopee Chat',        'icon' => 'fa-solid fa-bag-shopping',       'color' => '#EE4D2D'],
+    'TIKTOK'   => ['name' => 'TikTok Shop',         'icon' => 'fa-brands fa-tiktok',            'color' => '#000000']
 ]);
 
 // Định nghĩa các nhãn trạng thái hội thoại
@@ -56,7 +56,7 @@ define('TAGS', [
     'DANG_TU_VAN'      => ['label' => 'Đang tư vấn',       'color' => '#10B981', 'badge_class' => 'tag-consulting'],
     'DA_CHOT'          => ['label' => 'Đã chốt đơn',       'color' => '#3B82F6', 'badge_class' => 'tag-closed'],
     'CHO_CHUYEN_KHOAN' => ['label' => 'Chờ chuyển khoản',  'color' => '#F59E0B', 'badge_class' => 'tag-pending'],
-    'BOOM_HANG'        => ['label' => 'Khách boom',        'color' => '#EF4444', 'badge_class' => 'tag-boom']
+    'BOOM_HANG'        => ['label' => 'Rủi ro hoàn hàng',  'color' => '#EF4444', 'badge_class' => 'tag-boom']
 ]);
 
 /**

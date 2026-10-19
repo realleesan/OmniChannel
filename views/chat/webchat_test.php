@@ -144,39 +144,40 @@ $products = $productModel->getAll();
             background: #059669;
         }
     </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 
 <header class="store-navbar">
     <div class="store-brand">
-        <span>👗</span> Minh Trang Boutique
+        <i class="fa-solid fa-store" style="color:#4F46E5;"></i> Minh Trang Boutique
     </div>
     <div>
         <a href="workspace.php" class="header-link-btn" style="background:#4F46E5;color:white;border:none;">
-            ← Vào Trang Quản Trị Nhân Viên (Workspace)
+            <i class="fa-solid fa-arrow-left"></i> Trang Quản Trị (Workspace)
         </a>
     </div>
 </header>
 
 <section class="store-hero">
-    <h1>Bộ Sưu Tập Thời Trang Thu Đông 2026</h1>
-    <p>Chuyên cung cấp các mẫu váy dạ tweed, áo blazer thiết kế form chuẩn thời thượng, bảo hành đường may trọn đời.</p>
+    <h1>Bộ Sưu Tập Thời Trang Cao Cấp</h1>
+    <p>Trải nghiệm mua sắm trực tuyến với tính năng tư vấn đa kênh thời gian thực.</p>
 </section>
 
 <main class="product-catalog">
-    <h2 class="catalog-title">Sản Phẩm Đang Bán Chạy</h2>
+    <h2 class="catalog-title">Sản Phẩm Nổi Bật</h2>
     <div class="products-grid">
         <?php foreach ($products as $p): ?>
             <div class="product-card">
                 <div class="product-img-box">
-                    <?= $p['product_code'] === 'SP01' ? '👗' : ($p['product_code'] === 'SP02' ? '🧥' : '👚') ?>
+                    <?= $p['product_code'] === 'SP01' ? '<i class="fa-solid fa-shirt"></i>' : ($p['product_code'] === 'SP02' ? '<i class="fa-solid fa-vest"></i>' : '<i class="fa-solid fa-tags"></i>') ?>
                 </div>
                 <div class="product-info">
                     <span class="product-code-tag">MÃ: <?= htmlspecialchars($p['product_code']) ?></span>
                     <h3 class="product-title"><?= htmlspecialchars($p['name']) ?></h3>
                     <div class="product-price"><?= number_format($p['price'], 0, ',', '.') ?>đ</div>
                     <button type="button" class="btn-ask-chat" onclick="openChatAndAsk('<?= htmlspecialchars($p['name']) ?>', '<?= htmlspecialchars($p['product_code']) ?>')">
-                        💬 Tư vấn mẫu này ngay
+                        <i class="fa-solid fa-comment-dots"></i> Tư vấn sản phẩm này
                     </button>
                 </div>
             </div>

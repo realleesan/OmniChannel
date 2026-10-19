@@ -20,19 +20,19 @@ const AppState = {
     isSending: false
 };
 
-const CHANNEL_ICONS = {
-    'WEBCHAT':  '💬 Webchat',
-    'FACEBOOK': '📘 Facebook',
-    'ZALO':     '🔵 Zalo',
-    'SHOPEE':   '🟠 Shopee',
-    'TIKTOK':   '⚫ TikTok'
+const CHANNEL_CONFIG = {
+    'WEBCHAT':  { icon: '<i class="fa-solid fa-comments" style="color:#10B981;"></i>', label: 'Webchat' },
+    'FACEBOOK': { icon: '<i class="fa-brands fa-facebook-messenger" style="color:#1877F2;"></i>', label: 'Facebook' },
+    'ZALO':     { icon: '<i class="fa-solid fa-comment-dots" style="color:#0068FF;"></i>', label: 'Zalo' },
+    'SHOPEE':   { icon: '<i class="fa-solid fa-bag-shopping" style="color:#EE4D2D;"></i>', label: 'Shopee' },
+    'TIKTOK':   { icon: '<i class="fa-brands fa-tiktok" style="color:#000000;"></i>', label: 'TikTok' }
 };
 
 const TAG_LABELS = {
     'DANG_TU_VAN':      'Đang tư vấn',
     'DA_CHOT':          'Đã chốt đơn',
     'CHO_CHUYEN_KHOAN': 'Chờ chuyển khoản',
-    'BOOM_HANG':        'Khách boom'
+    'BOOM_HANG':        'Rủi ro hoàn hàng'
 };
 
 function initWorkspace() {
@@ -125,7 +125,7 @@ function renderConversationsList(conversations) {
     let html = '';
     conversations.forEach(conv => {
         const isActive = (conv.id == AppState.activeConvId);
-        const channelDisplay = CHANNEL_ICONS[conv.channel] || conv.channel;
+        const channelCfg = CHANNEL_CONFIG[conv.channel] || { icon: '<i class="fa-solid fa-comment"></i>', label: conv.channel };
         const tagLabel = TAG_LABELS[conv.tag] || conv.tag;
         const assignedName = conv.assigned_fullname || 'Chưa gán';
         const assignedAvatar = conv.assigned_fullname ? conv.assigned_fullname.charAt(0) : '?';
@@ -137,7 +137,7 @@ function renderConversationsList(conversations) {
                 
                 <div class="card-top-row">
                     <div class="card-sender-info">
-                        <span class="channel-badge-icon">${channelDisplay.split(' ')[0]}</span>
+                        <span class="channel-badge-icon">${channelCfg.icon}</span>
                         <span class="card-sender-name">${escapeHtml(conv.sender_name)}</span>
                     </div>
                     <span class="card-time-ago">${conv.time_ago}</span>
@@ -192,11 +192,12 @@ function renderConversationView(detail) {
     const { conversation, is_mine, is_view_only, messages, profile } = detail;
 
     // 1. Hiển thị Header khung chat
+    const channelCfg = CHANNEL_CONFIG[conversation.channel] || { icon: '<i class="fa-solid fa-comment"></i>', label: conversation.channel };
     document.getElementById('chatHeader').style.display = 'flex';
     document.getElementById('rightSidebar').style.display = 'flex';
     document.getElementById('activeSenderName').innerText = conversation.sender_name;
     document.getElementById('activeAvatar').innerText = conversation.sender_name.charAt(0);
-    document.getElementById('activeChannelBadge').innerText = CHANNEL_ICONS[conversation.channel] || conversation.channel;
+    document.getElementById('activeChannelBadge').innerHTML = `${channelCfg.icon} ${channelCfg.label}`;
     
     const tagBadge = document.getElementById('activeTagBadge');
     tagBadge.innerText = TAG_LABELS[conversation.tag] || conversation.tag;
@@ -385,7 +386,7 @@ async function fetchResolvedShortcut(shortcut) {
         if (data.success && data.data) {
             window.CURRENT_RESOLVED_TEMPLATE = data.data.compiled_content;
             document.getElementById('shortcutPreviewText').innerHTML = 
-                `💡 Gợi ý: Gõ <strong>${shortcut}</strong> để điền mẫu <em>${escapeHtml(data.data.template.title)}</em>`;
+                `<i class="fa-regular fa-lightbulb"></i> Gợi ý: Gõ <strong>${shortcut}</strong> để điền mẫu <em>${escapeHtml(data.data.template.title)}</em>`;
         }
     } catch (err) {
         console.warn('Lỗi kiểm tra shortcut:', err);
