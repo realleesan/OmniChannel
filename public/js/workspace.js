@@ -188,6 +188,7 @@ async function pollRenderGateway() {
                 });
             }
             fetchConversations(false);
+            runSyncPolling();
         }
     } catch (e) {
         // Render free tier có thể đang khởi động
@@ -508,6 +509,7 @@ function renderConversationView(detail) {
     const { conversation, is_mine, is_view_only, messages, profile } = detail;
 
     // 1. Cập nhật thanh header thông tin khách hàng ở trên cùng
+    AppState.activeConversation = conversation;
     renderChatHeader(conversation);
     document.getElementById('rightSidebar').style.display = 'flex';
 
@@ -561,6 +563,7 @@ function handleActiveConversationSync(activeData) {
 
     const { conversation, is_mine, is_view_only, new_messages, profile, assigned_labels } = activeData;
 
+    AppState.activeConversation = conversation;
     // Đảm bảo Header luôn hiển thị thông tin khách hàng
     renderChatHeader(conversation);
 
@@ -729,9 +732,21 @@ async function sendMessage(attachmentUrl = null) {
             method: 'POST',
             body: formData
         });
-        const data = await res.json();
+        const text = await res.text();
+        let data = null;
+        try {
+            data = JSON.parse(text);
+        } catch (pe) {
+            const sIdx = text.indexOf('{');
+            const eIdx = text.lastIndexOf('}');
+            if (sIdx !== -1 && eIdx !== -1) {
+                try {
+                    data = JSON.parse(text.substring(sIdx, eIdx + 1));
+                } catch (e) {}
+            }
+        }
 
-        if (data.success && data.data) {
+        if (data && data.success && data.data) {
             appendMessageBubble(data.data, true);
             // Cập nhật tin nhắn vừa gửi vào Cache để khi chuyển khách không bị mất
             if (AppState.conversationsCache[AppState.activeConvId]) {
@@ -742,9 +757,11 @@ async function sendMessage(attachmentUrl = null) {
                 }
             }
             // Bổ trợ kép: Trình duyệt gửi trực tiếp tới Render Gateway để khách nhận ngay lập tức
-            const activeConv = (AppState.conversations || []).find(c => c.id == AppState.activeConvId) || 
+            const activeConv = AppState.activeConversation ||
+                               (AppState.cachedConversations ? AppState.cachedConversations[AppState.activeConvId] : null) ||
                                AppState.conversationsCache[AppState.activeConvId]?.conversation;
-            if (activeConv && activeConv.channel === 'WEBCHAT' && window.APP_CONFIG?.RENDER_GATEWAY_URL) {
+            const targetChannel = (activeConv?.channel || '').toUpperCase();
+            if (targetChannel === 'WEBCHAT' && window.APP_CONFIG?.RENDER_GATEWAY_URL && activeConv?.external_sender_id) {
                 const gatewayUrl = window.APP_CONFIG.RENDER_GATEWAY_URL.replace(/\/+$/, '');
                 fetch(`${gatewayUrl}/api/webchat/reply`, {
                     method: 'POST',
@@ -760,12 +777,16 @@ async function sendMessage(attachmentUrl = null) {
             scrollChatToBottom();
             runSyncPolling();
         } else {
-            alert(data.message || 'Không thể gửi tin nhắn');
+            input.value = content;
+            alert(data ? data.message : ('Lỗi máy chủ khi gửi: ' + text.substring(0, 100)));
         }
     } catch (err) {
         console.error('Lỗi gửi tin nhắn:', err);
+        input.value = content;
+        alert('Lỗi kết nối khi gửi tin nhắn: ' + err.message);
     } finally {
         AppState.isSending = false;
+        input.focus();
     }
 }
 

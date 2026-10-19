@@ -95,7 +95,9 @@ define('TAGS', [
  * Trả về JSON chuẩn hóa cho các API endpoint
  */
 function jsonResponse($success, $data = [], $message = '', $statusCode = 200) {
-    // Luôn giữ HTTP 200 để tránh Apache/InfinityFree nuốt mất dữ liệu JSON và thay bằng file HTML lỗi
+    while (ob_get_level() > 0) {
+        @ob_end_clean();
+    }
     http_response_code(200);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([

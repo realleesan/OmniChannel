@@ -4,6 +4,7 @@
  * Xử lý các thao tác tương tác của nhân viên trên khung chat
  */
 
+ob_start();
 header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../controllers/ChatController.php';

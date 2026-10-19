@@ -30,9 +30,7 @@ if (empty($externalSenderId)) {
     $externalSenderId = strtolower($channel) . '_' . substr(md5(uniqid(rand(), true)), 0, 8);
 }
 
-if (empty($content)) {
-    jsonResponse(false, [], 'Nội dung tin nhắn không được để trống', 400);
-}
+$customerPhone     = trim($jsonData['customer_phone'] ?? $_POST['customer_phone'] ?? '');
 
 $chatController = new ChatController();
 $res = $chatController->receiveCustomerMessage(
@@ -40,7 +38,8 @@ $res = $chatController->receiveCustomerMessage(
     $externalSenderId, 
     $senderName, 
     $content, 
-    $attachmentUrl ?: null
+    $attachmentUrl ?: null,
+    $customerPhone ?: null
 );
 
 jsonResponse(true, [
