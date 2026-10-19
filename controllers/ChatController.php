@@ -78,6 +78,12 @@ class ChatController {
         }
 
         $messageId = $this->msgModel->create($conversationId, 'STAFF', $userId, $content, $attachmentUrl);
+
+        // Đẩy tin phản hồi của nhân viên sang Render Gateway để Widget Webchat nhận ngay
+        if ($conv['channel'] === 'WEBCHAT' && defined('RENDER_GATEWAY_URL') && !empty(RENDER_GATEWAY_URL)) {
+            $this->pushReplyToWebchatGateway($conv['external_sender_id'], $content);
+        }
+
         return [
             'success'    => true, 
             'message_id' => $messageId,
@@ -91,6 +97,25 @@ class ChatController {
                 'time_formatted' => date('H:i')
             ]
         ];
+    }
+
+    /**
+     * Gửi bản sao tin nhắn trả lời của nhân viên tới Webchat Gateway
+     */
+    private function pushReplyToWebchatGateway($customerId, $content) {
+        $url = rtrim(RENDER_GATEWAY_URL, '/') . '/api/webchat/reply';
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+            'customer_id' => $customerId,
+            'content'     => $content,
+            'staff_name'  => $_SESSION['fullname'] ?? 'Nhân viên tư vấn'
+        ]));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        @curl_exec($ch);
+        curl_close($ch);
     }
 
     /**

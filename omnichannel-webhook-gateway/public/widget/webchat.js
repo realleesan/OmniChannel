@@ -1,27 +1,18 @@
 /**
  * OMNICHANNEL WEBCHAT WIDGET
  * Nhúng dễ dàng vào bất kỳ website nào bằng 1 thẻ <script>
- * Hoạt động độc lập, không xung đột CSS, không yêu cầu thư viện bên ngoài.
+ * Kết nối đồng bộ 2 chiều thời gian thực với OmniChannel Agent Workspace
  */
 
 (function () {
-    // Ngăn chặn nạp trùng lặp nhiều lần
     if (window.__OMNICHANNEL_WEBCHAT_LOADED__) return;
     window.__OMNICHANNEL_WEBCHAT_LOADED__ = true;
 
-    // 1. Xác định URL Backend API
+    // 1. Xác định URL Backend API Gateway
     const currentScript = document.currentScript || document.querySelector('script[src*="webchat.js"]');
-    let endpointUrl = '';
+    const endpointUrl = currentScript?.getAttribute('data-endpoint') || 'https://omnichannel-gateway.onrender.com/api/webchat';
 
-    if (currentScript && currentScript.getAttribute('data-endpoint')) {
-        endpointUrl = currentScript.getAttribute('data-endpoint');
-    } else if (window.location.hostname === 'omnichannel.gt.tc') {
-        endpointUrl = 'https://omnichannel.gt.tc/api/webchat_endpoint.php';
-    } else {
-        endpointUrl = 'https://omnichannel-webhook-gateway.onrender.com/api/webchat';
-    }
-
-    // 2. Trạng thái phiên chat
+    // 2. Trạng thái phiên chat (lưu trữ theo LocalStorage của trình duyệt khách)
     const STORAGE_KEY = 'omni_webchat_session';
     let session = {
         customerId: '',
@@ -41,7 +32,7 @@
     let isSending = false;
     let pollInterval = null;
 
-    // 3. Khởi tạo Widget khi DOM sẵn sàng
+    // 3. Khởi tạo Widget an toàn khi DOM sẵn sàng
     function mountWidget() {
         if (!document.body) {
             if (document.readyState === 'loading') {
@@ -264,7 +255,7 @@
         `;
         document.head.appendChild(style);
 
-        // Tạo nút bấm Launcher
+        // Nút mở Chat
         const launcher = document.createElement('div');
         launcher.id = 'omni-chat-launcher';
         launcher.setAttribute('title', 'Hỗ trợ trực tuyến');
@@ -272,7 +263,7 @@
             <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
         `;
 
-        // Tạo khung chat
+        // Khung cửa sổ chat (Không có tin nhắn mẫu ảo)
         const chatBox = document.createElement('div');
         chatBox.id = 'omni-chat-box';
         chatBox.innerHTML = `
@@ -291,10 +282,7 @@
                 </button>
             </div>
             <div class="omni-chat-messages" id="omniWidgetMessages">
-                <div class="omni-msg staff">
-                    <div class="omni-bubble">Xin chào bạn! Shop có thể tư vấn sản phẩm gì cho bạn hôm nay ạ?</div>
-                    <div class="omni-time">Vừa xong</div>
-                </div>
+                <!-- Tin nhắn thật từ cơ sở dữ liệu sẽ tải vào đây -->
             </div>
             <div class="omni-chat-input-area">
                 <input type="text" class="omni-input" id="omniWidgetInput" placeholder="Nhập tin nhắn của bạn...">
@@ -341,47 +329,29 @@
         }
     }
 
-    // 5. Hàm gọi API linh hoạt (hỗ trợ cả PHP endpoint và Render Gateway)
+    // 5. Gọi API đồng bộ 2 chiều
     async function apiCall(action, payload = {}) {
-        const isRender = endpointUrl.includes('onrender.com');
         let url = endpointUrl;
         let options = {};
 
-        if (isRender) {
-            if (action === 'poll') {
-                url = `${endpointUrl}/poll?customer_id=${encodeURIComponent(payload.customer_id || '')}&last_msg_id=${payload.last_msg_id || 0}`;
-                options = { method: 'GET', mode: 'cors' };
-            } else {
-                url = `${endpointUrl}/${action}`;
-                options = {
-                    method: 'POST',
-                    mode: 'cors',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                };
-            }
+        if (action === 'poll') {
+            url = `${endpointUrl}/poll?customer_id=${encodeURIComponent(payload.customer_id || '')}&last_msg_id=${payload.last_msg_id || 0}`;
+            options = { method: 'GET', mode: 'cors' };
         } else {
-            // PHP Endpoint trên omnichannel.gt.tc
-            if (action === 'poll') {
-                url = `${endpointUrl}?action=poll&conversation_id=${encodeURIComponent(payload.conversation_id || '')}&last_msg_id=${payload.last_msg_id || 0}`;
-                options = { method: 'GET' };
-            } else {
-                const formData = new FormData();
-                formData.append('action', action);
-                for (const key in payload) {
-                    if (payload[key] !== null && payload[key] !== undefined) {
-                        formData.append(key, payload[key]);
-                    }
-                }
-                options = { method: 'POST', body: formData };
-            }
+            url = `${endpointUrl}/${action}`;
+            options = {
+                method: 'POST',
+                mode: 'cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            };
         }
 
         const res = await fetch(url, options);
         return await res.json();
     }
 
-    // 6. Khởi tạo phiên
+    // 6. Khởi tạo phiên trò chuyện thực tế
     async function initSession() {
         try {
             const data = await apiCall('init', {
@@ -395,16 +365,25 @@
                 session.conversationId = data.conversation_id;
                 saveSession();
 
+                const container = document.getElementById('omniWidgetMessages');
                 if (data.messages && data.messages.length > 0) {
                     renderMessageHistory(data.messages);
+                } else if (container && container.children.length === 0) {
+                    // Hiển thị lời nhắn hướng dẫn nhẹ nhàng khi chưa có tin nhắn nào
+                    container.innerHTML = `
+                        <div id="omniEmptyHint" style="text-align:center;padding:30px 16px;color:#94a3b8;font-size:13px;">
+                            <div style="font-weight:600;color:#475569;margin-bottom:6px;">Chào mừng bạn đến với hỗ trợ trực tuyến!</div>
+                            Hãy nhập tin nhắn bên dưới để bắt đầu kết nối với nhân viên tư vấn.
+                        </div>
+                    `;
                 }
             }
         } catch (e) {
-            console.warn('Lỗi kết nối Webchat Backend:', e);
+            console.warn('Lỗi kết nối Webchat Gateway:', e);
         }
     }
 
-    // 7. Gửi tin nhắn
+    // 7. Gửi tin nhắn thực tế lên hệ thống
     async function handleSend() {
         const chatBox = document.getElementById('omni-chat-box');
         if (!chatBox) return;
@@ -415,6 +394,11 @@
         isSending = true;
         input.value = '';
 
+        // Xóa gợi ý trống nếu có
+        const emptyHint = document.getElementById('omniEmptyHint');
+        if (emptyHint) emptyHint.remove();
+
+        // Hiển thị ngay tin nhắn của khách
         appendMessage('CUSTOMER', text, 'Vừa xong');
 
         try {
@@ -437,7 +421,7 @@
         }
     }
 
-    // 8. Polling nhận tin nhắn phản hồi từ nhân viên
+    // 8. Polling kéo tin nhắn trả lời từ nhân viên
     function startPolling() {
         if (pollInterval) clearInterval(pollInterval);
         pollInterval = setInterval(pollUpdates, 3000);
@@ -451,16 +435,18 @@
     }
 
     async function pollUpdates() {
-        if (!session.customerId && !session.conversationId) return;
+        if (!session.customerId) return;
 
         try {
             const data = await apiCall('poll', {
                 customer_id: session.customerId,
-                conversation_id: session.conversationId,
                 last_msg_id: session.lastMsgId
             });
 
             if (data && data.success && data.messages && data.messages.length > 0) {
+                const emptyHint = document.getElementById('omniEmptyHint');
+                if (emptyHint) emptyHint.remove();
+
                 data.messages.forEach(msg => {
                     if (msg.id > session.lastMsgId) {
                         session.lastMsgId = msg.id;
@@ -510,7 +496,6 @@
         return p.innerHTML;
     }
 
-    // Tự động kích hoạt
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', mountWidget);
     } else {

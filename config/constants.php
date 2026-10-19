@@ -67,7 +67,7 @@ $detectedUrl = rtrim($protocol . $host . $basePath, '/');
 define('BASE_URL', env('APP_URL', $detectedUrl));
 
 // Cấu hình Render Webhook Gateway URL (nơi tiếp nhận Webhook ngoài)
-define('RENDER_GATEWAY_URL', env('RENDER_GATEWAY_URL', 'https://omnichannel-webhook-gateway.onrender.com'));
+define('RENDER_GATEWAY_URL', env('RENDER_GATEWAY_URL', 'https://omnichannel-gateway.onrender.com'));
 define('GATEWAY_SECRET_KEY', env('GATEWAY_SECRET_KEY', 'omnichannel_secret_ba_2026'));
 
 // Định nghĩa các kênh hỗ trợ
