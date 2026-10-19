@@ -24,9 +24,10 @@ class Conversation {
     }
 
     public function create($channel, $externalSenderId, $senderName, $assignedUserId = null, $status = 'UNREPLIED', $tag = 'DANG_TU_VAN') {
+        $now = date('Y-m-d H:i:s');
         $stmt = $this->db->prepare("
-            INSERT INTO conversations (channel, external_sender_id, sender_name, assigned_user_id, status, tag, last_message_at)
-            VALUES (:channel, :external_sender_id, :sender_name, :assigned_user_id, :status, :tag, NOW())
+            INSERT INTO conversations (channel, external_sender_id, sender_name, assigned_user_id, status, tag, last_message_at, created_at)
+            VALUES (:channel, :external_sender_id, :sender_name, :assigned_user_id, :status, :tag, :now, :now2)
         ");
         $stmt->execute([
             ':channel'            => $channel,
@@ -34,7 +35,9 @@ class Conversation {
             ':sender_name'        => $senderName,
             ':assigned_user_id'   => $assignedUserId,
             ':status'             => $status,
-            ':tag'                => $tag
+            ':tag'                => $tag,
+            ':now'                => $now,
+            ':now2'               => $now
         ]);
         return (int)$this->db->lastInsertId();
     }
@@ -171,10 +174,12 @@ class Conversation {
     }
 
     public function updateLastMessage($id, $content, $senderType = 'CUSTOMER', $status = null) {
-        $sql = "UPDATE conversations SET last_message = :content, last_sender_type = :sender_type, last_message_at = NOW()";
+        $now = date('Y-m-d H:i:s');
+        $sql = "UPDATE conversations SET last_message = :content, last_sender_type = :sender_type, last_message_at = :now";
         $params = [
             ':content'     => $content,
             ':sender_type' => $senderType,
+            ':now'         => $now,
             ':id'          => $id
         ];
 

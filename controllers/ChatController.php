@@ -92,6 +92,7 @@ class ChatController {
                 'content'        => $content,
                 'sender_type'    => 'STAFF',
                 'sender_id'      => $userId,
+                'staff_name'     => $_SESSION['fullname'] ?? 'Nhân viên tư vấn',
                 'attachment_url' => $attachmentUrl,
                 'created_at'     => date('Y-m-d H:i:s'),
                 'time_formatted' => date('H:i')
@@ -103,18 +104,21 @@ class ChatController {
      * Gửi bản sao tin nhắn trả lời của nhân viên tới Webchat Gateway
      */
     private function pushReplyToWebchatGateway($customerId, $content) {
+        if (!defined('RENDER_GATEWAY_URL') || empty(RENDER_GATEWAY_URL)) return;
         $url = rtrim(RENDER_GATEWAY_URL, '/') . '/api/webchat/reply';
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
             'customer_id' => $customerId,
             'content'     => $content,
             'staff_name'  => $_SESSION['fullname'] ?? 'Nhân viên tư vấn'
         ]));
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-        @curl_exec($ch);
+        curl_exec($ch);
         curl_close($ch);
     }
 

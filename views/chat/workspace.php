@@ -90,10 +90,10 @@ if (isset($_GET['logout'])) {
 
             <!-- Segmented Tabs: Tất cả | Của tôi | Chưa đọc (kèm dropdown v) -->
             <div class="filter-tabs-row">
-                <button type="button" class="tab-btn active" id="tabAll" onclick="switchMainTab('all')">
+                <button type="button" class="tab-btn" id="tabAll" onclick="switchMainTab('all')">
                     Tất cả
                 </button>
-                <button type="button" class="tab-btn" id="tabMine" onclick="switchMainTab('mine')">
+                <button type="button" class="tab-btn active" id="tabMine" onclick="switchMainTab('mine')">
                     Của tôi
                 </button>
                 <div class="tab-dropdown-container" id="unreadDropdownContainer">
@@ -219,7 +219,7 @@ if (isset($_GET['logout'])) {
 
         <!-- Khu vực tin nhắn cuộn -->
         <div class="chat-messages-viewport" id="messagesViewport">
-            <div class="chat-empty-state">
+            <div class="chat-empty-state" id="chatEmptyState">
                 <div class="empty-icon-circle">
                     <i class="fa-regular fa-comments"></i>
                 </div>

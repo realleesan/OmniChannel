@@ -15,16 +15,18 @@ class Message {
     }
 
     public function create($conversationId, $senderType, $senderId, $content, $attachmentUrl = null) {
+        $now = date('Y-m-d H:i:s');
         $stmt = $this->db->prepare("
             INSERT INTO messages (conversation_id, sender_type, sender_id, content, attachment_url, created_at)
-            VALUES (:conversation_id, :sender_type, :sender_id, :content, :attachment_url, NOW())
+            VALUES (:conversation_id, :sender_type, :sender_id, :content, :attachment_url, :created_at)
         ");
         $stmt->execute([
             ':conversation_id' => $conversationId,
             ':sender_type'     => $senderType,
             ':sender_id'       => $senderId,
             ':content'         => $content,
-            ':attachment_url'  => $attachmentUrl
+            ':attachment_url'  => $attachmentUrl,
+            ':created_at'      => $now
         ]);
         $messageId = (int)$this->db->lastInsertId();
 

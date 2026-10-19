@@ -11,14 +11,16 @@ document.addEventListener('DOMContentLoaded', () => {
 // Trạng thái ứng dụng toàn cục
 const AppState = {
     activeConvId: null,
-    currentTab: 'all',          // 'all' | 'mine' | 'unreplied'
-    unrepliedScope: 'all',      // 'all' | 'mine'
+    currentTab: 'mine',          // Mặc định tab 'Của tôi'
+    unrepliedScope: 'mine',      // 'all' | 'mine'
     searchQuery: '',
     selectedLabelId: 0,
     selectedLabelName: 'Phân loại',
     selectedChannel: '',        // '' | 'WEBCHAT' | 'ZALO' | 'FACEBOOK'
     selectedChannelName: 'Kênh',
     lastMessageId: 0,
+    fetchRequestId: 0,
+    cachedConversations: {},
     isViewOnly: false,
     pollingInterval: null,
     isSending: false,
@@ -204,6 +206,12 @@ function renderConversationsList(conversations) {
         return;
     }
 
+    // Lưu cache danh sách hội thoại để phản hồi tức thì khi click
+    AppState.cachedConversations = {};
+    conversations.forEach(c => {
+        AppState.cachedConversations[c.id] = c;
+    });
+
     let html = '';
     conversations.forEach(conv => {
         const isActive = (conv.id == AppState.activeConvId);
@@ -239,7 +247,7 @@ function renderConversationsList(conversations) {
         }
 
         html += `
-            <div class="conversation-card ${isActive ? 'active' : ''}" onclick="selectConversation(${conv.id})">
+            <div class="conversation-card ${isActive ? 'active' : ''}" data-conv-id="${conv.id}" onclick="selectConversation(${conv.id})">
                 <div class="card-avatar-wrap">
                     <div class="card-avatar-circle">${escapeHtml(initial)}</div>
                     <span class="card-channel-mini-badge badge-channel-${conv.channel}">
@@ -283,26 +291,117 @@ function renderConversationsList(conversations) {
 }
 
 /**
- * Chọn và mở chi tiết một cuộc hội thoại
+ * Hiển thị thanh Header thông tin khách hàng ở giữa màn hình
+ */
+function renderChatHeader(conv) {
+    if (!conv) return;
+    const channelCfg = CHANNEL_CONFIG[conv.channel] || { icon: '<i class="fa-solid fa-comment"></i>', label: conv.channel || 'Webchat', class: 'badge-channel-WEBCHAT' };
+
+    const chatHeader = document.getElementById('chatHeader');
+    if (chatHeader) chatHeader.style.display = 'flex';
+
+    const activeSenderName = document.getElementById('activeSenderName');
+    if (activeSenderName) activeSenderName.innerText = conv.sender_name || 'Khách Hàng';
+
+    const activeAvatar = document.getElementById('activeAvatar');
+    if (activeAvatar) activeAvatar.innerText = (conv.sender_name || 'K').charAt(0).toUpperCase();
+
+    const avatarChannelIcon = document.getElementById('activeAvatarChannelIcon');
+    if (avatarChannelIcon) {
+        avatarChannelIcon.innerHTML = channelCfg.icon;
+        avatarChannelIcon.className = `partner-channel-mini-badge badge-channel-${conv.channel || 'WEBCHAT'}`;
+    }
+
+    const activeChannelBadge = document.getElementById('activeChannelBadge');
+    if (activeChannelBadge) activeChannelBadge.innerHTML = `${channelCfg.icon} ${channelCfg.label}`;
+
+    const tagBadge = document.getElementById('activeTagBadge');
+    if (tagBadge) {
+        const tagName = TAG_LABELS[conv.tag] || conv.tag || 'Đang tư vấn';
+        tagBadge.innerText = tagName;
+        tagBadge.className = `card-tag-badge tag-${conv.tag || 'DANG_TU_VAN'}`;
+    }
+
+    const waitingChip = document.getElementById('activeWaitingChip');
+    const waitingTime = document.getElementById('activeWaitingTime');
+    if (waitingChip && waitingTime) {
+        if (conv.status === 'UNREPLIED') {
+            waitingChip.style.display = 'inline-flex';
+            waitingTime.innerText = conv.waiting_label || 'Chờ phản hồi';
+        } else {
+            waitingChip.style.display = 'none';
+        }
+    }
+
+    const assigneeText = document.getElementById('activeAssigneeText');
+    if (assigneeText) {
+        assigneeText.innerText = `Phụ trách: ${conv.assigned_fullname || 'Chưa gán'}`;
+    }
+}
+
+/**
+ * Chọn và mở chi tiết một cuộc hội thoại (Triệt tiêu độ trễ, không mix tin nhắn)
  */
 async function selectConversation(convId) {
+    if (AppState.activeConvId === convId && document.getElementById('chatHeader').style.display !== 'none') {
+        return;
+    }
+
     AppState.activeConvId = convId;
     AppState.lastMessageId = 0;
+    const thisRequestId = ++AppState.fetchRequestId;
 
-    // Đánh dấu thẻ active trên UI
-    document.querySelectorAll('.conversation-card').forEach(el => el.classList.remove('active'));
+    // 1. Phản hồi giao diện ngay lập tức: Đánh dấu thẻ active
+    document.querySelectorAll('.conversation-card').forEach(el => {
+        el.classList.toggle('active', el.getAttribute('data-conv-id') == convId);
+    });
+
+    // 2. Hiển thị Header và Sidebar Phải ngay lập tức từ dữ liệu đã nạp trong danh sách
+    const cachedConv = AppState.cachedConversations ? AppState.cachedConversations[convId] : null;
+    if (cachedConv) {
+        renderChatHeader(cachedConv);
+    }
+    document.getElementById('rightSidebar').style.display = 'flex';
+
+    // 3. Xóa sạch vùng tin nhắn cũ ngay lập tức (Gỡ empty state và tin nhắn của khách trước)
+    const viewport = document.getElementById('messagesViewport');
+    viewport.innerHTML = `
+        <div class="chat-loading-placeholder" style="text-align:center;padding:50px 16px;color:#94a3b8;">
+            <i class="fa-solid fa-circle-notch fa-spin" style="font-size:26px;margin-bottom:12px;color:#10B981;display:block;"></i>
+            <span style="font-size:13px;font-weight:500;">Đang nạp dữ liệu hội thoại...</span>
+        </div>
+    `;
 
     try {
         const res = await fetch(`../../api/chat_action.php?action=get_conversation&id=${convId}`);
         const data = await res.json();
 
+        // Kiểm tra xem người dùng có bấm chuyển sang khách khác trong lúc đang tải không
+        if (AppState.activeConvId !== convId || thisRequestId !== AppState.fetchRequestId) {
+            return; // Đã đổi khách, bỏ qua kết quả cũ để chống mix tin nhắn
+        }
+
         if (data.success && data.data) {
             renderConversationView(data.data);
-            // Kích hoạt đồng bộ lại để gỡ nhãn in đậm chưa đọc
             runSyncPolling();
+        } else {
+            viewport.innerHTML = `
+                <div style="text-align:center;padding:50px 16px;color:#ef4444;font-size:13px;">
+                    <i class="fa-solid fa-triangle-exclamation" style="font-size:28px;margin-bottom:8px;display:block;"></i>
+                    Không thể tải nội dung hội thoại: ${escapeHtml(data.message || 'Lỗi kết nối')}
+                </div>
+            `;
         }
     } catch (err) {
         console.error('Lỗi tải chi tiết hội thoại:', err);
+        if (AppState.activeConvId === convId) {
+            viewport.innerHTML = `
+                <div style="text-align:center;padding:50px 16px;color:#ef4444;font-size:13px;">
+                    <i class="fa-solid fa-triangle-exclamation" style="font-size:28px;margin-bottom:8px;display:block;"></i>
+                    Lỗi kết nối khi tải hội thoại. Vui lòng thử lại.
+                </div>
+            `;
+        }
     }
 }
 
@@ -312,39 +411,9 @@ async function selectConversation(convId) {
 function renderConversationView(detail) {
     const { conversation, is_mine, is_view_only, messages, profile } = detail;
 
-    // 1. Hiển thị Header khung chat
-    const channelCfg = CHANNEL_CONFIG[conversation.channel] || { icon: '<i class="fa-solid fa-comment"></i>', label: conversation.channel, class: 'badge-channel-WEBCHAT' };
-    document.getElementById('chatHeader').style.display = 'flex';
+    // 1. Cập nhật thanh header thông tin khách hàng ở trên cùng
+    renderChatHeader(conversation);
     document.getElementById('rightSidebar').style.display = 'flex';
-    document.getElementById('activeSenderName').innerText = conversation.sender_name;
-    document.getElementById('activeAvatar').innerText = (conversation.sender_name || 'K').charAt(0).toUpperCase();
-
-    const avatarChannelIcon = document.getElementById('activeAvatarChannelIcon');
-    if (avatarChannelIcon) {
-        avatarChannelIcon.innerHTML = channelCfg.icon;
-        avatarChannelIcon.className = `partner-channel-mini-badge badge-channel-${conversation.channel}`;
-    }
-
-    document.getElementById('activeChannelBadge').innerHTML = `${channelCfg.icon} ${channelCfg.label}`;
-    
-    const tagBadge = document.getElementById('activeTagBadge');
-    tagBadge.innerText = TAG_LABELS[conversation.tag] || conversation.tag;
-    tagBadge.className = `card-tag-badge tag-${conversation.tag}`;
-
-    // Cập nhật waiting time & assignee text
-    const waitingChip = document.getElementById('activeWaitingChip');
-    const waitingTime = document.getElementById('activeWaitingTime');
-    if (conversation.status === 'UNREPLIED') {
-        waitingChip.style.display = 'inline-flex';
-        waitingTime.innerText = conversation.waiting_label || 'Chờ phản hồi';
-    } else {
-        waitingChip.style.display = 'none';
-    }
-
-    const assigneeText = document.getElementById('activeAssigneeText');
-    if (assigneeText) {
-        assigneeText.innerText = `Phụ trách: ${conversation.assigned_fullname || 'Chưa gán'}`;
-    }
 
     // 2. Xử lý cơ chế khóa View-Only (UC2.2)
     AppState.isViewOnly = is_view_only;
@@ -361,12 +430,23 @@ function renderConversationView(detail) {
         inputArea.style.display = 'block';
     }
 
-    // 3. Render tin nhắn hội thoại
+    // 3. Xóa sạch vùng tin nhắn và render lịch sử tin nhắn chuẩn
     const viewport = document.getElementById('messagesViewport');
     viewport.innerHTML = '';
-    messages.forEach(msg => {
-        appendMessageBubble(msg, false);
-    });
+    AppState.lastMessageId = 0;
+
+    if (messages && messages.length > 0) {
+        messages.forEach(msg => {
+            appendMessageBubble(msg, false);
+        });
+    } else {
+        viewport.innerHTML = `
+            <div style="text-align:center;padding:50px 16px;color:#94a3b8;font-size:13px;">
+                <i class="fa-regular fa-comments" style="font-size:28px;margin-bottom:8px;display:block;opacity:0.4;"></i>
+                Chưa có tin nhắn trong cuộc trò chuyện này. Hãy gửi tin nhắn để bắt đầu tư vấn.
+            </div>
+        `;
+    }
     scrollChatToBottom();
 
     // 4. Cập nhật Sidebar Phải (Hồ sơ Agent & Nhãn tùy biến)
@@ -378,7 +458,15 @@ function renderConversationView(detail) {
  * Đồng bộ tin nhắn mới của hội thoại đang mở khi polling
  */
 function handleActiveConversationSync(activeData) {
+    if (!activeData || !activeData.conversation) return;
+
+    // Đảm bảo chỉ xử lý nếu đúng hội thoại đang được mở trên màn hình
+    if (activeData.conversation.id != AppState.activeConvId) return;
+
     const { conversation, is_mine, is_view_only, new_messages, profile, assigned_labels } = activeData;
+
+    // Đảm bảo Header luôn hiển thị thông tin khách hàng
+    renderChatHeader(conversation);
 
     // Cập nhật quyền View-Only nếu có sự thay đổi
     if (AppState.isViewOnly !== is_view_only) {
@@ -397,12 +485,25 @@ function handleActiveConversationSync(activeData) {
         }
     }
 
-    // Bổ sung các tin nhắn mới
+    // Gỡ bỏ trạng thái empty state hoặc placeholder nếu có
+    const viewport = document.getElementById('messagesViewport');
+    const placeholder = viewport.querySelector('.chat-empty-state, .chat-loading-placeholder');
+    if (placeholder && new_messages && new_messages.length > 0) {
+        placeholder.remove();
+    }
+
+    // Bổ sung các tin nhắn mới (chống trùng lặp tuyệt đối)
     if (new_messages && new_messages.length > 0) {
+        let hasNew = false;
         new_messages.forEach(msg => {
-            appendMessageBubble(msg, true);
+            if (msg.id > AppState.lastMessageId && !document.getElementById(`msg-${msg.id}`)) {
+                appendMessageBubble(msg, true);
+                hasNew = true;
+            }
         });
-        scrollChatToBottom();
+        if (hasNew) {
+            scrollChatToBottom();
+        }
     }
 
     // Cập nhật hồ sơ và nhãn
@@ -415,14 +516,28 @@ function handleActiveConversationSync(activeData) {
 }
 
 /**
- * Thêm một bong bóng tin nhắn vào khung chat
+ * Thêm một bong bóng tin nhắn vào khung chat (Định dạng thời gian chuẩn Việt Nam)
  */
 function appendMessageBubble(msg, isNew = false) {
     const viewport = document.getElementById('messagesViewport');
+    if (!viewport) return;
+
+    // Chống trùng lặp tin nhắn
+    if (msg.id && document.getElementById(`msg-${msg.id}`)) {
+        return;
+    }
+
+    // Gỡ bỏ placeholder nếu còn tồn tại
+    const placeholder = viewport.querySelector('.chat-empty-state, .chat-loading-placeholder');
+    if (placeholder) {
+        placeholder.remove();
+    }
+
     const isStaff = (msg.sender_type === 'STAFF');
     const senderTitle = isStaff ? (msg.staff_name || 'Nhân viên tư vấn') : 'Khách hàng';
 
     const div = document.createElement('div');
+    if (msg.id) div.id = `msg-${msg.id}`;
     div.className = `message-item ${isStaff ? 'staff' : 'customer'}`;
     
     let attachmentHtml = '';
@@ -436,18 +551,27 @@ function appendMessageBubble(msg, isNew = false) {
         `;
     }
 
+    // Định dạng giờ hiển thị theo chuẩn Việt Nam HH:mm
+    let displayTime = msg.time_formatted || '';
+    if (!displayTime && msg.created_at) {
+        const d = new Date(msg.created_at.replace(/-/g, '/'));
+        if (!isNaN(d.getTime())) {
+            displayTime = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
+        }
+    }
+
     div.innerHTML = `
         <div class="message-meta-header">${escapeHtml(senderTitle)}</div>
         <div class="message-bubble">
             ${escapeHtml(msg.content)}
             ${attachmentHtml}
-            <div class="message-timestamp">${msg.time_formatted || ''}</div>
+            <div class="message-timestamp">${escapeHtml(displayTime)}</div>
         </div>
     `;
 
     viewport.appendChild(div);
 
-    if (msg.id > AppState.lastMessageId) {
+    if (msg.id && msg.id > AppState.lastMessageId) {
         AppState.lastMessageId = msg.id;
     }
 }

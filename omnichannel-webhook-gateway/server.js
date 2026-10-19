@@ -271,7 +271,7 @@ app.post('/api/webchat/send', (req, res) => {
         sender_type: 'CUSTOMER',
         content,
         created_at: new Date().toISOString(),
-        time_formatted: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+        time_formatted: new Date().toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false })
     };
     webchatSessions[customerId].messages.push(newMsg);
 
@@ -314,7 +314,7 @@ app.post('/api/webchat/reply', (req, res) => {
         staff_name: staff_name || 'Nhân viên tư vấn',
         content,
         created_at: new Date().toISOString(),
-        time_formatted: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+        time_formatted: new Date().toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false })
     };
     webchatSessions[customer_id].messages.push(replyMsg);
 
