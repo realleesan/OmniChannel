@@ -11,6 +11,8 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- BƯỚC 1: XÓA CÁC BẢNG THEO THỨ TỰ BẢNG CON TRƯỚC, BẢNG CHA SAU
 -- (Tránh hoàn toàn lỗi #1451 Cannot delete or update a parent row trên phpMyAdmin)
 -- ========================================================
+DROP TABLE IF EXISTS conversation_labels;
+DROP TABLE IF EXISTS labels;
 DROP TABLE IF EXISTS messages;
 DROP TABLE IF EXISTS customer_profiles;
 DROP TABLE IF EXISTS templates;
@@ -54,8 +56,10 @@ CREATE TABLE conversations (
     sender_avatar VARCHAR(255) DEFAULT NULL,
     assigned_user_id INT NULL,
     status ENUM('UNREPLIED', 'CHATTING', 'CLOSED') DEFAULT 'UNREPLIED',
+    is_read TINYINT(1) DEFAULT 0,
     tag ENUM('DANG_TU_VAN', 'DA_CHOT', 'CHO_CHUYEN_KHOAN', 'BOOM_HANG') DEFAULT 'DANG_TU_VAN',
     last_message TEXT NULL,
+    last_sender_type ENUM('CUSTOMER', 'STAFF') DEFAULT 'CUSTOMER',
     last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (assigned_user_id) REFERENCES users(id) ON DELETE SET NULL
@@ -98,6 +102,27 @@ CREATE TABLE customer_profiles (
     FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 7. Bảng nhãn phân loại hội thoại tùy biến (Custom Labels)
+CREATE TABLE labels (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    color VARCHAR(20) DEFAULT '#3B82F6',
+    icon VARCHAR(50) DEFAULT 'fa-solid fa-tag',
+    created_by_user_id INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 8. Bảng liên kết hội thoại và nhãn (Conversation Labels)
+CREATE TABLE conversation_labels (
+    conversation_id INT NOT NULL,
+    label_id INT NOT NULL,
+    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (conversation_id, label_id),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+    FOREIGN KEY (label_id) REFERENCES labels(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ========================================================
@@ -126,4 +151,14 @@ INSERT INTO templates (id, shortcut, title, content, created_by_user_id) VALUES
 (3, '/sp', 'Thông tin sản phẩm & giá', 'Dạ sản phẩm [ten_sp] (Mã: [ma_sp]) hiện đang có giá ưu đãi là [gia] ạ! Shop đang sẵn hàng gửi ngay trong ngày ạ.', 1),
 (4, '/stk', 'Thông tin chuyển khoản', 'Dạ thông tin thanh toán của bên em: Ngân hàng MB Bank - STK: 0987654321 - Chủ TK: OMNICHANNEL STORE. Nội dung: [ma_sp] + SĐT của anh/chị ạ.', 1),
 (5, '/ship', 'Chính sách vận chuyển & Freeship', 'Dạ bên em hỗ trợ Freeship cho đơn từ 2 sản phẩm trở lên, hoặc đơn thanh toán chuyển khoản trước ạ!', 1);
+
+-- ========================================================
+-- KHỞI TẠO NHÃN PHÂN LOẠI MẪU (CHUẨN RESPOND.IO MOCKUP)
+-- ========================================================
+INSERT INTO labels (id, name, color, icon) VALUES
+(1, 'New Lead', '#2563EB', 'fa-solid fa-bolt'),
+(2, 'Cần tư vấn', '#F59E0B', 'fa-solid fa-comments'),
+(3, 'Đã chốt đơn', '#10B981', 'fa-solid fa-check'),
+(4, 'Chờ thanh toán', '#8B5CF6', 'fa-solid fa-credit-card'),
+(5, 'Cảnh báo rủi ro', '#EF4444', 'fa-solid fa-triangle-exclamation');
 

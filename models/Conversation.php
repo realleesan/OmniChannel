@@ -58,9 +58,9 @@ class Conversation {
     }
 
     /**
-     * Lấy danh sách hội thoại theo bộ lọc (Tab Tất cả / Của tôi / Chưa trả lời / Tìm kiếm)
+     * Lấy danh sách hội thoại theo bộ lọc (Tab: all, mine, unreplied; Dropdown unreplied: all, mine; Label filter, Channel filter; Search)
      */
-    public function getFilteredList($currentUserId, $tab = 'all', $onlyUnreplied = false, $search = '') {
+    public function getFilteredList($currentUserId, $tab = 'all', $unrepliedScope = 'all', $search = '', $labelId = 0, $channel = '') {
         $sql = "
             SELECT c.*, 
                    u.fullname AS assigned_fullname, 
@@ -75,82 +75,115 @@ class Conversation {
         ";
         $params = [];
 
-        // Tab "Của tôi"
+        // 1. Phân loại theo Tab
         if ($tab === 'mine') {
             $sql .= " AND c.assigned_user_id = :current_user_id";
             $params[':current_user_id'] = $currentUserId;
+        } elseif ($tab === 'unreplied') {
+            // Tab Chưa đọc: xét is_read = 0 hoặc status = 'UNREPLIED'
+            $sql .= " AND (c.is_read = 0 OR c.status = 'UNREPLIED')";
+            if ($unrepliedScope === 'mine') {
+                $sql .= " AND c.assigned_user_id = :current_user_id";
+                $params[':current_user_id'] = $currentUserId;
+            }
         }
 
-        // Chip lọc "Chưa trả lời"
-        if ($onlyUnreplied) {
-            $sql .= " AND c.status = 'UNREPLIED'";
+        // 2. Lọc theo Kênh (Webchat, Facebook, Zalo)
+        if (!empty($channel) && in_array(strtoupper($channel), ['WEBCHAT', 'FACEBOOK', 'ZALO'])) {
+            $sql .= " AND c.channel = :channel";
+            $params[':channel'] = strtoupper($channel);
         }
 
-        // Tìm kiếm theo tên khách, nội dung hoặc mã kênh
+        // 3. Lọc theo Nhãn phân loại tùy biến
+        if (!empty($labelId) && (int)$labelId > 0) {
+            $sql .= " AND c.id IN (SELECT conversation_id FROM conversation_labels WHERE label_id = :label_id)";
+            $params[':label_id'] = (int)$labelId;
+        }
+
+        // 4. Tìm kiếm theo Tên khách hàng hoặc Nội dung tin nhắn
         if (!empty($search)) {
-            $sql .= " AND (c.sender_name LIKE :search OR c.last_message LIKE :search OR c.external_sender_id LIKE :search)";
+            $sql .= " AND (c.sender_name LIKE :search OR c.last_message LIKE :search)";
             $params[':search'] = '%' . trim($search) . '%';
         }
 
-        // Sắp xếp theo ưu tiên: Nếu lọc Chưa trả lời thì tin chờ lâu nhất lên trước (FIFO), ngược lại tin chưa trả lời lên trước rồi đến tin mới nhất
-        if ($onlyUnreplied) {
-            $sql .= " ORDER BY c.last_message_at ASC";
-        } else {
-            $sql .= " ORDER BY (c.status = 'UNREPLIED') DESC, c.last_message_at DESC";
-        }
+        // 5. Sắp xếp theo thời gian từ mới nhất đến cũ nhất
+        $sql .= " ORDER BY c.last_message_at DESC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         $conversations = $stmt->fetchAll();
 
-        // Bổ sung cờ xác định quyền (is_mine, is_view_only) và thời gian chờ
+        if (empty($conversations)) {
+            return [];
+        }
+
+        // Lấy danh sách nhãn gắn cho các hội thoại này
+        $convIds = array_column($conversations, 'id');
+        $labelsMap = [];
+        if (!empty($convIds)) {
+            $inClause = implode(',', array_map('intval', $convIds));
+            $labelStmt = $this->db->query("
+                SELECT cl.conversation_id, l.id, l.name, l.color, l.icon
+                FROM conversation_labels cl
+                JOIN labels l ON cl.label_id = l.id
+                WHERE cl.conversation_id IN ($inClause)
+                ORDER BY l.name ASC
+            ");
+            while ($row = $labelStmt->fetch()) {
+                $labelsMap[$row['conversation_id']][] = [
+                    'id'    => (int)$row['id'],
+                    'name'  => $row['name'],
+                    'color' => $row['color'],
+                    'icon'  => $row['icon']
+                ];
+            }
+        }
+
+        // Bổ sung cờ xác định quyền (is_mine, is_view_only), nhãn và định dạng thời gian
         foreach ($conversations as &$conv) {
             $conv['is_mine'] = ($conv['assigned_user_id'] == $currentUserId);
             $conv['is_view_only'] = (!empty($conv['assigned_user_id']) && $conv['assigned_user_id'] != $currentUserId);
             $conv['time_ago'] = timeAgo($conv['last_message_at']);
+            $conv['labels'] = $labelsMap[$conv['id']] ?? [];
 
-            $waitingSeconds = time() - strtotime($conv['last_message_at']);
+            // Định dạng ngày giờ ngắn cho Respond.io card: vd 14:30 hoặc 22/07
+            $msgTime = strtotime($conv['last_message_at']);
+            if (date('Y-m-d') === date('Y-m-d', $msgTime)) {
+                $conv['short_time'] = date('H:i', $msgTime);
+            } else {
+                $conv['short_time'] = date('M d', $msgTime);
+            }
+
+            $waitingSeconds = time() - $msgTime;
             $waitingMinutes = max(0, floor($waitingSeconds / 60));
             $conv['waiting_minutes'] = $waitingMinutes;
-            if ($conv['status'] === 'UNREPLIED') {
-                if ($waitingMinutes < 1) {
-                    $conv['waiting_label'] = 'Chờ phản hồi';
-                } elseif ($waitingMinutes < 60) {
-                    $conv['waiting_label'] = "Chờ {$waitingMinutes}p";
-                } else {
-                    $conv['waiting_label'] = "Chờ " . floor($waitingMinutes / 60) . "h";
-                }
-            } else {
-                $conv['waiting_label'] = '';
-            }
         }
 
         return $conversations;
     }
 
     /**
-     * Đếm số lượng hội thoại theo từng tab phục vụ badge real-time
+     * Đánh dấu cuộc hội thoại đã được đọc
      */
-    public function getCounts($currentUserId) {
-        $stmt = $this->db->prepare("
-            SELECT 
-                COUNT(*) as total_all,
-                SUM(CASE WHEN assigned_user_id = :uid THEN 1 ELSE 0 END) as total_mine,
-                SUM(CASE WHEN status = 'UNREPLIED' THEN 1 ELSE 0 END) as total_unreplied
-            FROM conversations
-        ");
-        $stmt->execute([':uid' => $currentUserId]);
-        $row = $stmt->fetch();
-        return [
-            'all'       => (int)($row['total_all'] ?? 0),
-            'mine'      => (int)($row['total_mine'] ?? 0),
-            'unreplied' => (int)($row['total_unreplied'] ?? 0)
-        ];
+    public function markAsRead($id) {
+        $stmt = $this->db->prepare("UPDATE conversations SET is_read = 1 WHERE id = :id");
+        return $stmt->execute([':id' => $id]);
     }
 
-    public function updateLastMessage($id, $content, $status = null) {
-        $sql = "UPDATE conversations SET last_message = :content, last_message_at = NOW()";
-        $params = [':content' => $content, ':id' => $id];
+    public function updateLastMessage($id, $content, $senderType = 'CUSTOMER', $status = null) {
+        $sql = "UPDATE conversations SET last_message = :content, last_sender_type = :sender_type, last_message_at = NOW()";
+        $params = [
+            ':content'     => $content,
+            ':sender_type' => $senderType,
+            ':id'          => $id
+        ];
+
+        // Nếu nhân viên gửi thì đánh dấu đã đọc, nếu khách gửi thì đánh dấu chưa đọc
+        if ($senderType === 'STAFF') {
+            $sql .= ", is_read = 1";
+        } else {
+            $sql .= ", is_read = 0";
+        }
 
         if ($status !== null) {
             $sql .= ", status = :status";

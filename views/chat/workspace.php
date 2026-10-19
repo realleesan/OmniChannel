@@ -75,41 +75,97 @@ if (isset($_GET['logout'])) {
 <div class="workspace-container">
 
     <!-- ====================================================
-         PHÂN VÙNG 1: SIDEBAR TRÁI (Tiếp nhận & Chia ca)
+         PHÂN VÙNG 1: SIDEBAR TRÁI (Tiếp nhận & Bộ lọc Respond.io)
          ==================================================== -->
     <aside class="zone-sidebar-left">
         <div class="sidebar-controls">
-            <!-- Header Hộp thư -->
-            <div class="inbox-header-row">
-                <div class="inbox-title">
-                    <i class="fa-solid fa-inbox"></i>
-                    <span>Hộp Thư Hội Thoại</span>
-                </div>
-                <span class="inbox-total-pill" id="totalConvCount">0 hội thoại</span>
-            </div>
-
-            <!-- Ô tìm kiếm hội thoại gọn gàng -->
+            <!-- Ô tìm kiếm hội thoại (chỉ tìm theo tên khách & nội dung) -->
             <div class="search-box-wrapper">
                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                <input type="text" id="searchInput" class="search-input" placeholder="Tìm theo tên, SĐT, tin nhắn..." oninput="handleSearch(this.value)">
-                <span class="search-shortcut-badge">Ctrl K</span>
+                <input type="text" id="searchInput" class="search-input" placeholder="Tìm theo tên khách, nội dung..." oninput="handleSearch(this.value)">
+                <button type="button" class="btn-clear-search" id="btnClearSearch" onclick="clearSearch()" style="display:none;" title="Xóa tìm kiếm">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
             </div>
 
-            <!-- Segmented Tabs: Tất cả | Của tôi | Chờ trả lời -->
+            <!-- Segmented Tabs: Tất cả | Của tôi | Chưa đọc (kèm dropdown v) -->
             <div class="filter-tabs-row">
-                <button type="button" class="tab-btn active" id="tabAll" onclick="switchTab('all')">
-                    <span>Tất cả</span>
-                    <span class="tab-badge" id="badgeAll">0</span>
+                <button type="button" class="tab-btn active" id="tabAll" onclick="switchMainTab('all')">
+                    Tất cả
                 </button>
-                <button type="button" class="tab-btn" id="tabMine" onclick="switchTab('mine')">
-                    <span>Của tôi</span>
-                    <span class="tab-badge" id="badgeMine">0</span>
+                <button type="button" class="tab-btn" id="tabMine" onclick="switchMainTab('mine')">
+                    Của tôi
                 </button>
-                <button type="button" class="tab-btn unreplied-tab-btn" id="chipUnreplied" onclick="toggleUnrepliedFilter()" title="Lọc các tin nhắn khách đang chờ lâu nhất (FIFO)">
-                    <span class="unreplied-pulse-dot"></span>
-                    <span>Chờ trả lời</span>
-                    <span class="tab-badge badge-unreplied" id="badgeUnreplied">0</span>
-                </button>
+                <div class="tab-dropdown-container" id="unreadDropdownContainer">
+                    <button type="button" class="tab-btn tab-with-dropdown" id="tabUnread" onclick="toggleUnreadDropdown(event)">
+                        <span id="unreadTabLabel">Chưa đọc</span>
+                        <i class="fa-solid fa-chevron-down tab-caret"></i>
+                    </button>
+                    <div class="tab-dropdown-menu" id="unreadDropdownMenu">
+                        <div class="dropdown-item active" id="unreadOptAll" onclick="selectUnreadScope('all')">
+                            <i class="fa-solid fa-layer-group"></i>
+                            <span>Tất cả</span>
+                        </div>
+                        <div class="dropdown-item" id="unreadOptMine" onclick="selectUnreadScope('mine')">
+                            <i class="fa-solid fa-user-check"></i>
+                            <span>Của tôi</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sub Filter Row: Dropdown Phân loại & Dropdown Kênh -->
+            <div class="sub-filter-row">
+                <!-- Dropdown Phân loại (Labels) -->
+                <div class="filter-dropdown-container" id="labelDropdownContainer">
+                    <button type="button" class="filter-dropdown-btn" id="btnFilterLabel" onclick="toggleLabelDropdown(event)">
+                        <i class="fa-solid fa-tags"></i>
+                        <span id="currentLabelName">Phân loại</span>
+                        <i class="fa-solid fa-chevron-down caret-mini"></i>
+                    </button>
+                    <div class="filter-dropdown-menu" id="labelDropdownMenu">
+                        <div class="dropdown-header-title">Lọc theo nhãn</div>
+                        <div class="dropdown-item active" id="labelOptAll" onclick="selectLabelFilter(0, 'Phân loại')">
+                            <span class="label-color-dot" style="background:#64748B;"></span>
+                            <span>Tất cả nhãn</span>
+                        </div>
+                        <div id="labelsListContainer">
+                            <!-- Nạp danh sách nhãn tự động -->
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        <div class="dropdown-action-item" onclick="openCreateLabelModal()">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>Tạo nhãn mới</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dropdown Kênh (Webchat, Zalo, Facebook) -->
+                <div class="filter-dropdown-container" id="channelDropdownContainer">
+                    <button type="button" class="filter-dropdown-btn" id="btnFilterChannel" onclick="toggleChannelDropdown(event)">
+                        <i class="fa-solid fa-filter"></i>
+                        <span id="currentChannelName">Kênh</span>
+                        <i class="fa-solid fa-chevron-down caret-mini"></i>
+                    </button>
+                    <div class="filter-dropdown-menu" id="channelDropdownMenu">
+                        <div class="dropdown-item active" id="channelOptAll" onclick="selectChannelFilter('', 'Kênh')">
+                            <i class="fa-solid fa-border-all"></i>
+                            <span>Tất cả kênh</span>
+                        </div>
+                        <div class="dropdown-item" id="channelOptWebchat" onclick="selectChannelFilter('WEBCHAT', 'Webchat')">
+                            <i class="fa-solid fa-globe" style="color:#10B981;"></i>
+                            <span>Webchat</span>
+                        </div>
+                        <div class="dropdown-item" id="channelOptZalo" onclick="selectChannelFilter('ZALO', 'Zalo')">
+                            <i class="fa-solid fa-comment-dots" style="color:#0068FF;"></i>
+                            <span>Zalo</span>
+                        </div>
+                        <div class="dropdown-item" id="channelOptFb" onclick="selectChannelFilter('FACEBOOK', 'Facebook')">
+                            <i class="fa-brands fa-facebook-messenger" style="color:#0084FF;"></i>
+                            <span>Facebook</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -293,6 +349,24 @@ if (isset($_GET['logout'])) {
             </div>
         </div>
 
+        <!-- Quản lý Nhãn Hội Thoại Tùy Biến (Custom Labels Widget) -->
+        <div class="profile-section-widget">
+            <div class="section-widget-title" style="display:flex; justify-content:space-between; align-items:center;">
+                <span><i class="fa-solid fa-tags"></i> Nhãn Hội Thoại</span>
+                <button type="button" class="btn-edit-inline" onclick="toggleAssignLabelDropdown(event)">
+                    <i class="fa-solid fa-plus"></i> Gán nhãn
+                </button>
+            </div>
+            <div class="assigned-labels-container" id="profileLabelsList">
+                <span class="no-labels-text">Chưa gắn nhãn</span>
+            </div>
+            <!-- Popover dropdown gán nhãn cho hội thoại hiện tại -->
+            <div class="assign-label-popover" id="assignLabelPopover" style="display:none;">
+                <div class="popover-title">Chọn nhãn cho hội thoại:</div>
+                <div class="popover-labels-list" id="popoverLabelsList"></div>
+            </div>
+        </div>
+
         <!-- UC3.3: Nút Kích hoạt Agent Quét Lại -->
         <button type="button" class="btn-rescan-agent" id="btnRescanAgent" onclick="triggerAgentScan()">
             <i class="fa-solid fa-wand-magic-sparkles"></i>
@@ -302,7 +376,7 @@ if (isset($_GET['logout'])) {
         <!-- UC3.4: Bộ chọn Gắn nhãn trạng thái tiến độ -->
         <div class="tag-selector-widget">
             <div class="section-widget-title">
-                <i class="fa-solid fa-tags"></i> Tiến Độ Tư Vấn
+                <i class="fa-solid fa-chart-line"></i> Tiến Độ Tư Vấn
             </div>
             <div class="tag-options-list">
                 <label class="tag-radio-label tag-opt-consulting">
@@ -336,6 +410,43 @@ if (isset($_GET['logout'])) {
         </div>
     </aside>
 
+</div>
+
+<!-- ========================================================
+     MODAL POPUP TẠO NHÃN MỚI
+     ======================================================== -->
+<div class="modal-overlay" id="modalCreateLabel" style="display:none;">
+    <div class="modal-content" style="max-width: 440px;">
+        <div class="modal-header">
+            <h3 class="modal-title"><i class="fa-solid fa-tag" style="color:#2563EB;"></i> Tạo Nhãn Mới</h3>
+            <button type="button" class="modal-close-btn" onclick="closeCreateLabelModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Tên nhãn phân loại</label>
+                <input type="text" id="newLabelName" class="form-input" placeholder="Ví dụ: New Lead, Khách VIP, Chờ gọi lại...">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Màu sắc nhận diện</label>
+                <div class="color-palette-grid">
+                    <button type="button" class="color-swatch active" style="background:#2563EB;" onclick="selectLabelColor(this, '#2563EB')"></button>
+                    <button type="button" class="color-swatch" style="background:#10B981;" onclick="selectLabelColor(this, '#10B981')"></button>
+                    <button type="button" class="color-swatch" style="background:#F59E0B;" onclick="selectLabelColor(this, '#F59E0B')"></button>
+                    <button type="button" class="color-swatch" style="background:#EF4444;" onclick="selectLabelColor(this, '#EF4444')"></button>
+                    <button type="button" class="color-swatch" style="background:#8B5CF6;" onclick="selectLabelColor(this, '#8B5CF6')"></button>
+                    <button type="button" class="color-swatch" style="background:#EC4899;" onclick="selectLabelColor(this, '#EC4899')"></button>
+                    <button type="button" class="color-swatch" style="background:#0F172A;" onclick="selectLabelColor(this, '#0F172A')"></button>
+                    <button type="button" class="color-swatch" style="background:#06B6D4;" onclick="selectLabelColor(this, '#06B6D4')"></button>
+                </div>
+                <input type="hidden" id="newLabelColor" value="#2563EB">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="tab-btn" onclick="closeCreateLabelModal()">Hủy</button>
+            <button type="button" class="btn-send-message" onclick="saveNewLabel()">Tạo Nhãn</button>
+        </div>
+    </div>
 </div>
 
 <!-- ========================================================

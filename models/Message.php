@@ -28,10 +28,10 @@ class Message {
         ]);
         $messageId = (int)$this->db->lastInsertId();
 
-        // Cập nhật last_message cho hội thoại
+        // Cập nhật last_message và last_sender_type cho hội thoại
         $convModel = new Conversation();
         $newStatus = ($senderType === 'STAFF') ? 'CHATTING' : 'UNREPLIED';
-        $convModel->updateLastMessage($conversationId, $content, $newStatus);
+        $convModel->updateLastMessage($conversationId, $content, $senderType, $newStatus);
 
         return $messageId;
     }

@@ -354,13 +354,14 @@ body {
     pointer-events: none;
 }
 
-/* Filter Tabs Row (Segmented Control) */
+/* Filter Tabs Row (Segmented Control - Không có Badge đếm số) */
 .filter-tabs-row {
     display: flex;
     background: #F1F5F9;
     padding: 3px;
     border-radius: 8px;
     gap: 3px;
+    margin-bottom: 8px;
 }
 
 .tab-btn {
@@ -369,11 +370,11 @@ body {
     align-items: center;
     justify-content: center;
     gap: 5px;
-    padding: 6px 4px;
+    padding: 7px 4px;
     background: transparent;
     border: none;
     border-radius: 6px;
-    font-size: 12px;
+    font-size: 12.5px;
     font-weight: 600;
     color: #64748B;
     cursor: pointer;
@@ -383,6 +384,7 @@ body {
 
 .tab-btn:hover {
     color: #0F172A;
+    background: rgba(255, 255, 255, 0.5);
 }
 
 .tab-btn.active {
@@ -391,39 +393,186 @@ body {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
-.tab-badge {
-    font-size: 10px;
-    font-weight: 700;
-    padding: 1px 5px;
-    border-radius: 10px;
-    background: #E2E8F0;
-    color: #475569;
+/* Tab Chưa đọc kèm Dropdown mũi tên v */
+.tab-dropdown-container {
+    position: relative;
+    flex: 1;
+    display: flex;
 }
 
-.tab-btn.active .tab-badge {
-    background: var(--primary-light);
+.tab-with-dropdown {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+.tab-caret {
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+.tab-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 5px);
+    right: 0;
+    min-width: 130px;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    padding: 4px;
+    z-index: 100;
+    display: none;
+}
+
+.tab-dropdown-menu.show {
+    display: block;
+    animation: fadeInDropdown 0.15s ease;
+}
+
+/* Sub-filter row: Dropdown Phân loại & Dropdown Kênh */
+.sub-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.filter-dropdown-container {
+    position: relative;
+    flex: 1;
+}
+
+.filter-dropdown-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 6px 10px;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.filter-dropdown-btn:hover {
+    background: #F1F5F9;
+    border-color: #CBD5E1;
+}
+
+.filter-dropdown-btn .caret-mini {
+    font-size: 9.5px;
+    color: #94A3B8;
+}
+
+.filter-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 0;
+    min-width: 180px;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+    padding: 6px;
+    z-index: 100;
+    display: none;
+}
+
+.filter-dropdown-menu.show {
+    display: block;
+    animation: fadeInDropdown 0.15s ease;
+}
+
+@keyframes fadeInDropdown {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown-header-title {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #94A3B8;
+    letter-spacing: 0.5px;
+    padding: 4px 8px 6px 8px;
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 8px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.12s ease;
+}
+
+.dropdown-item:hover {
+    background: #F1F5F9;
     color: var(--primary);
 }
 
-.unreplied-tab-btn {
-    position: relative;
+.dropdown-item.active {
+    background: #EEF2FF;
+    color: var(--primary);
+    font-weight: 600;
 }
 
-.unreplied-pulse-dot {
-    width: 6px;
-    height: 6px;
+.label-color-dot {
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    background: #EF4444;
-    display: inline-block;
+    flex-shrink: 0;
 }
 
-.tab-btn.active.unreplied-tab-btn {
-    color: #DC2626;
+.dropdown-divider {
+    height: 1px;
+    background: #E2E8F0;
+    margin: 4px 0;
 }
 
-.tab-btn.active.unreplied-tab-btn .tab-badge.badge-unreplied {
-    background: #FEE2E2;
-    color: #DC2626;
+.dropdown-action-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--primary);
+    cursor: pointer;
+    transition: all 0.12s ease;
+}
+
+.dropdown-action-item:hover {
+    background: #EEF2FF;
+}
+
+/* Nút xóa tìm kiếm */
+.btn-clear-search {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: #94A3B8;
+    cursor: pointer;
+    padding: 4px;
+    font-size: 11px;
+}
+
+.btn-clear-search:hover {
+    color: #0F172A;
 }
 
 /* Danh sách thẻ cuộc hội thoại */
@@ -523,20 +672,20 @@ body {
 .badge-channel-SHOPEE   { background: var(--channel-shopee); color: white; }
 .badge-channel-TIKTOK   { background: var(--channel-tiktok); color: white; }
 
-/* Thân thẻ hội thoại */
+/* Thân thẻ hội thoại chuẩn Respond.io (1792396447265.png) */
 .card-content-block {
     flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    gap: 4px;
 }
 
+/* Dòng 1: Tên khách hàng (Bold) & Thời gian ngắn gọn (Căn phải) */
 .card-header-line {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     justify-content: space-between;
-    margin-bottom: 3px;
 }
 
 .card-sender-name {
@@ -546,107 +695,230 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 160px;
-}
-
-.card-waiting-chip {
-    font-size: 10.5px;
-    font-weight: 700;
-    color: #D97706;
-    background: #FEF3C7;
-    padding: 1px 6px;
-    border-radius: 10px;
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    white-space: nowrap;
+    max-width: 170px;
 }
 
 .card-time-ago {
-    font-size: 11px;
+    font-size: 11.5px;
     font-weight: 500;
-    color: #94A3B8;
+    color: #64748B;
+    white-space: nowrap;
+}
+
+/* Dòng 2: Icon chiều tin nhắn (↙ / ✓✓) & Trích đoạn chat */
+.card-message-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    color: #64748B;
+    line-height: 1.3;
+}
+
+.card-message-line.is-unread {
+    font-weight: 600;
+    color: #0F172A;
+}
+
+.msg-dir-icon {
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.msg-dir-icon.incoming {
+    color: #EA580C; /* Màu cam đậm mũi tên khách nhắn đến ↙ */
+}
+
+.msg-dir-icon.outgoing {
+    color: #2563EB; /* Màu xanh dấu tick nhân viên gửi đi */
 }
 
 .card-snippet-text {
-    font-size: 12.5px;
-    color: #64748B;
-    line-height: 1.35;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    margin-bottom: 6px;
+    flex: 1;
 }
 
-.card-snippet-text.unreplied-text {
-    font-weight: 600;
-    color: #1E293B;
-}
-
+/* Dòng 3: Nhãn phân loại tùy biến (Pill) + Checkmark tròn + Avatar nhân viên phụ trách */
 .card-footer-line {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    margin-top: 3px;
 }
 
-/* Tag Pill */
-.card-tag-pill {
-    font-size: 10px;
-    font-weight: 700;
-    padding: 2px 7px;
-    border-radius: 12px;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    letter-spacing: 0.2px;
-    border: 1px solid transparent;
-}
-
-.card-tag-pill .tag-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-}
-
-.tag-DANG_TU_VAN {
-    background: var(--success-bg);
-    color: #065F46;
-    border-color: var(--success-border);
-}
-.tag-DANG_TU_VAN .tag-dot { background: var(--success); }
-
-.tag-DA_CHOT {
-    background: var(--info-bg);
-    color: #1E40AF;
-    border-color: var(--info-border);
-}
-.tag-DA_CHOT .tag-dot { background: var(--info); }
-
-.tag-CHO_CHUYEN_KHOAN {
-    background: var(--warning-bg);
-    color: #92400E;
-    border-color: var(--warning-border);
-}
-.tag-CHO_CHUYEN_KHOAN .tag-dot { background: var(--warning); }
-
-.tag-BOOM_HANG {
-    background: var(--danger-bg);
-    color: #991B1B;
-    border-color: var(--danger-border);
-}
-.tag-BOOM_HANG .tag-dot { background: var(--danger); }
-
-/* Assignee staff pill */
-.assigned-staff-chip {
+.card-labels-cluster {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
+    overflow: hidden;
+}
+
+.respondio-label-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     font-size: 11px;
     font-weight: 600;
-    color: #475569;
-    background: #F1F5F9;
     padding: 2px 7px;
-    border-radius: 12px;
+    border-radius: 4px;
+    background: #F1F5F9;
+    color: #1E293B;
+    border: 1px solid #E2E8F0;
+    white-space: nowrap;
+}
+
+.respondio-label-pill i {
+    font-size: 10px;
+}
+
+.card-status-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.card-resolved-icon {
+    color: #10B981;
+    font-size: 13px;
+}
+
+.card-assignee-avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #E2E8F0;
+    color: #475569;
+    font-size: 9.5px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #CBD5E1;
+}
+
+.card-assignee-avatar.is-unassigned {
+    background: #F1F5F9;
+    color: #94A3B8;
+}
+
+/* Bảng chọn màu nhãn (Color Picker Grid) */
+.color-palette-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.color-swatch {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.color-swatch:hover {
+    transform: scale(1.1);
+}
+
+.color-swatch.active {
+    border-color: #0F172A;
+    box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.2);
+}
+
+/* Quản lý nhãn ở Sidebar Phải */
+.assigned-labels-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 0;
+}
+
+.assigned-label-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #F1F5F9;
+    border: 1px solid #E2E8F0;
+}
+
+.assigned-label-chip .btn-remove-label {
+    background: transparent;
+    border: none;
+    color: #94A3B8;
+    cursor: pointer;
+    padding: 0;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+}
+
+.assigned-label-chip .btn-remove-label:hover {
+    color: #EF4444;
+}
+
+.no-labels-text {
+    font-size: 12px;
+    color: #94A3B8;
+    font-style: italic;
+}
+
+/* Popover Gán Nhãn */
+.assign-label-popover {
+    position: relative;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    padding: 10px;
+    margin-top: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.popover-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #64748B;
+    margin-bottom: 8px;
+}
+
+.popover-labels-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+.popover-label-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.12s ease;
+}
+
+.popover-label-item:hover {
+    background: #F1F5F9;
+}
+
+.popover-label-item.selected {
+    background: #EEF2FF;
+    color: var(--primary);
+    font-weight: 600;
 }
 
 .assigned-staff-chip .mini-staff-avatar {
