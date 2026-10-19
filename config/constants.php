@@ -58,12 +58,13 @@ date_default_timezone_set('Asia/Ho_Chi_Minh');
 
 $serverPort = $_SERVER['SERVER_PORT'] ?? 80;
 $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $serverPort == 443) ? "https://" : "http://";
-$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+$host = $_SERVER['HTTP_HOST'] ?? 'omnichannel.gt.tc';
 $scriptDir = dirname($_SERVER['SCRIPT_NAME'] ?? '');
 $scriptDir = str_replace('\\', '/', $scriptDir);
 // Chuẩn hóa base url
 $basePath = preg_replace('/(\/api|\/views|\/controllers|\/public).*$/', '', $scriptDir);
-define('BASE_URL', rtrim($protocol . $host . $basePath, '/'));
+$detectedUrl = rtrim($protocol . $host . $basePath, '/');
+define('BASE_URL', env('APP_URL', $detectedUrl));
 
 // Cấu hình Render Webhook Gateway URL (nơi tiếp nhận Webhook ngoài)
 define('RENDER_GATEWAY_URL', env('RENDER_GATEWAY_URL', 'https://omnichannel-webhook-gateway.onrender.com'));

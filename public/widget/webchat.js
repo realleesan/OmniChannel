@@ -14,7 +14,7 @@
         const urlObj = new URL(currentScript.src);
         endpointUrl = `${urlObj.origin}${urlObj.pathname.substring(0, urlObj.pathname.indexOf('/public/'))}/api/webchat_endpoint.php`;
     } else {
-        endpointUrl = '/api/webchat_endpoint.php';
+        endpointUrl = 'https://omnichannel.gt.tc/api/webchat_endpoint.php';
     }
 
     // 2. Khởi tạo trạng thái Widget
