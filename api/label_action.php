@@ -14,6 +14,10 @@ if (!$userId) {
     exit;
 }
 
+if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+}
+
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 $labelModel = new Label();
 

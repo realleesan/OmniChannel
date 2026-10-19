@@ -13,6 +13,10 @@ if (!$userId) {
     jsonResponse(false, [], 'Vui lòng đăng nhập lại', 401);
 }
 
+if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+}
+
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 $customerController = new CustomerController();
 

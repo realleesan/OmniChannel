@@ -14,6 +14,11 @@ if (!$userId) {
     jsonResponse(false, [], 'Vui lòng đăng nhập lại', 401);
 }
 
+// Giải phóng khóa session ngay lập tức để không cản trở các request đồng thời
+if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+}
+
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 $chatController = new ChatController();
 $authController = new AuthController();

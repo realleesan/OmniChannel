@@ -21,6 +21,7 @@ const AppState = {
     lastMessageId: 0,
     fetchRequestId: 0,
     cachedConversations: {},
+    conversationsCache: {},      // In-Memory Client Cache lưu trữ chi tiết hội thoại & tin nhắn (0ms)
     isViewOnly: false,
     pollingInterval: null,
     isSending: false,
@@ -348,7 +349,6 @@ async function selectConversation(convId) {
     }
 
     AppState.activeConvId = convId;
-    AppState.lastMessageId = 0;
     const thisRequestId = ++AppState.fetchRequestId;
 
     // 1. Phản hồi giao diện ngay lập tức: Đánh dấu thẻ active
@@ -356,14 +356,26 @@ async function selectConversation(convId) {
         el.classList.toggle('active', el.getAttribute('data-conv-id') == convId);
     });
 
-    // 2. Hiển thị Header và Sidebar Phải ngay lập tức từ dữ liệu đã nạp trong danh sách
+    // 2. PHƯƠNG ÁN 1: KIỂM TRA BỘ NHỚ ĐỆM (IN-MEMORY CLIENT CACHE) -> HIỂN THỊ TỨC THÌ 0 MILI-GIÂY!
+    const cachedDetail = AppState.conversationsCache[convId];
+    if (cachedDetail) {
+        renderConversationView(cachedDetail);
+        // Đồng bộ ngầm để gỡ nhãn in đậm chưa đọc và kéo tin mới nếu có
+        runSyncPolling();
+        return;
+    }
+
+    // 3. Nếu chưa có trong cache (lần đầu nhấp vào):
+    AppState.lastMessageId = 0;
+
+    // Hiển thị Header và Sidebar Phải ngay lập tức từ tóm tắt trong danh sách
     const cachedConv = AppState.cachedConversations ? AppState.cachedConversations[convId] : null;
     if (cachedConv) {
         renderChatHeader(cachedConv);
     }
     document.getElementById('rightSidebar').style.display = 'flex';
 
-    // 3. Xóa sạch vùng tin nhắn cũ ngay lập tức (Gỡ empty state và tin nhắn của khách trước)
+    // Hiển thị loading chỉ trong lần đầu tiên tải hội thoại này
     const viewport = document.getElementById('messagesViewport');
     viewport.innerHTML = `
         <div class="chat-loading-placeholder" style="text-align:center;padding:50px 16px;color:#94a3b8;">
@@ -382,6 +394,8 @@ async function selectConversation(convId) {
         }
 
         if (data.success && data.data) {
+            // LƯU VÀO CACHE TRÌNH DUYỆT ĐỂ LẦN SAU MỞ LẠI TRONG 0MS
+            AppState.conversationsCache[convId] = data.data;
             renderConversationView(data.data);
             runSyncPolling();
         } else {
@@ -504,6 +518,17 @@ function handleActiveConversationSync(activeData) {
         if (hasNew) {
             scrollChatToBottom();
         }
+
+        // Đồng bộ tin nhắn mới vào cache của hội thoại để khi chuyển khách quay lại không cần tải lại
+        if (AppState.conversationsCache[conversation.id]) {
+            const cache = AppState.conversationsCache[conversation.id];
+            if (!cache.messages) cache.messages = [];
+            new_messages.forEach(nm => {
+                if (!cache.messages.some(m => m.id === nm.id)) {
+                    cache.messages.push(nm);
+                }
+            });
+        }
     }
 
     // Cập nhật hồ sơ và nhãn
@@ -613,6 +638,14 @@ async function sendMessage(attachmentUrl = null) {
 
         if (data.success && data.data) {
             appendMessageBubble(data.data, true);
+            // Cập nhật tin nhắn vừa gửi vào Cache để khi chuyển khách không bị mất
+            if (AppState.conversationsCache[AppState.activeConvId]) {
+                const cache = AppState.conversationsCache[AppState.activeConvId];
+                if (!cache.messages) cache.messages = [];
+                if (!cache.messages.some(m => m.id === data.data.id)) {
+                    cache.messages.push(data.data);
+                }
+            }
             scrollChatToBottom();
             runSyncPolling();
         } else {

@@ -18,6 +18,11 @@ if (!$userId) {
     exit;
 }
 
+// Giải phóng khóa session ngay lập tức để các request khác (click chuyển hội thoại) không bị treo/block
+if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+}
+
 $tab = $_GET['tab'] ?? 'all';
 $unrepliedScope = $_GET['unreplied_scope'] ?? 'all';
 $search = $_GET['search'] ?? '';
