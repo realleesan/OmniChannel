@@ -126,7 +126,7 @@ class ChatController {
      * UC1.1, UC2.1, UC2.3: Tiếp nhận tin nhắn từ khách (Webchat, Facebook, Zalo, Shopee)
      * Tự động chia tải và tự động đổi ca khi nhân viên phụ trách rời ca
      */
-    public function receiveCustomerMessage($channel, $externalSenderId, $senderName, $content, $attachmentUrl = null) {
+    public function receiveCustomerMessage($channel, $externalSenderId, $senderName, $content, $attachmentUrl = null, $customerPhone = null) {
         $conv = $this->convModel->findByExternalSender($channel, $externalSenderId);
         $isNewConversation = false;
 
@@ -147,15 +147,35 @@ class ChatController {
 
             // Khởi tạo hồ sơ khách hàng ban đầu
             $this->profileModel->getByConversationId($conversationId);
+            if (!empty($customerPhone)) {
+                $this->profileModel->updateManual($conversationId, 'recent_purchases', 'SĐT: ' . $customerPhone);
+            }
         } else {
             $conversationId = $conv['id'];
+
+            // Nếu tên khách thay đổi (ví dụ trước là "Khách Web..." nay có họ tên thật từ Pre-chat form)
+            if (!empty($senderName) && $conv['sender_name'] !== $senderName) {
+                $this->convModel->updateSenderName($conversationId, $senderName);
+                $this->profileModel->updateManual($conversationId, 'customer_name', $senderName);
+            }
+
+            // Cập nhật SĐT nếu có
+            if (!empty($customerPhone)) {
+                $currentProfile = $this->profileModel->getByConversationId($conversationId);
+                if (empty($currentProfile['recent_purchases']) || $currentProfile['recent_purchases'] === 'Chưa có thông tin' || $currentProfile['recent_purchases'] === 'Chưa có đơn hàng cũ') {
+                    $this->profileModel->updateManual($conversationId, 'recent_purchases', 'SĐT: ' . $customerPhone);
+                }
+            }
 
             // UC2.3: Kiểm tra chuyển giao đổi ca nếu nhân viên phụ trách đã OFFLINE
             $transferredAgentId = $this->convModel->checkAndTransferShiftIfNeeded($conversationId);
         }
 
-        // Lưu tin nhắn của khách vào CSDL
-        $messageId = $this->msgModel->create($conversationId, 'CUSTOMER', null, $content, $attachmentUrl);
+        // Lưu tin nhắn của khách vào CSDL (chỉ tạo khi có nội dung thực tế)
+        $messageId = null;
+        if (isset($content) && strlen(trim($content)) > 0) {
+            $messageId = $this->msgModel->create($conversationId, 'CUSTOMER', null, $content, $attachmentUrl);
+        }
 
         return [
             'success'             => true,

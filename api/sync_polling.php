@@ -65,8 +65,9 @@ if (!empty($gatewayUrl)) {
                         $m['channel'],
                         $m['external_sender_id'],
                         $m['sender_name'],
-                        $m['content'],
-                        $m['attachment_url'] ?? null
+                        $m['content'] ?? '',
+                        $m['attachment_url'] ?? null,
+                        $m['customer_phone'] ?? null
                     );
                 }
             }

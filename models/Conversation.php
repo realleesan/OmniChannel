@@ -220,6 +220,11 @@ class Conversation {
         return $stmt->execute([':status' => $status, ':id' => $id]);
     }
 
+    public function updateSenderName($id, $senderName) {
+        $stmt = $this->db->prepare("UPDATE conversations SET sender_name = :sender_name WHERE id = :id");
+        return $stmt->execute([':sender_name' => $senderName, ':id' => $id]);
+    }
+
     /**
      * UC2.3: Xử lý Chuyển ca tự động khi có tin mới từ khách
      * Nếu nhân viên phụ trách đang OFFLINE, tự động chuyển giao cho nhân viên đang ONLINE

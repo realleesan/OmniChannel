@@ -233,19 +233,42 @@ app.use('/widget', express.static(fs.existsSync(widgetStaticPath) ? widgetStatic
 app.all('/api/webchat/init', (req, res) => {
     const customerId = req.body?.customer_id || req.query?.customer_id || ('web_' + Math.random().toString(36).substring(2, 10));
     const customerName = req.body?.customer_name || req.query?.customer_name || ('Khách Web ' + customerId.substring(customerId.length - 4));
+    const customerPhone = req.body?.customer_phone || req.query?.customer_phone || '';
 
     if (!webchatSessions[customerId]) {
         webchatSessions[customerId] = {
             customerId,
             customerName,
+            customerPhone,
             messages: []
         };
+    } else {
+        if (req.body?.customer_name || req.query?.customer_name) {
+            webchatSessions[customerId].customerName = customerName;
+        }
+        if (customerPhone) {
+            webchatSessions[customerId].customerPhone = customerPhone;
+        }
+    }
+
+    // Nếu khách đã điền tên thật (không phải Khách Web xxx), đồng bộ ngay sang CRM
+    if (customerName && !customerName.startsWith('Khách Web ')) {
+        pendingMessages.push({
+            channel: 'WEBCHAT',
+            external_sender_id: customerId,
+            sender_name: customerName,
+            customer_phone: customerPhone,
+            content: '',
+            attachment_url: null,
+            received_at: new Date().toISOString()
+        });
     }
 
     res.json({
         success: true,
         customer_id: customerId,
-        customer_name: customerName,
+        customer_name: webchatSessions[customerId].customerName,
+        customer_phone: webchatSessions[customerId].customerPhone || '',
         conversation_id: customerId,
         messages: webchatSessions[customerId].messages
     });
@@ -254,7 +277,8 @@ app.all('/api/webchat/init', (req, res) => {
 // Khách gửi tin nhắn từ Webchat Widget
 app.post('/api/webchat/send', (req, res) => {
     const customerId = req.body?.customer_id || ('web_' + Math.random().toString(36).substring(2, 10));
-    const customerName = req.body?.customer_name || ('Khách Web ' + customerId.substring(customerId.length - 4));
+    const customerName = req.body?.customer_name || webchatSessions[customerId]?.customerName || ('Khách Web ' + customerId.substring(customerId.length - 4));
+    const customerPhone = req.body?.customer_phone || webchatSessions[customerId]?.customerPhone || '';
     const content = req.body?.content || '';
 
     if (!content.trim()) {
@@ -262,7 +286,10 @@ app.post('/api/webchat/send', (req, res) => {
     }
 
     if (!webchatSessions[customerId]) {
-        webchatSessions[customerId] = { customerId, customerName, messages: [] };
+        webchatSessions[customerId] = { customerId, customerName, customerPhone, messages: [] };
+    } else {
+        webchatSessions[customerId].customerName = customerName;
+        if (customerPhone) webchatSessions[customerId].customerPhone = customerPhone;
     }
 
     const msgId = Date.now();
@@ -280,6 +307,7 @@ app.post('/api/webchat/send', (req, res) => {
         channel: 'WEBCHAT',
         external_sender_id: customerId,
         sender_name: customerName,
+        customer_phone: customerPhone,
         content: content,
         attachment_url: null,
         received_at: new Date().toISOString()
@@ -288,6 +316,8 @@ app.post('/api/webchat/send', (req, res) => {
     res.json({
         success: true,
         customer_id: customerId,
+        customer_name: customerName,
+        customer_phone: customerPhone,
         conversation_id: customerId,
         message_id: msgId,
         content: content,
