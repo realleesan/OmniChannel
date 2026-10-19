@@ -43,6 +43,18 @@ $labelModel = new Label();
 $currentUser = $userModel->findById($userId);
 $userStatus = $currentUser ? $currentUser['status'] : 'OFFLINE';
 
+// Tự động nâng cấp schema và làm sạch dữ liệu 1 lần duy nhất
+if (!file_exists(__DIR__ . '/.schema_fixed_v2')) {
+    @file_put_contents(__DIR__ . '/.schema_fixed_v2', '1');
+    try {
+        $db = Database::getConnection();
+        $db->exec("ALTER TABLE conversations MODIFY last_message_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP");
+        $db->exec("ALTER TABLE conversations MODIFY tag ENUM('DANG_TU_VAN', 'DA_CHOT', 'CHO_CHUYEN_KHOAN', 'BOOM_HANG') NULL DEFAULT NULL");
+        $db->exec("UPDATE conversations c SET c.last_message_at = (SELECT COALESCE(MAX(m.created_at), c.created_at) FROM messages m WHERE m.conversation_id = c.id) WHERE EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id)");
+        $db->exec("UPDATE conversations SET tag = NULL WHERE tag = 'DANG_TU_VAN'");
+    } catch (Exception $e) {}
+}
+
 // 1.5. Tự động rút tin nhắn từ Render Gateway (Webchat/Facebook/Zalo) về CSDL MySQL
 $gatewayUrl = defined('RENDER_GATEWAY_URL') ? RENDER_GATEWAY_URL : '';
 if (!empty($gatewayUrl)) {

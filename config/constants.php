@@ -109,11 +109,35 @@ function jsonResponse($success, $data = [], $message = '', $statusCode = 200) {
 }
 
 /**
+ * Hàm format thời gian tin nhắn chuẩn các app chat lớn (Hôm nay: HH:mm, Hôm qua: HH:mm Hôm qua, Cũ hơn: HH:mm dd/mm/YYYY)
+ */
+function formatChatTime($datetime) {
+    if (empty($datetime)) return '';
+    $time = is_numeric($datetime) ? (int)$datetime : strtotime($datetime);
+    if (!$time) return '';
+
+    $today = date('Y-m-d');
+    $yesterday = date('Y-m-d', strtotime('-1 day'));
+    $dateStr = date('Y-m-d', $time);
+    $timeStr = date('H:i', $time);
+
+    if ($dateStr === $today) {
+        return $timeStr;
+    } elseif ($dateStr === $yesterday) {
+        return $timeStr . ' Hôm qua';
+    } elseif (date('Y', $time) === date('Y')) {
+        return $timeStr . ' ' . date('d/m', $time);
+    } else {
+        return $timeStr . ' ' . date('d/m/Y', $time);
+    }
+}
+
+/**
  * Hàm format thời gian tương đối kiểu thân thiện (vd: 2 phút trước)
  */
 function timeAgo($datetime) {
     if (empty($datetime)) return 'Mới đây';
-    $time = strtotime($datetime);
+    $time = is_numeric($datetime) ? (int)$datetime : strtotime($datetime);
     $diff = time() - $time;
 
     if ($diff < 60) {
@@ -123,7 +147,7 @@ function timeAgo($datetime) {
     } elseif ($diff < 86400) {
         return floor($diff / 3600) . ' giờ trước';
     } else {
-        return date('d/m H:i', $time);
+        return formatChatTime($time);
     }
 }
 

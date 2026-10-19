@@ -193,12 +193,9 @@ if (isset($_GET['logout'])) {
                     <div class="partner-name-row">
                         <span class="partner-name" id="activeSenderName">Khách Hàng</span>
                         <span id="activeChannelBadge" class="channel-pill-badge"><i class="fa-solid fa-comments"></i> Webchat</span>
-                        <span id="activeTagBadge" class="card-tag-badge">Đang tư vấn</span>
+                        <span id="activeTagBadge" class="card-tag-badge" style="display:none;"></span>
                     </div>
                     <div class="partner-submeta-row">
-                        <span class="waiting-timer-chip" id="activeWaitingChip" style="display:none;">
-                            <i class="fa-regular fa-clock"></i> <span id="activeWaitingTime">Chờ phản hồi</span>
-                        </span>
                         <span class="partner-assignee-text" id="activeAssigneeText">Phụ trách: Chưa gán</span>
                     </div>
                 </div>

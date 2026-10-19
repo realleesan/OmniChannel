@@ -50,7 +50,7 @@ class Message {
         $messages = $stmt->fetchAll();
 
         foreach ($messages as &$msg) {
-            $msg['time_formatted'] = date('H:i', strtotime($msg['created_at']));
+            $msg['time_formatted'] = formatChatTime($msg['created_at']);
         }
         return $messages;
     }
@@ -67,7 +67,7 @@ class Message {
         $messages = $stmt->fetchAll();
 
         foreach ($messages as &$msg) {
-            $msg['time_formatted'] = date('H:i', strtotime($msg['created_at']));
+            $msg['time_formatted'] = formatChatTime($msg['created_at']);
         }
         return $messages;
     }

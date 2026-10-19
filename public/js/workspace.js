@@ -44,6 +44,43 @@ const TAG_LABELS = {
     'BOOM_HANG':        'Rủi ro hoàn hàng'
 };
 
+/**
+ * Định dạng thời gian chuẩn các ứng dụng chat lớn (Messenger, Zalo, Telegram):
+ * - Hôm nay: HH:mm (ví dụ 01:27)
+ * - Hôm qua: HH:mm Hôm qua (ví dụ 15:30 Hôm qua)
+ * - Trước hôm qua: HH:mm dd/MM hoặc dd/MM/YYYY
+ */
+function formatChatTime(dateInput) {
+    if (!dateInput) return '';
+    let d = (dateInput instanceof Date) ? dateInput : new Date(typeof dateInput === 'string' ? dateInput.replace(/-/g, '/') : dateInput);
+    if (isNaN(d.getTime())) return '';
+
+    const now = new Date();
+    const isToday = (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate());
+
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday = (d.getFullYear() === yesterday.getFullYear() && d.getMonth() === yesterday.getMonth() && d.getDate() === yesterday.getDate());
+
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const timeStr = `${hours}:${minutes}`;
+
+    if (isToday) {
+        return timeStr;
+    } else if (isYesterday) {
+        return `${timeStr} Hôm qua`;
+    } else {
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        if (d.getFullYear() === now.getFullYear()) {
+            return `${timeStr} ${day}/${month}`;
+        } else {
+            return `${timeStr} ${day}/${month}/${d.getFullYear()}`;
+        }
+    }
+}
+
 function initWorkspace() {
     // 1. Tải danh sách hội thoại lần đầu
     fetchConversations(true);
@@ -236,9 +273,9 @@ function renderConversationsList(conversations) {
             if (conv.labels.length > 1) {
                 labelPillHtml += `<span class="respondio-label-pill">+${conv.labels.length - 1}</span>`;
             }
-        } else {
-            // Hiển thị nhãn mặc định từ tiến độ tư vấn nếu chưa gắn nhãn tùy biến
-            const defaultTagName = TAG_LABELS[conv.tag] || 'New Lead';
+        } else if (conv.tag && TAG_LABELS[conv.tag]) {
+            // Chỉ hiển thị nhãn tiến độ nếu nhân viên đã tự chọn gắn tiến độ tư vấn
+            const defaultTagName = TAG_LABELS[conv.tag];
             labelPillHtml = `
                 <span class="respondio-label-pill" style="border-left: 3px solid #64748B;">
                     <i class="fa-solid fa-tag" style="color:#64748B;"></i>
@@ -257,10 +294,10 @@ function renderConversationsList(conversations) {
                 </div>
                 
                 <div class="card-content-block">
-                    <!-- Dòng 1: Tên khách (in đậm) & Thời gian ngắn gọn -->
+                    <!-- Dòng 1: Tên khách (in đậm) & Thời gian chuẩn -->
                     <div class="card-header-line">
                         <span class="card-sender-name" title="${escapeHtml(conv.sender_name)}">${escapeHtml(conv.sender_name)}</span>
-                        <span class="card-time-ago">${conv.short_time || conv.time_ago || ''}</span>
+                        <span class="card-time-ago">${conv.short_time || formatChatTime(conv.last_message_at) || ''}</span>
                     </div>
 
                     <!-- Dòng 2: Icon chiều tin (↙ khách / ✓✓ nhân viên) & Nội dung -->
@@ -318,19 +355,12 @@ function renderChatHeader(conv) {
 
     const tagBadge = document.getElementById('activeTagBadge');
     if (tagBadge) {
-        const tagName = TAG_LABELS[conv.tag] || conv.tag || 'Đang tư vấn';
-        tagBadge.innerText = tagName;
-        tagBadge.className = `card-tag-badge tag-${conv.tag || 'DANG_TU_VAN'}`;
-    }
-
-    const waitingChip = document.getElementById('activeWaitingChip');
-    const waitingTime = document.getElementById('activeWaitingTime');
-    if (waitingChip && waitingTime) {
-        if (conv.status === 'UNREPLIED') {
-            waitingChip.style.display = 'inline-flex';
-            waitingTime.innerText = conv.waiting_label || 'Chờ phản hồi';
+        if (conv.tag && TAG_LABELS[conv.tag]) {
+            tagBadge.style.display = 'inline-block';
+            tagBadge.innerText = TAG_LABELS[conv.tag];
+            tagBadge.className = `card-tag-badge tag-${conv.tag}`;
         } else {
-            waitingChip.style.display = 'none';
+            tagBadge.style.display = 'none';
         }
     }
 
@@ -613,7 +643,6 @@ function appendMessageBubble(msg, isNew = false) {
     }
 
     const isStaff = (msg.sender_type === 'STAFF');
-    const senderTitle = isStaff ? (msg.staff_name || 'Nhân viên tư vấn') : 'Khách hàng';
 
     const div = document.createElement('div');
     if (msg.id) div.id = `msg-${msg.id}`;
@@ -630,23 +659,39 @@ function appendMessageBubble(msg, isNew = false) {
         `;
     }
 
-    // Định dạng giờ hiển thị theo chuẩn Việt Nam HH:mm
+    // Định dạng giờ hiển thị theo chuẩn các app chat lớn (Hôm nay: HH:mm, Hôm qua: HH:mm Hôm qua, Cũ hơn: HH:mm d/m hoặc d/m/Y)
     let displayTime = msg.time_formatted || '';
     if (!displayTime && msg.created_at) {
-        const d = new Date(msg.created_at.replace(/-/g, '/'));
-        if (!isNaN(d.getTime())) {
-            displayTime = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
-        }
+        displayTime = formatChatTime(msg.created_at);
     }
 
-    div.innerHTML = `
-        <div class="message-meta-header">${escapeHtml(senderTitle)}</div>
-        <div class="message-bubble">
-            ${escapeHtml(msg.content)}
-            ${attachmentHtml}
-            <div class="message-timestamp">${escapeHtml(displayTime)}</div>
-        </div>
-    `;
+    if (isStaff) {
+        div.innerHTML = `
+            <div class="message-bubble-wrap">
+                <div class="message-bubble">
+                    ${escapeHtml(msg.content)}
+                    ${attachmentHtml}
+                    <div class="message-timestamp">${escapeHtml(displayTime)}</div>
+                </div>
+            </div>
+        `;
+    } else {
+        // Bên khách hàng gửi đến: hiển thị Avatar tròn kèm tin nhắn (chuẩn Messenger / Zalo / Telegram)
+        const currentConv = AppState.cachedConversations[AppState.activeConvId] || {};
+        const custName = currentConv.sender_name || document.getElementById('activeSenderName')?.innerText || 'Khách hàng';
+        const initial = custName.trim().charAt(0).toUpperCase();
+
+        div.innerHTML = `
+            <div class="message-customer-avatar" title="${escapeHtml(custName)}">${escapeHtml(initial)}</div>
+            <div class="message-bubble-wrap">
+                <div class="message-bubble">
+                    ${escapeHtml(msg.content)}
+                    ${attachmentHtml}
+                    <div class="message-timestamp">${escapeHtml(displayTime)}</div>
+                </div>
+            </div>
+        `;
+    }
 
     viewport.appendChild(div);
 

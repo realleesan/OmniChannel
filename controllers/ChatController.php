@@ -142,7 +142,7 @@ class ChatController {
                 $senderName,
                 $assignedUserId,
                 'UNREPLIED',
-                'DANG_TU_VAN'
+                null
             );
 
             // Khởi tạo hồ sơ khách hàng ban đầu

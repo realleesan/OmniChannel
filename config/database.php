@@ -48,6 +48,7 @@ class Database {
 
             try {
                 self::$instance = new PDO($dsn, $user, $pass, $options);
+                @self::$instance->exec("SET time_zone = '+07:00'");
             } catch (PDOException $e) {
                 $isApi = (strpos($_SERVER['REQUEST_URI'] ?? '', '/api/') !== false);
                 $errorMsg = "Không thể kết nối Cơ sở Dữ liệu: " . $e->getMessage();

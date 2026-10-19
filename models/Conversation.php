@@ -23,7 +23,7 @@ class Conversation {
         return $stmt->fetch();
     }
 
-    public function create($channel, $externalSenderId, $senderName, $assignedUserId = null, $status = 'UNREPLIED', $tag = 'DANG_TU_VAN') {
+    public function create($channel, $externalSenderId, $senderName, $assignedUserId = null, $status = 'UNREPLIED', $tag = null) {
         $now = date('Y-m-d H:i:s');
         $stmt = $this->db->prepare("
             INSERT INTO conversations (channel, external_sender_id, sender_name, assigned_user_id, status, tag, last_message_at, created_at)
@@ -149,14 +149,10 @@ class Conversation {
             $conv['time_ago'] = timeAgo($conv['last_message_at']);
             $conv['labels'] = $labelsMap[$conv['id']] ?? [];
 
-            // Định dạng ngày giờ ngắn cho Respond.io card: vd 14:30 hoặc 22/07
-            $msgTime = !empty($conv['last_message_at']) ? strtotime($conv['last_message_at']) : time();
-            if (date('Y-m-d') === date('Y-m-d', $msgTime)) {
-                $conv['short_time'] = date('H:i', $msgTime);
-            } else {
-                $conv['short_time'] = date('M d', $msgTime);
-            }
+            // Định dạng ngày giờ chuẩn các app chat lớn (Hôm nay: HH:mm, Hôm qua: HH:mm Hôm qua, Cũ hơn: HH:mm d/m hoặc d/m/Y)
+            $conv['short_time'] = formatChatTime($conv['last_message_at']);
 
+            $msgTime = !empty($conv['last_message_at']) ? strtotime($conv['last_message_at']) : time();
             $waitingSeconds = time() - $msgTime;
             $waitingMinutes = max(0, floor($waitingSeconds / 60));
             $conv['waiting_minutes'] = $waitingMinutes;
@@ -169,7 +165,7 @@ class Conversation {
      * Đánh dấu cuộc hội thoại đã được đọc
      */
     public function markAsRead($id) {
-        $stmt = $this->db->prepare("UPDATE conversations SET is_read = 1 WHERE id = :id");
+        $stmt = $this->db->prepare("UPDATE conversations SET is_read = 1, last_message_at = last_message_at WHERE id = :id");
         return $stmt->execute([':id' => $id]);
     }
 
