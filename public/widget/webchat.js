@@ -1,23 +1,27 @@
 /**
  * OMNICHANNEL WEBCHAT WIDGET
  * Nhúng dễ dàng vào bất kỳ website nào bằng 1 thẻ <script>
- * Tự động đồng bộ tin nhắn 2 chiều với hệ thống OmniChannel CRM
+ * Hoạt động độc lập, không xung đột CSS, không yêu cầu thư viện bên ngoài.
  */
 
 (function () {
+    // Ngăn chặn nạp trùng lặp nhiều lần
+    if (window.__OMNICHANNEL_WEBCHAT_LOADED__) return;
+    window.__OMNICHANNEL_WEBCHAT_LOADED__ = true;
+
     // 1. Xác định URL Backend API
-    const currentScript = document.currentScript;
+    const currentScript = document.currentScript || document.querySelector('script[src*="webchat.js"]');
     let endpointUrl = '';
+
     if (currentScript && currentScript.getAttribute('data-endpoint')) {
         endpointUrl = currentScript.getAttribute('data-endpoint');
-    } else if (currentScript && currentScript.src) {
-        const urlObj = new URL(currentScript.src);
-        endpointUrl = `${urlObj.origin}${urlObj.pathname.substring(0, urlObj.pathname.indexOf('/public/'))}/api/webchat_endpoint.php`;
-    } else {
+    } else if (window.location.hostname === 'omnichannel.gt.tc') {
         endpointUrl = 'https://omnichannel.gt.tc/api/webchat_endpoint.php';
+    } else {
+        endpointUrl = 'https://omnichannel-webhook-gateway.onrender.com/api/webchat';
     }
 
-    // 2. Khởi tạo trạng thái Widget
+    // 2. Trạng thái phiên chat
     const STORAGE_KEY = 'omni_webchat_session';
     let session = {
         customerId: '',
@@ -37,253 +41,299 @@
     let isSending = false;
     let pollInterval = null;
 
-    // 3. Chèn CSS Styling trực tiếp vào DOM (Không gây xung đột với website chủ)
-    const style = document.createElement('style');
-    style.innerHTML = `
-        .omni-chat-launcher {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            width: 58px;
-            height: 58px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #10B981, #059669);
-            box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            z-index: 999999;
-            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-            color: #FFFFFF;
-        }
-        .omni-chat-launcher:hover {
-            transform: scale(1.08) rotate(5deg);
-            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
-        }
-        .omni-chat-launcher svg {
-            width: 26px;
-            height: 26px;
-            fill: currentColor;
-            transition: transform 0.2s;
+    // 3. Khởi tạo Widget khi DOM sẵn sàng
+    function mountWidget() {
+        if (!document.body) {
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', mountWidget);
+            } else {
+                window.addEventListener('load', mountWidget);
+            }
+            return;
         }
 
-        .omni-chat-box {
-            position: fixed;
-            bottom: 96px;
-            right: 24px;
-            width: 360px;
-            max-width: calc(100vw - 32px);
-            height: 520px;
-            max-height: calc(100vh - 120px);
-            background: #FFFFFF;
-            border-radius: 16px;
-            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.16);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            z-index: 999999;
-            opacity: 0;
-            transform: translateY(20px) scale(0.95);
-            pointer-events: none;
-            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            border: 1px solid rgba(0, 0, 0, 0.08);
-        }
-        .omni-chat-box.open {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-            pointer-events: auto;
-        }
+        if (document.getElementById('omni-chat-launcher')) return;
 
-        .omni-chat-header {
-            background: linear-gradient(135deg, #10B981, #059669);
-            color: #FFFFFF;
-            padding: 16px 18px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .omni-header-info {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .omni-header-avatar {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-        }
-        .omni-header-title {
-            font-size: 15px;
-            font-weight: 700;
-            line-height: 1.2;
-        }
-        .omni-header-subtitle {
-            font-size: 11.5px;
-            opacity: 0.9;
-        }
-        .omni-close-btn {
-            background: transparent;
-            border: none;
-            color: #FFFFFF;
-            cursor: pointer;
-            padding: 4px;
-            font-size: 18px;
-            opacity: 0.8;
-            transition: opacity 0.2s;
-        }
-        .omni-close-btn:hover { opacity: 1; }
+        // Chèn CSS độc lập với độ ưu tiên cao nhất
+        const style = document.createElement('style');
+        style.setAttribute('type', 'text/css');
+        style.innerHTML = `
+            #omni-chat-launcher {
+                position: fixed !important;
+                bottom: 24px !important;
+                right: 24px !important;
+                width: 60px !important;
+                height: 60px !important;
+                border-radius: 50% !important;
+                background: linear-gradient(135deg, #10B981, #059669) !important;
+                box-shadow: 0 4px 20px rgba(16, 185, 129, 0.45) !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                cursor: pointer !important;
+                z-index: 2147483647 !important;
+                color: #FFFFFF !important;
+                transition: transform 0.25s ease, box-shadow 0.25s ease !important;
+                box-sizing: border-box !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                border: none !important;
+                outline: none !important;
+            }
+            #omni-chat-launcher:hover {
+                transform: scale(1.08) !important;
+                box-shadow: 0 6px 24px rgba(16, 185, 129, 0.6) !important;
+            }
+            #omni-chat-launcher svg {
+                width: 28px !important;
+                height: 28px !important;
+                fill: #FFFFFF !important;
+                pointer-events: none !important;
+            }
 
-        .omni-chat-messages {
-            flex: 1;
-            padding: 16px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            background: #F8FAFC;
-        }
-        .omni-msg {
-            max-width: 80%;
-            display: flex;
-            flex-direction: column;
-        }
-        .omni-msg.customer {
-            align-self: flex-end;
-            align-items: flex-end;
-        }
-        .omni-msg.staff {
-            align-self: flex-start;
-            align-items: flex-start;
-        }
-        .omni-bubble {
-            padding: 9px 13px;
-            border-radius: 14px;
-            font-size: 13.5px;
-            line-height: 1.4;
-            word-break: break-word;
-        }
-        .omni-msg.customer .omni-bubble {
-            background: #10B981;
-            color: #FFFFFF;
-            border-bottom-right-radius: 4px;
-        }
-        .omni-msg.staff .omni-bubble {
-            background: #FFFFFF;
-            color: #0F172A;
-            border: 1px solid #E2E8F0;
-            border-bottom-left-radius: 4px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-        }
-        .omni-time {
-            font-size: 10px;
-            color: #94A3B8;
-            margin-top: 3px;
-        }
+            #omni-chat-box {
+                position: fixed !important;
+                bottom: 96px !important;
+                right: 24px !important;
+                width: 380px !important;
+                max-width: calc(100vw - 32px) !important;
+                height: 520px !important;
+                max-height: calc(100vh - 120px) !important;
+                background: #FFFFFF !important;
+                border-radius: 16px !important;
+                box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18) !important;
+                display: none !important;
+                flex-direction: column !important;
+                overflow: hidden !important;
+                z-index: 2147483647 !important;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+                border: 1px solid rgba(0, 0, 0, 0.08) !important;
+                box-sizing: border-box !important;
+            }
+            #omni-chat-box.open {
+                display: flex !important;
+            }
 
-        .omni-chat-input-area {
-            padding: 12px;
-            background: #FFFFFF;
-            border-top: 1px solid #E2E8F0;
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-        .omni-input {
-            flex: 1;
-            border: 1px solid #CBD5E1;
-            border-radius: 20px;
-            padding: 9px 14px;
-            font-size: 13.5px;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-        .omni-input:focus {
-            border-color: #10B981;
-        }
-        .omni-send-btn {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            background: #10B981;
-            border: none;
-            color: #FFFFFF;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: background 0.2s;
-            flex-shrink: 0;
-        }
-        .omni-send-btn:hover { background: #059669; }
-        .omni-send-btn svg { width: 16px; height: 16px; fill: currentColor; }
-    `;
-    document.head.appendChild(style);
+            .omni-chat-header {
+                background: linear-gradient(135deg, #10B981, #059669) !important;
+                color: #FFFFFF !important;
+                padding: 14px 18px !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: space-between !important;
+                box-sizing: border-box !important;
+            }
+            .omni-header-info {
+                display: flex !important;
+                align-items: center !important;
+                gap: 12px !important;
+            }
+            .omni-header-avatar {
+                width: 36px !important;
+                height: 36px !important;
+                border-radius: 50% !important;
+                background: rgba(255, 255, 255, 0.2) !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }
+            .omni-header-avatar svg {
+                width: 20px !important;
+                height: 20px !important;
+                fill: #FFFFFF !important;
+            }
+            .omni-header-title {
+                font-size: 15px !important;
+                font-weight: 700 !important;
+                line-height: 1.2 !important;
+                color: #FFFFFF !important;
+            }
+            .omni-header-subtitle {
+                font-size: 11.5px !important;
+                opacity: 0.9 !important;
+                color: #E2E8F0 !important;
+            }
+            .omni-close-btn {
+                background: transparent !important;
+                border: none !important;
+                color: #FFFFFF !important;
+                cursor: pointer !important;
+                padding: 4px !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                opacity: 0.8 !important;
+                transition: opacity 0.2s !important;
+                outline: none !important;
+            }
+            .omni-close-btn:hover { opacity: 1 !important; }
+            .omni-close-btn svg { width: 20px !important; height: 20px !important; fill: #FFFFFF !important; }
 
-    // 4. Tạo các phần tử HTML của Widget
-    const launcher = document.createElement('div');
-    launcher.className = 'omni-chat-launcher';
-    launcher.setAttribute('title', 'Nhắn tin hỗ trợ');
-    launcher.innerHTML = `
-        <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
-    `;
+            .omni-chat-messages {
+                flex: 1 !important;
+                padding: 16px !important;
+                overflow-y: auto !important;
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 12px !important;
+                background: #F8FAFC !important;
+                box-sizing: border-box !important;
+            }
+            .omni-msg {
+                max-width: 82% !important;
+                display: flex !important;
+                flex-direction: column !important;
+            }
+            .omni-msg.customer {
+                align-self: flex-end !important;
+                align-items: flex-end !important;
+            }
+            .omni-msg.staff {
+                align-self: flex-start !important;
+                align-items: flex-start !important;
+            }
+            .omni-bubble {
+                padding: 10px 14px !important;
+                border-radius: 14px !important;
+                font-size: 13.5px !important;
+                line-height: 1.45 !important;
+                word-break: break-word !important;
+                box-sizing: border-box !important;
+            }
+            .omni-msg.customer .omni-bubble {
+                background: #10B981 !important;
+                color: #FFFFFF !important;
+                border-bottom-right-radius: 4px !important;
+            }
+            .omni-msg.staff .omni-bubble {
+                background: #FFFFFF !important;
+                color: #0F172A !important;
+                border: 1px solid #E2E8F0 !important;
+                border-bottom-left-radius: 4px !important;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+            }
+            .omni-time {
+                font-size: 10.5px !important;
+                color: #94A3B8 !important;
+                margin-top: 3px !important;
+                padding: 0 4px !important;
+            }
 
-    const chatBox = document.createElement('div');
-    chatBox.className = 'omni-chat-box';
-    chatBox.innerHTML = `
-        <div class="omni-chat-header">
-            <div class="omni-header-info">
-                <div class="omni-header-avatar">💬</div>
-                <div>
-                    <div class="omni-header-title">Hỗ Trợ Khách Hàng</div>
-                    <div class="omni-header-subtitle">Thường phản hồi trong vài phút</div>
+            .omni-chat-input-area {
+                padding: 12px 14px !important;
+                background: #FFFFFF !important;
+                border-top: 1px solid #E2E8F0 !important;
+                display: flex !important;
+                gap: 8px !important;
+                align-items: center !important;
+                box-sizing: border-box !important;
+            }
+            .omni-input {
+                flex: 1 !important;
+                border: 1px solid #CBD5E1 !important;
+                border-radius: 20px !important;
+                padding: 9px 14px !important;
+                font-size: 13.5px !important;
+                outline: none !important;
+                transition: border-color 0.2s !important;
+                box-sizing: border-box !important;
+                color: #0F172A !important;
+                background: #FFFFFF !important;
+            }
+            .omni-input:focus {
+                border-color: #10B981 !important;
+            }
+            .omni-send-btn {
+                width: 36px !important;
+                height: 36px !important;
+                border-radius: 50% !important;
+                background: #10B981 !important;
+                border: none !important;
+                color: #FFFFFF !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                cursor: pointer !important;
+                transition: background 0.2s !important;
+                flex-shrink: 0 !important;
+                outline: none !important;
+                padding: 0 !important;
+            }
+            .omni-send-btn:hover { background: #059669 !important; }
+            .omni-send-btn svg { width: 16px !important; height: 16px !important; fill: #FFFFFF !important; }
+        `;
+        document.head.appendChild(style);
+
+        // Tạo nút bấm Launcher
+        const launcher = document.createElement('div');
+        launcher.id = 'omni-chat-launcher';
+        launcher.setAttribute('title', 'Hỗ trợ trực tuyến');
+        launcher.innerHTML = `
+            <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+        `;
+
+        // Tạo khung chat
+        const chatBox = document.createElement('div');
+        chatBox.id = 'omni-chat-box';
+        chatBox.innerHTML = `
+            <div class="omni-chat-header">
+                <div class="omni-header-info">
+                    <div class="omni-header-avatar">
+                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+                    </div>
+                    <div>
+                        <div class="omni-header-title">Hỗ Trợ Khách Hàng</div>
+                        <div class="omni-header-subtitle">Thường phản hồi trong vài phút</div>
+                    </div>
+                </div>
+                <button class="omni-close-btn" title="Đóng cửa sổ chat">
+                    <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                </button>
+            </div>
+            <div class="omni-chat-messages" id="omniWidgetMessages">
+                <div class="omni-msg staff">
+                    <div class="omni-bubble">Xin chào bạn! Shop có thể tư vấn sản phẩm gì cho bạn hôm nay ạ?</div>
+                    <div class="omni-time">Vừa xong</div>
                 </div>
             </div>
-            <button class="omni-close-btn">&times;</button>
-        </div>
-        <div class="omni-chat-messages" id="omniWidgetMessages">
-            <div class="omni-msg staff">
-                <div class="omni-bubble">Xin chào bạn! Shop có thể tư vấn sản phẩm gì cho bạn hôm nay ạ?</div>
-                <div class="omni-time">Vừa xong</div>
+            <div class="omni-chat-input-area">
+                <input type="text" class="omni-input" id="omniWidgetInput" placeholder="Nhập tin nhắn của bạn...">
+                <button class="omni-send-btn" id="omniWidgetSend" title="Gửi tin nhắn">
+                    <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                </button>
             </div>
-        </div>
-        <div class="omni-chat-input-area">
-            <input type="text" class="omni-input" id="omniWidgetInput" placeholder="Nhập tin nhắn của bạn...">
-            <button class="omni-send-btn" id="omniWidgetSend">
-                <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-            </button>
-        </div>
-    `;
+        `;
 
-    document.body.appendChild(launcher);
-    document.body.appendChild(chatBox);
+        document.body.appendChild(launcher);
+        document.body.appendChild(chatBox);
 
-    // 5. Gắn sự kiện tương tác
-    launcher.addEventListener('click', toggleChat);
-    chatBox.querySelector('.omni-close-btn').addEventListener('click', toggleChat);
+        // Gắn sự kiện
+        launcher.addEventListener('click', toggleChat);
+        chatBox.querySelector('.omni-close-btn').addEventListener('click', toggleChat);
 
-    const input = chatBox.querySelector('#omniWidgetInput');
-    const sendBtn = chatBox.querySelector('#omniWidgetSend');
+        const input = chatBox.querySelector('#omniWidgetInput');
+        const sendBtn = chatBox.querySelector('#omniWidgetSend');
 
-    sendBtn.addEventListener('click', handleSend);
-    input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            handleSend();
-        }
-    });
+        sendBtn.addEventListener('click', handleSend);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSend();
+            }
+        });
+    }
 
+    // 4. Bật / Tắt khung chat
     function toggleChat() {
+        const chatBox = document.getElementById('omni-chat-box');
+        if (!chatBox) return;
+
         isOpen = !isOpen;
         chatBox.classList.toggle('open', isOpen);
+
         if (isOpen) {
-            input.focus();
+            const input = chatBox.querySelector('#omniWidgetInput');
+            if (input) input.focus();
             initSession();
             startPolling();
         } else {
@@ -291,24 +341,60 @@
         }
     }
 
-    // 6. Khởi tạo phiên trò chuyện với Backend API
+    // 5. Hàm gọi API linh hoạt (hỗ trợ cả PHP endpoint và Render Gateway)
+    async function apiCall(action, payload = {}) {
+        const isRender = endpointUrl.includes('onrender.com');
+        let url = endpointUrl;
+        let options = {};
+
+        if (isRender) {
+            if (action === 'poll') {
+                url = `${endpointUrl}/poll?customer_id=${encodeURIComponent(payload.customer_id || '')}&last_msg_id=${payload.last_msg_id || 0}`;
+                options = { method: 'GET', mode: 'cors' };
+            } else {
+                url = `${endpointUrl}/${action}`;
+                options = {
+                    method: 'POST',
+                    mode: 'cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                };
+            }
+        } else {
+            // PHP Endpoint trên omnichannel.gt.tc
+            if (action === 'poll') {
+                url = `${endpointUrl}?action=poll&conversation_id=${encodeURIComponent(payload.conversation_id || '')}&last_msg_id=${payload.last_msg_id || 0}`;
+                options = { method: 'GET' };
+            } else {
+                const formData = new FormData();
+                formData.append('action', action);
+                for (const key in payload) {
+                    if (payload[key] !== null && payload[key] !== undefined) {
+                        formData.append(key, payload[key]);
+                    }
+                }
+                options = { method: 'POST', body: formData };
+            }
+        }
+
+        const res = await fetch(url, options);
+        return await res.json();
+    }
+
+    // 6. Khởi tạo phiên
     async function initSession() {
         try {
-            const formData = new FormData();
-            formData.append('action', 'init');
-            if (session.customerId) formData.append('customer_id', session.customerId);
-            if (session.customerName) formData.append('customer_name', session.customerName);
+            const data = await apiCall('init', {
+                customer_id: session.customerId,
+                customer_name: session.customerName
+            });
 
-            const res = await fetch(endpointUrl, { method: 'POST', body: formData });
-            const data = await res.json();
-
-            if (data.success) {
+            if (data && data.success) {
                 session.customerId = data.customer_id;
                 session.customerName = data.customer_name;
                 session.conversationId = data.conversation_id;
                 saveSession();
 
-                // Nạp lịch sử tin nhắn cũ nếu có
                 if (data.messages && data.messages.length > 0) {
                     renderMessageHistory(data.messages);
                 }
@@ -318,28 +404,27 @@
         }
     }
 
-    // 7. Gửi tin nhắn từ Widget lên Backend
+    // 7. Gửi tin nhắn
     async function handleSend() {
+        const chatBox = document.getElementById('omni-chat-box');
+        if (!chatBox) return;
+        const input = chatBox.querySelector('#omniWidgetInput');
         const text = input.value.trim();
         if (!text || isSending) return;
 
         isSending = true;
         input.value = '';
 
-        // Hiển thị tin nhắn ngay lập tức trên UI
         appendMessage('CUSTOMER', text, 'Vừa xong');
 
         try {
-            const formData = new FormData();
-            formData.append('action', 'send');
-            formData.append('customer_id', session.customerId);
-            formData.append('customer_name', session.customerName);
-            formData.append('content', text);
+            const data = await apiCall('send', {
+                customer_id: session.customerId,
+                customer_name: session.customerName,
+                content: text
+            });
 
-            const res = await fetch(endpointUrl, { method: 'POST', body: formData });
-            const data = await res.json();
-
-            if (data.success) {
+            if (data && data.success) {
                 session.customerId = data.customer_id;
                 session.conversationId = data.conversation_id;
                 session.lastMsgId = Math.max(session.lastMsgId, data.message_id || 0);
@@ -366,13 +451,16 @@
     }
 
     async function pollUpdates() {
-        if (!session.conversationId) return;
+        if (!session.customerId && !session.conversationId) return;
 
         try {
-            const res = await fetch(`${endpointUrl}?action=poll&conversation_id=${session.conversationId}&last_msg_id=${session.lastMsgId}`);
-            const data = await res.json();
+            const data = await apiCall('poll', {
+                customer_id: session.customerId,
+                conversation_id: session.conversationId,
+                last_msg_id: session.lastMsgId
+            });
 
-            if (data.success && data.messages && data.messages.length > 0) {
+            if (data && data.success && data.messages && data.messages.length > 0) {
                 data.messages.forEach(msg => {
                     if (msg.id > session.lastMsgId) {
                         session.lastMsgId = msg.id;
@@ -387,19 +475,21 @@
     }
 
     function appendMessage(senderType, content, time) {
-        const container = chatBox.querySelector('#omniWidgetMessages');
+        const container = document.getElementById('omniWidgetMessages');
+        if (!container) return;
         const div = document.createElement('div');
         div.className = `omni-msg ${senderType.toLowerCase()}`;
         div.innerHTML = `
             <div class="omni-bubble">${escapeHtml(content)}</div>
-            <div class="omni-time">${time}</div>
+            <div class="omni-time">${escapeHtml(time)}</div>
         `;
         container.appendChild(div);
         container.scrollTop = container.scrollHeight;
     }
 
     function renderMessageHistory(messages) {
-        const container = chatBox.querySelector('#omniWidgetMessages');
+        const container = document.getElementById('omniWidgetMessages');
+        if (!container) return;
         container.innerHTML = '';
         messages.forEach(msg => {
             appendMessage(msg.sender_type, msg.content, msg.time_formatted || '');
@@ -418,5 +508,12 @@
         const p = document.createElement('p');
         p.textContent = str;
         return p.innerHTML;
+    }
+
+    // Tự động kích hoạt
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', mountWidget);
+    } else {
+        mountWidget();
     }
 })();

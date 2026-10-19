@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Trang Web Demo - Nhúng Webchat Widget OmniChannel</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -15,15 +16,18 @@
         .header {
             background: #FFFFFF;
             border-bottom: 1px solid #E2E8F0;
-            padding: 20px 40px;
+            padding: 18px 40px;
             display: flex;
             align-items: center;
             justify-content: space-between;
         }
         .logo {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 800;
             color: #4F46E5;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         .container {
             max-width: 900px;
@@ -34,77 +38,112 @@
             background: #FFFFFF;
             border: 1px solid #E2E8F0;
             border-radius: 16px;
-            padding: 40px;
+            padding: 36px 40px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-            margin-bottom: 30px;
+            margin-bottom: 24px;
         }
         .hero-title {
-            font-size: 28px;
+            font-size: 26px;
             font-weight: 800;
             margin-bottom: 12px;
             color: #1E293B;
         }
         .hero-desc {
-            font-size: 15px;
+            font-size: 14.5px;
             color: #64748B;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
         }
         .code-box {
             background: #0F172A;
-            color: #E2E8F0;
+            color: #38BDF8;
             padding: 16px 20px;
             border-radius: 8px;
             font-family: Consolas, monospace;
             font-size: 13.5px;
             overflow-x: auto;
-            margin: 20px 0;
+            margin: 16px 0;
+            border: 1px solid #334155;
+            user-select: all;
         }
         .hint-badge {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
+            gap: 8px;
+            padding: 6px 14px;
             background: #ECFDF5;
             color: #065F46;
             border-radius: 20px;
             font-weight: 600;
             font-size: 13px;
         }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10B981;
+            display: inline-block;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+        }
+        .info-callout {
+            background: #EFF6FF;
+            border-left: 4px solid #3B82F6;
+            padding: 14px 18px;
+            border-radius: 6px;
+            font-size: 13.5px;
+            color: #1E40AF;
+            margin-top: 20px;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
     </style>
 </head>
 <body>
 
 <header class="header">
-    <div class="logo">🛍️ MyFashion Store (Website Mẫu)</div>
-    <div style="font-size:13px;color:#64748B;">Trang thử nghiệm tính năng nhúng Widget</div>
+    <div class="logo">
+        <i class="fa-solid fa-bag-shopping"></i> MyFashion Store (Website Mẫu)
+    </div>
+    <div style="font-size:13px;color:#64748B;">
+        <i class="fa-solid fa-flask"></i> Trang thử nghiệm tính năng nhúng Widget
+    </div>
 </header>
 
 <div class="container">
     <div class="hero-card">
-        <div class="hint-badge">🟢 Webchat Widget Đang Hoạt Động</div>
+        <div class="hint-badge">
+            <span class="status-dot"></span> Webchat Widget Đang Hoạt Động
+        </div>
         <h1 class="hero-title" style="margin-top:16px;">Chào mừng bạn đến với Cửa Hàng</h1>
         <p class="hero-desc">
             Đây là trang web mô phỏng một website bán hàng hoặc landing page có sẵn của bạn. 
-            Nút bong bóng chat màu xanh lá cây ở góc dưới bên phải màn hình được nhúng độc lập bằng thẻ script.
+            Nút bong bóng chat màu xanh lá cây ở góc dưới bên phải màn hình được nhúng hoàn toàn tự động bằng 1 dòng mã script.
         </p>
 
-        <h3 style="font-size:16px;font-weight:700;margin-bottom:8px;">Cách nhúng vào bất kỳ trang web nào của bạn:</h3>
-        <p style="font-size:13.5px;color:#64748B;">Chỉ cần dán dòng mã sau vào trước thẻ <code>&lt;/body&gt;</code> trên website của bạn:</p>
+        <h3 style="font-size:15px;font-weight:700;margin-top:20px;color:#0F172A;">
+            <i class="fa-solid fa-code" style="color:#4F46E5;"></i> Cách nhúng vào website đối tác của bạn (ví dụ: MistySoft):
+        </h3>
+        <p style="font-size:13.5px;color:#64748B;margin-top:6px;">
+            Dán dòng mã sau vào trước thẻ <code>&lt;/body&gt;</code> trên website của bạn (sử dụng CDN siêu tốc jsDelivr đồng bộ từ GitHub, không bị chặn bởi tường lửa hosting):
+        </p>
 
         <div class="code-box">
-&lt;script src="https://omnichannel.gt.tc/public/widget/webchat.js"&gt;&lt;/script&gt;
+&lt;script src="https://cdn.jsdelivr.net/gh/realleesan/OmniChannel@main/public/widget/webchat.js"&gt;&lt;/script&gt;
         </div>
 
-        <p style="font-size:13.5px;color:#64748B;">
-            👉 Hãy bấm vào biểu tượng chat ở góc dưới bên phải, nhập tin nhắn thử nghiệm và mở tab <a href="../chat/workspace.php" target="_blank" style="color:#4F46E5;font-weight:600;">Workspace OmniChannel</a> để xem tin nhắn đổ về theo thời gian thực!
-        </p>
+        <div class="info-callout">
+            <i class="fa-solid fa-circle-info" style="font-size:18px;margin-top:2px;"></i>
+            <div>
+                <strong>Hướng dẫn trải nghiệm:</strong> Bấm vào biểu tượng bong bóng chat ở góc dưới bên phải, nhập tin nhắn thử nghiệm và mở tab <a href="../chat/workspace.php" target="_blank" style="color:#1D4ED8;font-weight:700;text-decoration:underline;">Workspace OmniChannel</a> để xem tin nhắn đổ về theo thời gian thực!
+            </div>
+        </div>
     </div>
 </div>
 
 <!-- ========================================================
-     NHÚNG WIDGET WEBCHAT OMNICHANNEL TỰ ĐỘNG
+     NHÚNG WIDGET WEBCHAT OMNICHANNEL TRỰC TIẾP
      ======================================================== -->
-<script src="webchat.js"></script>
+<script src="webchat.js?v=20261019_2"></script>
 
 </body>
 </html>

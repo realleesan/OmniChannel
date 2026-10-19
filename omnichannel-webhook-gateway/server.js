@@ -4,7 +4,7 @@
  * Tích hợp 3 kênh: Webchat, Zalo cá nhân (zca-js), Facebook cá nhân (ws3-fca)
  */
 
-require('dotenv').config();
+try { require('dotenv').config(); } catch (e) {}
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -217,6 +217,127 @@ app.post('/api/messages/send', (req, res) => {
     res.json({ success: true, message: 'Tin nhắn đã tiếp nhận để chuyển phát' });
 });
 
+// ========================================================
+// 5. WEBCHAT WIDGET HOSTING & API ENDPOINTS
+// ========================================================
+const webchatSessions = {};
+
+// Phục vụ file webchat.js tĩnh với Header CORS đầy đủ
+const widgetStaticPath = path.join(__dirname, '../public/widget');
+const localWidgetPath = path.join(__dirname, 'public/widget');
+
+app.use('/public/widget', express.static(fs.existsSync(widgetStaticPath) ? widgetStaticPath : localWidgetPath));
+app.use('/widget', express.static(fs.existsSync(widgetStaticPath) ? widgetStaticPath : localWidgetPath));
+
+// Khởi tạo phiên Webchat
+app.all('/api/webchat/init', (req, res) => {
+    const customerId = req.body?.customer_id || req.query?.customer_id || ('web_' + Math.random().toString(36).substring(2, 10));
+    const customerName = req.body?.customer_name || req.query?.customer_name || ('Khách Web ' + customerId.substring(customerId.length - 4));
+
+    if (!webchatSessions[customerId]) {
+        webchatSessions[customerId] = {
+            customerId,
+            customerName,
+            messages: []
+        };
+    }
+
+    res.json({
+        success: true,
+        customer_id: customerId,
+        customer_name: customerName,
+        conversation_id: customerId,
+        messages: webchatSessions[customerId].messages
+    });
+});
+
+// Khách gửi tin nhắn từ Webchat Widget
+app.post('/api/webchat/send', (req, res) => {
+    const customerId = req.body?.customer_id || ('web_' + Math.random().toString(36).substring(2, 10));
+    const customerName = req.body?.customer_name || ('Khách Web ' + customerId.substring(customerId.length - 4));
+    const content = req.body?.content || '';
+
+    if (!content.trim()) {
+        return res.status(400).json({ success: false, message: 'Nội dung trống' });
+    }
+
+    if (!webchatSessions[customerId]) {
+        webchatSessions[customerId] = { customerId, customerName, messages: [] };
+    }
+
+    const msgId = Date.now();
+    const newMsg = {
+        id: msgId,
+        sender_type: 'CUSTOMER',
+        content,
+        created_at: new Date().toISOString(),
+        time_formatted: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+    };
+    webchatSessions[customerId].messages.push(newMsg);
+
+    // Đẩy vào hàng đợi pendingMessages để OmniChannel CRM kéo về
+    pendingMessages.push({
+        channel: 'WEBCHAT',
+        external_sender_id: customerId,
+        sender_name: customerName,
+        content: content,
+        attachment_url: null,
+        received_at: new Date().toISOString()
+    });
+
+    res.json({
+        success: true,
+        customer_id: customerId,
+        conversation_id: customerId,
+        message_id: msgId,
+        content: content,
+        sender_type: 'CUSTOMER',
+        time: newMsg.time_formatted
+    });
+});
+
+// Nhân viên phản hồi lại khách từ CRM
+app.post('/api/webchat/reply', (req, res) => {
+    const { customer_id, content, staff_name } = req.body || {};
+    if (!customer_id || !content) {
+        return res.status(400).json({ success: false, message: 'Thiếu dữ liệu' });
+    }
+
+    if (!webchatSessions[customer_id]) {
+        webchatSessions[customer_id] = { customerId: customer_id, customerName: 'Khách Web', messages: [] };
+    }
+
+    const msgId = Date.now();
+    const replyMsg = {
+        id: msgId,
+        sender_type: 'STAFF',
+        staff_name: staff_name || 'Nhân viên tư vấn',
+        content,
+        created_at: new Date().toISOString(),
+        time_formatted: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+    };
+    webchatSessions[customer_id].messages.push(replyMsg);
+
+    res.json({ success: true, message: 'Đã gửi phản hồi tới widget', message_id: msgId });
+});
+
+// Widget polling lấy tin nhắn mới từ nhân viên
+app.get('/api/webchat/poll', (req, res) => {
+    const customerId = req.query?.customer_id;
+    const lastMsgId = parseInt(req.query?.last_msg_id || '0', 10);
+
+    if (!customerId || !webchatSessions[customerId]) {
+        return res.json({ success: true, messages: [] });
+    }
+
+    const newMsgs = webchatSessions[customerId].messages.filter(m => m.id > lastMsgId);
+    res.json({
+        success: true,
+        messages: newMsgs
+    });
+});
+
 app.listen(PORT, () => {
     console.log(`🚀 Omnichannel Webhook Gateway đang chạy trên cổng ${PORT}`);
 });
+
