@@ -20,8 +20,8 @@ class AuthController {
             return ['success' => false, 'message' => 'Tài khoản không tồn tại trong hệ thống'];
         }
 
-        // Kiểm tra mật khẩu (hỗ trợ cả hash bcrypt và password plain text cho demo tiện lợi)
-        $isMatch = password_verify($password, $user['password']) || ($password === '123456');
+        // Kiểm tra mật khẩu chuẩn xác thực bảo mật
+        $isMatch = password_verify($password, $user['password']);
         if (!$isMatch) {
             return ['success' => false, 'message' => 'Mật khẩu không chính xác'];
         }

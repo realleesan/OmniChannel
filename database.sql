@@ -92,35 +92,8 @@ CREATE TABLE customer_profiles (
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ========================================================
--- SEED DATA MẪU (PHỤC VỤ KỊCH BẢN DEMO THUYẾT TRÌNH)
+-- KHỞI TẠO TÀI KHOẢN QUẢN TRỊ VIÊN
 -- ========================================================
-
--- Nạp 2 nhân viên tư vấn ban đầu (Mật khẩu: 123456)
+-- Tài khoản: admin | Mật khẩu khởi tạo: admin123
 INSERT INTO users (id, username, password, fullname, avatar, status, current_chat_count) VALUES
-(1, 'nv1', '$2y$10$4.6yM3aJgW3Qf.23bS/aQOuW0cQ5f7jKGeJq7P1yP2lZ0X1yO.X2K', 'Nguyễn Văn Quân', 'quan.png', 'ONLINE', 0),
-(2, 'nv2', '$2y$10$4.6yM3aJgW3Qf.23bS/aQOuW0cQ5f7jKGeJq7P1yP2lZ0X1yO.X2K', 'Trần Thị Phương', 'phuong.png', 'ONLINE', 1);
--- Ghi chú: Mật khẩu hash trên tương ứng với chuỗi '123456'
-
--- Nạp sản phẩm mẫu cho shop thời trang
-INSERT INTO products (id, product_code, name, price, image_url, stock_status) VALUES
-(1, 'SP01', 'Váy Dạ Tweed Cao Cấp', 350000.00, 'vay_da_tweed.jpg', 'CÒN HÀNG (Size S, M, L)'),
-(2, 'SP02', 'Áo Blazer Hàn Quốc Form Rộng', 420000.00, 'blazer_hanquoc.jpg', 'CÒN HÀNG (Size M, XL)'),
-(3, 'SP03', 'Chân Váy Chữ A Xếp Ly', 220000.00, 'chan_vay_a.jpg', 'SẮP HẾT HÀNG');
-
--- Nạp mẫu tin nhắn nhanh (Templates)
-INSERT INTO templates (id, shortcut, title, content, created_by_user_id) VALUES
-(1, '/1', 'Tư vấn Váy Dạ Tweed SP01', 'Chào bạn, mẫu [ten_sp] (Mã: [ma_sp]) hiện có giá [gia]đ. Bạn cho shop xin chiều cao và cân nặng để shop chọn size vừa xinh cho bạn nhé!', 1),
-(2, '/size', 'Bảng quy đổi kích cỡ', 'Dạ bảng size bên shop: Size S (40-47kg), Size M (48-54kg), Size L (55-60kg). Bạn mặc size nào vừa ạ?', 1),
-(3, '/stk', 'Thông tin chuyển khoản', 'Dạ shop gửi bạn STK xác nhận đơn: MB Bank - 999988886666 - NGUYEN VAN QUAN. Nội dung CK: [ma_sp] + SĐT bạn nhé!', 1);
-
--- Nạp hội thoại ban đầu để phân phối tải (Phương NV2 đang giữ 1 khách)
-INSERT INTO conversations (id, channel, external_sender_id, sender_name, sender_avatar, assigned_user_id, status, tag, last_message, last_message_at) VALUES
-(1, 'FACEBOOK', 'fb_khach_01', 'Đỗ Thùy Trang', NULL, 2, 'CHATTING', 'DANG_TU_VAN', 'Giao hỏa tốc ra Cầu Giấy trong chiều nay được không shop?', NOW() - INTERVAL 10 MINUTE);
-
-INSERT INTO messages (id, conversation_id, sender_type, sender_id, content, created_at) VALUES
-(1, 1, 'CUSTOMER', NULL, 'Shop ơi áo blazer mã SP02 còn màu be không?', NOW() - INTERVAL 12 MINUTE),
-(2, 1, 'STAFF', 2, 'Chào bạn Trang, shop còn sẵn màu be size M nha!', NOW() - INTERVAL 11 MINUTE),
-(3, 1, 'CUSTOMER', NULL, 'Giao hỏa tốc ra Cầu Giấy trong chiều nay được không shop?', NOW() - INTERVAL 10 MINUTE);
-
-INSERT INTO customer_profiles (id, conversation_id, customer_name, preferred_size, recent_purchases, is_boom_risk, boom_note, scan_version) VALUES
-(1, 1, 'Đỗ Thùy Trang', 'Size M', 'Áo sơ mi lụa (Đã giao thành công)', 0, NULL, 1);
+(1, 'admin', '$2y$10$lbYfEQEySZDYVHIWqWC/n..SQ/TpTBMgd7kdtkdsBrwmw2aMPLptG', 'Quản trị viên', 'default_avatar.png', 'ONLINE', 0);

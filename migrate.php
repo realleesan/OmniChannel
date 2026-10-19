@@ -1,7 +1,7 @@
 <?php
 /**
  * OMNICHANNEL CHAT SYSTEM - DATABASE MIGRATION SCRIPT
- * Tự động khởi tạo cấu trúc 6 bảng và dữ liệu mẫu trên Hosting InfinityFree
+ * Tự động khởi tạo cấu trúc 6 bảng hệ thống trên máy chủ Hosting
  * Truy cập qua trình duyệt: https://your-domain/migrate.php
  */
 
@@ -194,30 +194,9 @@ CREATE TABLE customer_profiles (
 
 SET FOREIGN_KEY_CHECKS = 1;
 
+-- Khởi tạo tài khoản quản trị viên mặc định
 INSERT INTO users (id, username, password, fullname, avatar, status, current_chat_count) VALUES
-(1, 'nv1', '$2y$10$4.6yM3aJgW3Qf.23bS/aQOuW0cQ5f7jKGeJq7P1yP2lZ0X1yO.X2K', 'Nguyễn Văn Quân', 'quan.png', 'ONLINE', 0),
-(2, 'nv2', '$2y$10$4.6yM3aJgW3Qf.23bS/aQOuW0cQ5f7jKGeJq7P1yP2lZ0X1yO.X2K', 'Trần Thị Phương', 'phuong.png', 'ONLINE', 1);
-
-INSERT INTO products (id, product_code, name, price, image_url, stock_status) VALUES
-(1, 'SP01', 'Váy Dạ Tweed Cao Cấp', 350000.00, 'vay_da_tweed.jpg', 'CÒN HÀNG (Size S, M, L)'),
-(2, 'SP02', 'Áo Blazer Hàn Quốc Form Rộng', 420000.00, 'blazer_hanquoc.jpg', 'CÒN HÀNG (Size M, XL)'),
-(3, 'SP03', 'Chân Váy Chữ A Xếp Ly', 220000.00, 'chan_vay_a.jpg', 'SẮP HẾT HÀNG');
-
-INSERT INTO templates (id, shortcut, title, content, created_by_user_id) VALUES
-(1, '/1', 'Tư vấn Váy Dạ Tweed SP01', 'Chào bạn, mẫu [ten_sp] (Mã: [ma_sp]) hiện có giá [gia]đ. Bạn cho shop xin chiều cao và cân nặng để shop tư vấn size phù hợp nhé!', 1),
-(2, '/size', 'Bảng quy đổi kích cỡ', 'Bảng kích cỡ chuẩn: Size S (40-47kg), Size M (48-54kg), Size L (55-60kg). Bạn thường mặc size nào để shop tư vấn kỹ hơn ạ?', 1),
-(3, '/stk', 'Thông tin chuyển khoản', 'Thông tin tài khoản xác nhận đơn: MB Bank - 999988886666 - NGUYEN VAN QUAN. Cú pháp: [ma_sp] + Số điện thoại.', 1);
-
-INSERT INTO conversations (id, channel, external_sender_id, sender_name, sender_avatar, assigned_user_id, status, tag, last_message, last_message_at) VALUES
-(1, 'FACEBOOK', 'fb_khach_01', 'Đỗ Thùy Trang', NULL, 2, 'CHATTING', 'DANG_TU_VAN', 'Giao hỏa tốc ra Cầu Giấy trong chiều nay được không shop?', NOW() - INTERVAL 10 MINUTE);
-
-INSERT INTO messages (id, conversation_id, sender_type, sender_id, content, created_at) VALUES
-(1, 1, 'CUSTOMER', NULL, 'Shop ơi áo blazer mã SP02 còn màu be không?', NOW() - INTERVAL 12 MINUTE),
-(2, 1, 'STAFF', 2, 'Chào bạn Trang, shop còn sẵn màu be size M nha!', NOW() - INTERVAL 11 MINUTE),
-(3, 1, 'CUSTOMER', NULL, 'Giao hỏa tốc ra Cầu Giấy trong chiều nay được không shop?', NOW() - INTERVAL 10 MINUTE);
-
-INSERT INTO customer_profiles (id, conversation_id, customer_name, preferred_size, recent_purchases, is_boom_risk, boom_note, scan_version) VALUES
-(1, 1, 'Đỗ Thùy Trang', 'Size M', 'Áo sơ mi lụa (Đã giao thành công)', 0, NULL, 1);
+(1, 'admin', '$2y$10$lbYfEQEySZDYVHIWqWC/n..SQ/TpTBMgd7kdtkdsBrwmw2aMPLptG', 'Quản trị viên', 'default_avatar.png', 'ONLINE', 0);
 SQL;
         }
 
@@ -232,7 +211,7 @@ SQL;
             }
         }
 
-        echo "<div class='log-item log-success'><i class='fa-solid fa-circle-check'></i> Đã khởi tạo thành công toàn bộ 6 bảng và nạp dữ liệu mẫu ban đầu ($executed câu lệnh)!</div>";
+        echo "<div class='log-item log-success'><i class='fa-solid fa-circle-check'></i> Đã khởi tạo thành công cấu trúc 6 bảng hệ thống ($executed câu lệnh)!</div>";
         echo "<div style='margin-top:20px;'>
             <a href='index.php' class='btn-action'>
                 <i class='fa-solid fa-arrow-right'></i> Mở Trang Đăng Nhập Hệ Thống

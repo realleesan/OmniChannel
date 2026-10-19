@@ -65,21 +65,43 @@ class CustomerProfile {
             $allText .= ' ' . mb_strtolower($m['content'], 'UTF-8');
         }
 
-        // 1. Bóc tách kích thước thường mặc (Preferred Size)
-        $detectedSize = 'Size M'; // Mặc định nhận diện theo kịch bản demo
-        if (preg_match('/\b(size\s*[smlx]{1,2}|s|m|l|xl)\b/iu', $allText, $match)) {
+        // Lấy thông tin hiện tại của hồ sơ
+        $currentProfile = $this->getByConversationId($conversationId);
+        $detectedSize = $currentProfile['preferred_size'] ?? 'Chưa xác định';
+        $recentPurchase = $currentProfile['recent_purchases'] ?? 'Chưa có thông tin';
+
+        // 1. Bóc tách kích thước thường mặc (Preferred Size) từ nội dung tin nhắn
+        if (preg_match('/\b(size\s*[smlx]{1,2}|size\s*\d{2})\b/iu', $allText, $match)) {
             $detectedSize = 'Size ' . strtoupper(str_ireplace('size', '', trim($match[0])));
         }
 
-        // 2. Bóc tách sản phẩm gần nhất
-        $recentPurchase = 'Váy Dạ Tweed (Đã nhận hàng)';
-        if (stripos($allText, 'blazer') !== false) {
-            $recentPurchase = 'Áo Blazer Hàn Quốc Form Rộng';
+        // 2. Bóc tách sản phẩm thảo luận từ danh mục sản phẩm nếu có
+        try {
+            $prodStmt = $this->db->query("SELECT name FROM products ORDER BY id DESC LIMIT 50");
+            if ($prodStmt) {
+                $products = $prodStmt->fetchAll();
+                foreach ($products as $p) {
+                    if (mb_stripos($allText, $p['name'], 0, 'UTF-8') !== false) {
+                        $recentPurchase = $p['name'];
+                        break;
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            // Bỏ qua nếu bảng products chưa có dữ liệu
         }
 
-        // 3. Phân tích rủi ro đặt hàng (Phát hiện từ khóa theo lịch sử giao dịch)
-        $isBoom = 1;
-        $boomNote = 'Lịch sử giao dịch: Từng từ chối nhận hàng (Yêu cầu xác nhận kỹ trước khi điều phối vận chuyển)';
+        // 3. Phân tích rủi ro đặt hàng dựa trên từ khóa nghi vấn thực tế
+        $isBoom = 0;
+        $boomNote = null;
+        $riskKeywords = ['boom', 'bùng', 'bom hàng', 'không nhận', 'hủy đơn', 'trả hàng', 'hoàn hàng'];
+        foreach ($riskKeywords as $kw) {
+            if (mb_stripos($allText, $kw, 0, 'UTF-8') !== false) {
+                $isBoom = 1;
+                $boomNote = 'Phát hiện tín hiệu rủi ro: Khách nhắc tới từ khóa "' . $kw . '"';
+                break;
+            }
+        }
 
         // Cập nhật profile và tăng phiên bản
         $updateStmt = $this->db->prepare("

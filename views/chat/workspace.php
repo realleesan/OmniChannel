@@ -41,16 +41,6 @@ if (!$currentUser) {
     </div>
 
     <div class="header-actions">
-        <!-- Nút mở Bảng giả lập kênh để test demo -->
-        <a href="simulator.php" target="_blank" class="header-link-btn" title="Mở bộ giả lập bắn tin Facebook / Zalo">
-            <i class="fa-solid fa-tower-broadcast"></i> Giả Lập Kênh
-        </a>
-
-        <!-- Nút mở trang Webchat khách hàng test -->
-        <a href="webchat_test.php" target="_blank" class="header-link-btn" title="Mở trang bán hàng để test chat vai khách">
-            <i class="fa-solid fa-globe"></i> Trang Web Khách Hàng
-        </a>
-
         <!-- Nút gạt chuyển trạng thái ca trực -->
         <div class="shift-status-pill" id="shiftStatusPill">
             <span class="status-dot <?= $currentUser['status'] === 'ONLINE' ? 'online' : '' ?>" id="shiftDot"></span>
@@ -155,14 +145,14 @@ if (isset($_GET['logout'])) {
         <div class="chat-input-container" id="chatInputArea" style="display:none;">
             <!-- Gợi ý template khi gõ phím tắt -->
             <div class="template-shortcut-preview" id="shortcutPreviewBar">
-                <span id="shortcutPreviewText"><i class="fa-regular fa-lightbulb"></i> Gợi ý: Gõ <strong>/1</strong> để điền mẫu tư vấn nhanh</span>
+                <span id="shortcutPreviewText"><i class="fa-regular fa-lightbulb"></i> Gợi ý: Gõ <strong>/</strong> để chọn mẫu câu trả lời nhanh</span>
                 <button type="button" style="background:none;border:none;cursor:pointer;color:#4f46e5;font-weight:700;" onclick="applyShortcutDirectly()">
                     Điền ngay <i class="fa-solid fa-arrow-right"></i>
                 </button>
             </div>
 
             <div class="chat-input-wrapper">
-                <textarea id="chatInput" class="chat-textarea" rows="2" placeholder="Nhập tin nhắn tư vấn... (Gõ /1 để chọn mẫu nhanh, Enter để gửi)" onkeydown="handleChatKeyDown(event)" onkeyup="handleShortcutDetect(event)"></textarea>
+                <textarea id="chatInput" class="chat-textarea" rows="2" placeholder="Nhập tin nhắn tư vấn... (Gõ / để dùng mẫu trả lời nhanh, Enter để gửi)" onkeydown="handleChatKeyDown(event)" onkeyup="handleShortcutDetect(event)"></textarea>
 
                 <div class="input-actions-group">
                     <!-- UC3.1: Ghim đính kèm ảnh -->

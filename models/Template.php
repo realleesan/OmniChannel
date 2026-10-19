@@ -49,28 +49,29 @@ class Template {
     /**
      * Thay thế các biến động [ten_sp], [ma_sp], [gia] bằng dữ liệu thực từ bảng products
      */
-    public function renderContent($rawContent, $productCode = 'SP01') {
+    public function renderContent($rawContent, $productCode = null) {
         $productModel = new Product();
-        $product = $productModel->findByCode($productCode);
+        $product = null;
 
-        if (!$product) {
-            // Mặc định lấy sản phẩm đầu tiên nếu không khớp mã
-            $all = $productModel->getAll();
-            $product = $all[0] ?? [
-                'name'         => 'Sản phẩm Mẫu',
-                'product_code' => 'SP01',
-                'price'        => 350000
-            ];
+        if (!empty($productCode)) {
+            $product = $productModel->findByCode($productCode);
         }
 
-        $formattedPrice = number_format($product['price'], 0, ',', '.') . 'đ';
+        if (!$product) {
+            $all = $productModel->getAll();
+            $product = $all[0] ?? null;
+        }
 
-        $replacements = [
-            '[ten_sp]' => $product['name'],
-            '[ma_sp]'  => $product['product_code'],
-            '[gia]'    => $formattedPrice
-        ];
+        if ($product) {
+            $formattedPrice = number_format($product['price'], 0, ',', '.') . 'đ';
+            $replacements = [
+                '[ten_sp]' => $product['name'],
+                '[ma_sp]'  => $product['product_code'],
+                '[gia]'    => $formattedPrice
+            ];
+            return str_replace(array_keys($replacements), array_values($replacements), $rawContent);
+        }
 
-        return str_replace(array_keys($replacements), array_values($replacements), $rawContent);
+        return $rawContent;
     }
 }

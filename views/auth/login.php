@@ -126,43 +126,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .btn-submit-login:hover {
             background: #4338CA;
             box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
-        }
-        .demo-accounts-box {
-            margin-top: 24px;
-            padding-top: 20px;
-            border-top: 1px dashed #E2E8F0;
-            text-align: left;
-        }
-        .demo-title {
-            font-size: 11.5px;
-            font-weight: 700;
-            text-transform: uppercase;
-            color: #94A3B8;
-            letter-spacing: 0.5px;
-            margin-bottom: 10px;
-        }
-        .demo-btn-row {
-            display: flex;
-            gap: 10px;
-        }
-        .quick-login-chip {
-            flex: 1;
-            padding: 8px 10px;
-            background: #F1F5F9;
-            border: 1px solid #E2E8F0;
-            border-radius: var(--radius-sm);
-            cursor: pointer;
-            font-size: 12px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.2s;
-        }
-        .quick-login-chip:hover {
-            background: #EEF2FF;
-            border-color: #C7D2FE;
-            color: #4F46E5;
-        }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -195,29 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <i class="fa-solid fa-arrow-right-to-bracket" style="margin-left:6px;"></i>
         </button>
     </form>
-
-    <div class="demo-accounts-box">
-        <div class="demo-title"><i class="fa-regular fa-lightbulb"></i> Tài khoản mẫu:</div>
-        <div class="demo-btn-row">
-            <button type="button" class="quick-login-chip" onclick="fillAccount('nv1', '123456')">
-                <i class="fa-solid fa-user-tie" style="color:#4F46E5;"></i>
-                <strong>Quân (NV1)</strong>
-            </button>
-            <button type="button" class="quick-login-chip" onclick="fillAccount('nv2', '123456')">
-                <i class="fa-solid fa-user-check" style="color:#4F46E5;"></i>
-                <strong>Phương (NV2)</strong>
-            </button>
-        </div>
-    </div>
 </div>
-
-<script>
-function fillAccount(u, p) {
-    document.getElementById('username').value = u;
-    document.getElementById('password').value = p;
-    document.querySelector('form').submit();
-}
-</script>
 
 </body>
 </html>
