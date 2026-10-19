@@ -1,0 +1,24 @@
+{
+  "name": "omnichannel-webhook-gateway",
+  "version": "1.0.0",
+  "description": "External Webhook Gateway for Facebook, Zalo, and third-party channels on Render",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "keywords": [
+    "omnichannel",
+    "webhook",
+    "facebook",
+    "zalo",
+    "render"
+  ],
+  "author": "BA Capstone Team",
+  "license": "MIT"
+}

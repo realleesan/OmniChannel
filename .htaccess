@@ -1,0 +1,26 @@
+# ========================================================
+# OMNICHANNEL CHAT SYSTEM - APACHE CONFIGURATION (.htaccess)
+# Tối ưu hóa cho InfinityFree và Apache Server
+# ========================================================
+
+# Thiết lập file mặc định
+DirectoryIndex index.php
+
+# Bật bộ mã UTF-8 mặc định
+AddDefaultCharset UTF-8
+
+# Bật Header CORS cho phép Webchat Widget nhúng trên website khác gửi request
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+</IfModule>
+
+# Chặn truy cập trực tiếp các file nhạy cảm và cấu trúc bảo mật
+<FilesMatch "\.(sql|env|json|lock|md|log)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Không cho phép duyệt danh mục thư mục công khai (Directory Browsing)
+Options -Indexes

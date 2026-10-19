@@ -1,0 +1,190 @@
+/* ========================================================
+   WEBCHAT WIDGET STYLES
+   Bong bóng chat nổi trên website khách hàng
+   ======================================================== */
+
+#omnichannel-webchat-root {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 999999;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.webchat-bubble-toggle {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #10B981, #059669);
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: white;
+    font-size: 26px;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.webchat-bubble-toggle:hover {
+    transform: scale(1.08);
+}
+
+.webchat-window {
+    position: fixed;
+    bottom: 96px;
+    right: 24px;
+    width: 360px;
+    height: 520px;
+    background: #FFFFFF;
+    border-radius: 16px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid #E2E8F0;
+    animation: webchatFadeUp 0.25s ease-out;
+}
+
+@keyframes webchatFadeUp {
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.webchat-header {
+    background: linear-gradient(135deg, #10B981, #059669);
+    color: white;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.webchat-header-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.webchat-avatar-badge {
+    width: 36px;
+    height: 36px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+}
+
+.webchat-title-group h4 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.webchat-title-group p {
+    margin: 0;
+    font-size: 11.5px;
+    opacity: 0.9;
+}
+
+.webchat-close-btn {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    opacity: 0.8;
+}
+
+.webchat-close-btn:hover {
+    opacity: 1;
+}
+
+.webchat-customer-intro {
+    padding: 10px 14px;
+    background: #F8FAFC;
+    border-bottom: 1px solid #E2E8F0;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.webchat-name-input {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid #CBD5E1;
+    border-radius: 6px;
+    font-size: 12.5px;
+    outline: none;
+}
+
+.webchat-body {
+    flex: 1;
+    padding: 14px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: #F8FAFC;
+}
+
+.wc-msg {
+    max-width: 80%;
+    padding: 10px 14px;
+    border-radius: 14px;
+    font-size: 13.5px;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.wc-msg.customer {
+    align-self: flex-end;
+    background: #10B981;
+    color: white;
+    border-bottom-right-radius: 3px;
+}
+
+.wc-msg.staff {
+    align-self: flex-start;
+    background: white;
+    color: #1E293B;
+    border: 1px solid #E2E8F0;
+    border-bottom-left-radius: 3px;
+}
+
+.webchat-footer {
+    padding: 10px 14px;
+    background: white;
+    border-top: 1px solid #E2E8F0;
+    display: flex;
+    gap: 8px;
+}
+
+.webchat-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #CBD5E1;
+    border-radius: 20px;
+    font-size: 13px;
+    outline: none;
+}
+
+.webchat-input:focus {
+    border-color: #10B981;
+}
+
+.webchat-send-btn {
+    background: #10B981;
+    color: white;
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+}
