@@ -116,7 +116,14 @@ header('Content-Type: text/html; charset=utf-8');
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
+-- Xóa các bảng con trước để tránh lỗi ràng buộc khóa ngoại #1451
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS customer_profiles;
+DROP TABLE IF EXISTS templates;
+DROP TABLE IF EXISTS conversations;
+DROP TABLE IF EXISTS products;
 DROP TABLE IF EXISTS users;
+
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
@@ -128,7 +135,6 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-DROP TABLE IF EXISTS products;
 CREATE TABLE products (
     id INT AUTO_INCREMENT PRIMARY KEY,
     product_code VARCHAR(50) NOT NULL UNIQUE,
@@ -139,7 +145,6 @@ CREATE TABLE products (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-DROP TABLE IF EXISTS conversations;
 CREATE TABLE conversations (
     id INT AUTO_INCREMENT PRIMARY KEY,
     channel ENUM('WEBCHAT', 'FACEBOOK', 'ZALO', 'SHOPEE', 'TIKTOK') NOT NULL,
@@ -155,7 +160,6 @@ CREATE TABLE conversations (
     FOREIGN KEY (assigned_user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-DROP TABLE IF EXISTS messages;
 CREATE TABLE messages (
     id INT AUTO_INCREMENT PRIMARY KEY,
     conversation_id INT NOT NULL,
@@ -167,7 +171,6 @@ CREATE TABLE messages (
     FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-DROP TABLE IF EXISTS templates;
 CREATE TABLE templates (
     id INT AUTO_INCREMENT PRIMARY KEY,
     shortcut VARCHAR(20) NOT NULL UNIQUE,
@@ -178,7 +181,6 @@ CREATE TABLE templates (
     FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-DROP TABLE IF EXISTS customer_profiles;
 CREATE TABLE customer_profiles (
     id INT AUTO_INCREMENT PRIMARY KEY,
     conversation_id INT NOT NULL UNIQUE,

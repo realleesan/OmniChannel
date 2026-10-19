@@ -7,8 +7,22 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
--- 1. Bảng nhân viên tư vấn (Hỗ trợ phân quyền ca trực và chia tải)
+-- ========================================================
+-- BƯỚC 1: XÓA CÁC BẢNG THEO THỨ TỰ BẢNG CON TRƯỚC, BẢNG CHA SAU
+-- (Tránh hoàn toàn lỗi #1451 Cannot delete or update a parent row trên phpMyAdmin)
+-- ========================================================
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS customer_profiles;
+DROP TABLE IF EXISTS templates;
+DROP TABLE IF EXISTS conversations;
+DROP TABLE IF EXISTS products;
 DROP TABLE IF EXISTS users;
+
+-- ========================================================
+-- BƯỚC 2: KHỞI TẠO CẤU TRÚC BẢNG HỆ THỐNG
+-- ========================================================
+
+-- 1. Bảng nhân viên tư vấn (Hỗ trợ phân quyền ca trực và chia tải)
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
@@ -21,7 +35,6 @@ CREATE TABLE users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 2. Bảng sản phẩm (Nguồn dữ liệu điền vào template biến động)
-DROP TABLE IF EXISTS products;
 CREATE TABLE products (
     id INT AUTO_INCREMENT PRIMARY KEY,
     product_code VARCHAR(50) NOT NULL UNIQUE,
@@ -33,7 +46,6 @@ CREATE TABLE products (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 3. Bảng cuộc trò chuyện (Hội thoại đa kênh)
-DROP TABLE IF EXISTS conversations;
 CREATE TABLE conversations (
     id INT AUTO_INCREMENT PRIMARY KEY,
     channel ENUM('WEBCHAT', 'FACEBOOK', 'ZALO', 'SHOPEE', 'TIKTOK') NOT NULL,
@@ -50,7 +62,6 @@ CREATE TABLE conversations (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 4. Bảng tin nhắn chi tiết
-DROP TABLE IF EXISTS messages;
 CREATE TABLE messages (
     id INT AUTO_INCREMENT PRIMARY KEY,
     conversation_id INT NOT NULL,
@@ -63,7 +74,6 @@ CREATE TABLE messages (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 5. Bảng mẫu tin nhắn nhanh (Templates hỗ trợ phím tắt và biến động)
-DROP TABLE IF EXISTS templates;
 CREATE TABLE templates (
     id INT AUTO_INCREMENT PRIMARY KEY,
     shortcut VARCHAR(20) NOT NULL UNIQUE, -- Ví dụ: /1, /size, /stk
@@ -75,7 +85,6 @@ CREATE TABLE templates (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 6. Bảng thẻ hồ sơ khách hàng (Phục vụ Agent bóc tách và cảnh báo rủi ro)
-DROP TABLE IF EXISTS customer_profiles;
 CREATE TABLE customer_profiles (
     id INT AUTO_INCREMENT PRIMARY KEY,
     conversation_id INT NOT NULL UNIQUE,
