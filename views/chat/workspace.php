@@ -40,13 +40,16 @@ if (!$currentUser) {
     </div>
 
     <div class="header-actions">
-        <!-- Nút gạt chuyển trạng thái ca trực -->
-        <div class="shift-status-pill" id="shiftStatusPill">
+        <!-- Nút gạt trạng thái ca trực 1 chạm (Quick Shift Toggle) -->
+        <div class="shift-toggle-btn <?= $currentUser['status'] === 'ONLINE' ? 'is-online' : 'is-offline' ?>" 
+             id="shiftToggleBtn" 
+             onclick="toggleShiftStatus()"
+             title="Bấm để chuyển đổi ca trực">
             <span class="status-dot <?= $currentUser['status'] === 'ONLINE' ? 'online' : '' ?>" id="shiftDot"></span>
-            <select class="shift-select" id="shiftSelect" onchange="handleShiftChange(this.value)">
-                <option value="ONLINE" <?= $currentUser['status'] === 'ONLINE' ? 'selected' : '' ?>>Đang trực tuyến</option>
-                <option value="OFFLINE" <?= $currentUser['status'] === 'OFFLINE' ? 'selected' : '' ?>>Rời ca trực</option>
-            </select>
+            <span class="shift-text" id="shiftText"><?= $currentUser['status'] === 'ONLINE' ? 'Sẵn sàng nhận khách' : 'Tạm dừng / Hết ca' ?></span>
+            <div class="shift-switch-track">
+                <div class="shift-switch-thumb"></div>
+            </div>
         </div>
 
         <!-- Thông tin nhân viên -->

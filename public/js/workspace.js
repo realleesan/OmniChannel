@@ -1118,16 +1118,31 @@ async function handleShiftChange(status) {
     }
 }
 
+function toggleShiftStatus() {
+    const btn = document.getElementById('shiftToggleBtn');
+    if (!btn) return;
+    const isCurrentlyOnline = btn.classList.contains('is-online');
+    const nextStatus = isCurrentlyOnline ? 'OFFLINE' : 'ONLINE';
+    handleShiftChange(nextStatus);
+}
+
 function updateHeaderShiftStatus(status) {
+    const btn = document.getElementById('shiftToggleBtn');
     const dot = document.getElementById('shiftDot');
-    const select = document.getElementById('shiftSelect');
+    const text = document.getElementById('shiftText');
+
+    if (!btn) return;
 
     if (status === 'ONLINE') {
-        dot.className = 'status-dot online';
-        select.value = 'ONLINE';
+        btn.classList.remove('is-offline');
+        btn.classList.add('is-online');
+        if (dot) dot.className = 'status-dot online';
+        if (text) text.innerText = 'Sẵn sàng nhận khách';
     } else {
-        dot.className = 'status-dot';
-        select.value = 'OFFLINE';
+        btn.classList.remove('is-online');
+        btn.classList.add('is-offline');
+        if (dot) dot.className = 'status-dot';
+        if (text) text.innerText = 'Tạm dừng / Hết ca';
     }
 }
 
