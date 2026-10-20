@@ -301,7 +301,7 @@ function renderConversationsList(conversations) {
                         <span class="card-time-ago">${conv.short_time || formatChatTime(conv.last_message_at) || ''}</span>
                     </div>
 
-                    <!-- Dòng 2: Icon chiều tin (↙ khách / ✓✓ nhân viên) & Nội dung -->
+                    <!-- Dòng 2: Icon chiều tin (khách gửi / nhân viên gửi) & Nội dung -->
                     <div class="card-message-line ${isUnread ? 'is-unread' : ''}">
                         <span class="msg-dir-icon ${isStaffLast ? 'outgoing' : 'incoming'}">
                             ${isStaffLast ? '<i class="fa-solid fa-check-double"></i>' : '<i class="fa-solid fa-arrow-down-left"></i>'}
@@ -1003,14 +1003,14 @@ async function triggerAgentScan() {
                 btn.innerHTML = '<i class="fa-solid fa-check"></i> <span>ĐÃ BÓC TÁCH XONG</span>';
                 
                 setTimeout(() => {
-                    btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> <span>QUÉT LẠI HỒ SƠ (AI AGENT)</span>';
+                    btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> <span>QUÉT LẠI HỒ SƠ</span>';
                 }, 2000);
             }, 500);
         }
     } catch (err) {
-        console.error('Lỗi quét dữ liệu Agent:', err);
+        console.error('Lỗi quét dữ liệu:', err);
         btn.classList.remove('scanning');
-        btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> <span>QUÉT LẠI HỒ SƠ (AI AGENT)</span>';
+        btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> <span>QUÉT LẠI HỒ SƠ</span>';
     }
 }
 

@@ -88,7 +88,7 @@ app.post('/api/facebook/appstate', (req, res) => {
 
             fcaApi = api;
             ChannelStatus.facebook.status = 'ONLINE';
-            console.log('✅ Facebook cá nhân (ws3-fca) đã kết nối thành công!');
+            console.log('[Facebook] Facebook cá nhân (ws3-fca) đã kết nối thành công!');
 
             // Lắng nghe tin nhắn qua MQTT
             api.listenMqtt((err, message) => {
@@ -102,7 +102,7 @@ app.post('/api/facebook/appstate', (req, res) => {
                         attachment_url: message.attachments?.[0]?.url || null,
                         received_at: new Date().toISOString()
                     };
-                    console.log('📥 Tin nhắn FB cá nhân:', normalizedMsg);
+                    console.log('[Facebook] Tin nhắn FB cá nhân:', normalizedMsg);
                     pendingMessages.push(normalizedMsg);
                 }
             });
@@ -163,7 +163,7 @@ app.get('/api/zalo/qr', (req, res) => {
 // Tiếp nhận tin nhắn Zalo Webhook / ZCA Event
 app.post('/webhook/zalo', (req, res) => {
     const body = req.body;
-    console.log('📥 Nhận payload từ Zalo:', body);
+    console.log('[Zalo] Nhận payload từ Zalo:', body);
 
     const senderId = body.sender?.id || body.user_id || ('zl_' + Date.now());
     const senderName = body.sender?.name || body.name || 'Khách Zalo';
@@ -396,6 +396,6 @@ app.get('/api/webchat/poll', (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Omnichannel Webhook Gateway đang chạy trên cổng ${PORT}`);
+    console.log(`[Gateway] OmniChat Webhook Gateway đang chạy trên cổng ${PORT}`);
 });
 

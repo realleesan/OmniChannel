@@ -68,7 +68,7 @@ class ChatController {
         if (!empty($conv['assigned_user_id']) && $conv['assigned_user_id'] != $userId) {
             return [
                 'success' => false, 
-                'message' => '🔒 Chế độ Chỉ xem (View-only) – Hội thoại đang do ' . $conv['assigned_fullname'] . ' phụ trách. Bạn không thể gửi tin nhắn.'
+                'message' => 'Chế độ Chỉ xem – Hội thoại đang do ' . $conv['assigned_fullname'] . ' phụ trách. Bạn không thể gửi tin nhắn.'
             ];
         }
 

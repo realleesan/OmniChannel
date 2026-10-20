@@ -22,7 +22,7 @@ if (!$currentUser) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Workspace - Hệ thống Quản lý Hội thoại Đa kênh</title>
+    <title>OmniChat - Bàn làm việc tư vấn viên</title>
     <link rel="stylesheet" href="../../public/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -35,8 +35,7 @@ if (!$currentUser) {
     <div class="brand-section">
         <div class="brand-logo"><i class="fa-solid fa-network-wired" style="color:white;font-size:18px;"></i></div>
         <div>
-            <div class="brand-title">HỆ THỐNG QUẢN LÝ HỘI THOẠI ĐA KÊNH</div>
-            <div class="brand-subtitle">Omnichannel Unified Agent Workspace</div>
+            <div class="brand-title">OmniChat</div>
         </div>
     </div>
 
@@ -206,7 +205,7 @@ if (isset($_GET['logout'])) {
         <div class="view-only-lock-banner" id="viewOnlyLockBanner" style="display:none;">
             <div class="lock-banner-icon"><i class="fa-solid fa-shield-halved"></i></div>
             <div class="lock-banner-body">
-                <div class="lock-banner-title">CHẾ ĐỘ CHỈ XEM (VIEW-ONLY)</div>
+                <div class="lock-banner-title">CHẾ ĐỘ CHỈ XEM</div>
                 <div class="lock-banner-desc" id="viewOnlyLockText">
                     Hội thoại đang được phụ trách bởi nhân viên khác. Bạn không có quyền gửi tin nhắn.
                 </div>
@@ -368,10 +367,10 @@ if (isset($_GET['logout'])) {
             </div>
         </div>
 
-        <!-- UC3.3: Nút Kích hoạt Agent Quét Lại -->
+        <!-- UC3.3: Nút Kích hoạt Quét Lại -->
         <button type="button" class="btn-rescan-agent" id="btnRescanAgent" onclick="triggerAgentScan()">
             <i class="fa-solid fa-wand-magic-sparkles"></i>
-            <span>QUÉT LẠI HỒ SƠ (AI AGENT)</span>
+            <span>QUÉT LẠI HỒ SƠ</span>
         </button>
 
         <!-- UC3.4: Bộ chọn Gắn nhãn trạng thái tiến độ -->
@@ -425,7 +424,7 @@ if (isset($_GET['logout'])) {
         <div class="modal-body">
             <div class="form-group">
                 <label class="form-label">Tên nhãn phân loại</label>
-                <input type="text" id="newLabelName" class="form-input" placeholder="Ví dụ: New Lead, Khách VIP, Chờ gọi lại...">
+                <input type="text" id="newLabelName" class="form-input" placeholder="Ví dụ: Khách mới, Khách VIP, Chờ gọi lại...">
             </div>
 
             <div class="form-group">

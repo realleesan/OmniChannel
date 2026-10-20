@@ -60,7 +60,7 @@ class Database {
                     $hasEnv = file_exists($envPath) ? "Đã tìm thấy (.env tồn tại trên hosting)" : "Không tìm thấy (chưa có file .env trên hosting)";
                     
                     die("<div style='font-family:sans-serif;padding:30px;max-width:650px;margin:50px auto;border:2px solid #ef4444;border-radius:10px;background:#fef2f2;color:#991b1b;'>
-                        <h2 style='margin-top:0'>⚠️ Lỗi Kết nối Cơ sở Dữ liệu (MySQL)</h2>
+                        <h2 style='margin-top:0'>Lỗi Kết nối Cơ sở Dữ liệu (MySQL)</h2>
                         <p><strong>Chi tiết lỗi:</strong> " . htmlspecialchars($e->getMessage()) . "</p>
                         <div style='background:#fee2e2;border:1px solid #fca5a5;padding:12px;border-radius:6px;font-size:13px;margin:15px 0;'>
                             <div><strong>Trạng thái file .env:</strong> $hasEnv</div>

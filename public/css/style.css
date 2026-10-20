@@ -131,10 +131,12 @@ body {
 }
 
 .brand-title {
-    font-size: 15px;
+    font-size: 18px;
     font-weight: 800;
-    letter-spacing: -0.3px;
-    color: #0F172A;
+    letter-spacing: -0.4px;
+    background: linear-gradient(135deg, #1E1B4B, #4F46E5);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
     line-height: 1.2;
 }
 

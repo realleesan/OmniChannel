@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Đăng nhập - Hệ thống Quản lý Hội thoại Đa kênh</title>
+    <title>Đăng nhập - OmniChat</title>
     <link rel="stylesheet" href="../../public/css/style.css">
     <style>
         body {
@@ -196,8 +196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <div class="login-card">
     <div class="login-logo"><i class="fa-solid fa-headset" style="color:white;font-size:26px;"></i></div>
-    <h2 class="login-title">Hệ thống Hội thoại Đa kênh</h2>
-    <p class="login-subtitle">Omnichannel Unified Agent Workspace</p>
+    <h2 class="login-title">OmniChat</h2>
 
     <?php if (!empty($errorMsg)): ?>
         <div class="alert-error">
