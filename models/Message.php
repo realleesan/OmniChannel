@@ -33,7 +33,11 @@ class Message {
         // Cập nhật last_message và last_sender_type cho hội thoại
         $convModel = new Conversation();
         $newStatus = ($senderType === 'STAFF') ? 'CHATTING' : 'UNREPLIED';
-        $convModel->updateLastMessage($conversationId, $content, $senderType, $newStatus);
+        $summaryContent = trim((string)$content);
+        if (empty($summaryContent) && !empty($attachmentUrl)) {
+            $summaryContent = '[Hình ảnh]';
+        }
+        $convModel->updateLastMessage($conversationId, $summaryContent, $senderType, $newStatus);
 
         return $messageId;
     }

@@ -279,12 +279,17 @@ app.all('/api/webchat/init', (req, res) => {
         });
     }
 
+    // Lấy thông tin nhân viên từ tin nhắn trả lời gần nhất nếu có
+    const staffMsg = (webchatSessions[customerId]?.messages || []).slice().reverse().find(m => m.sender_type === 'STAFF');
+
     res.json({
         success: true,
         customer_id: customerId,
         customer_name: webchatSessions[customerId].customerName,
         customer_phone: webchatSessions[customerId].customerPhone || '',
         conversation_id: customerId,
+        staff_name: staffMsg ? staffMsg.staff_name : null,
+        staff_avatar: staffMsg ? staffMsg.staff_avatar : null,
         messages: webchatSessions[customerId].messages
     });
 });
@@ -430,6 +435,21 @@ app.get('/api/webchat/poll', (req, res) => {
         success: true,
         messages: newMsgs
     });
+});
+
+// Khách hàng bấm xem/mở box chat để đánh dấu đã đọc
+app.post('/api/webchat/read', (req, res) => {
+    const customerId = req.body?.customer_id;
+    if (customerId && webchatSessions[customerId]) {
+        webchatSessions[customerId].customerLastSeenAt = new Date().toISOString();
+        pendingMessages.push({
+            channel: 'WEBCHAT',
+            event: 'READ_RECEIPT',
+            external_sender_id: customerId,
+            read_at: new Date().toISOString()
+        });
+    }
+    res.json({ success: true });
 });
 
 app.listen(PORT, () => {

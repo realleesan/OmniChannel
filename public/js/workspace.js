@@ -151,6 +151,13 @@ async function runSyncPolling() {
         }
 
         // Cập nhật danh sách thẻ hội thoại bên trái
+        if (data.conversations && Array.isArray(data.conversations)) {
+            const currentUnreadCount = data.conversations.filter(c => c.is_read == 0 && c.last_sender_type === 'CUSTOMER').length;
+            if (AppState.lastUnreadCount !== undefined && currentUnreadCount > AppState.lastUnreadCount) {
+                playNotificationSound();
+            }
+            AppState.lastUnreadCount = currentUnreadCount;
+        }
         renderConversationsList(data.conversations);
 
         // Cập nhật tin nhắn mới nếu đang mở một hội thoại
@@ -287,14 +294,18 @@ function renderConversationsList(conversations) {
 
         // Tạo nội dung tin nhắn trích đoạn (Nếu nhân viên gửi thì hiện "Bạn: ...")
         let snippetHtml = '';
-        if (conv.last_message) {
+        const rawLastMsg = (conv.last_message || '').trim();
+        if (rawLastMsg) {
             if (isStaffLast) {
-                snippetHtml = `<span class="snippet-prefix-you">Bạn: </span>${escapeHtml(conv.last_message)}`;
+                snippetHtml = `<span class="snippet-prefix-you">Bạn: </span>${escapeHtml(rawLastMsg)}`;
             } else {
-                snippetHtml = escapeHtml(conv.last_message);
+                snippetHtml = escapeHtml(rawLastMsg);
             }
+        } else if (conv.last_message_at) {
+            // Có mốc thời gian trao đổi nhưng nội dung text rỗng -> Tin nhắn ảnh
+            snippetHtml = isStaffLast ? '<span class="snippet-prefix-you">Bạn: </span>[Hình ảnh]' : '[Hình ảnh]';
         } else {
-            snippetHtml = '<i>[Bắt đầu trò chuyện]</i>';
+            snippetHtml = '<i>[Chưa có tin nhắn]</i>';
         }
 
         html += `
@@ -536,18 +547,20 @@ function evaluateViewOnlyLock() {
     const lockTitle = lockBanner ? lockBanner.querySelector('.lock-banner-title') : null;
     const lockDesc = document.getElementById('viewOnlyLockText');
 
-    if (isShiftOffline) {
-        AppState.isViewOnly = true;
-        if (lockBanner) lockBanner.style.display = 'flex';
-        if (inputArea) inputArea.style.display = 'none';
-        if (lockTitle) lockTitle.innerText = 'CHẾ ĐỘ CHỈ XEM';
-        if (lockDesc) lockDesc.innerText = 'Hội thoại sẽ được phân chia cho nhân viên khác. Bạn không có quyền gửi tin nhắn.';
-    } else if (isOtherStaff) {
+    if (isOtherStaff) {
+        // ƯU TIÊN 1: Hội thoại do nhân viên khác phụ trách -> Luôn hiển thị đích danh nhân viên phụ trách
         AppState.isViewOnly = true;
         if (lockBanner) lockBanner.style.display = 'flex';
         if (inputArea) inputArea.style.display = 'none';
         if (lockTitle) lockTitle.innerText = 'CHẾ ĐỘ CHỈ XEM';
         if (lockDesc) lockDesc.innerText = `Hội thoại đang được phụ trách bởi ${activeConv.assigned_fullname || 'nhân viên khác'}. Bạn không có quyền gửi tin nhắn.`;
+    } else if (isShiftOffline) {
+        // ƯU TIÊN 2: Hội thoại của mình hoặc chưa gán nhưng bản thân ĐÃ HẾT CA
+        AppState.isViewOnly = true;
+        if (lockBanner) lockBanner.style.display = 'flex';
+        if (inputArea) inputArea.style.display = 'none';
+        if (lockTitle) lockTitle.innerText = 'CHẾ ĐỘ CHỈ XEM';
+        if (lockDesc) lockDesc.innerText = 'Hội thoại sẽ được phân chia cho nhân viên khác do bạn đang hết ca. Bạn không có quyền gửi tin nhắn.';
     } else {
         AppState.isViewOnly = false;
         if (lockBanner) lockBanner.style.display = 'none';
@@ -624,15 +637,22 @@ function handleActiveConversationSync(activeData) {
     // Bổ sung các tin nhắn mới (chống trùng lặp tuyệt đối)
     if (new_messages && new_messages.length > 0) {
         let hasNew = false;
+        let hasNewCustomerMsg = false;
         new_messages.forEach(msg => {
             if (msg.id > AppState.lastMessageId && !document.getElementById(`msg-${msg.id}`)) {
                 appendMessageBubble(msg, true);
                 hasNew = true;
+                if (msg.sender_type === 'CUSTOMER') {
+                    hasNewCustomerMsg = true;
+                }
             }
         });
         if (hasNew) {
             updateSeenIndicator();
             scrollChatToBottom();
+            if (hasNewCustomerMsg) {
+                playNotificationSound();
+            }
         }
 
         // Đồng bộ tin nhắn mới vào cache của hội thoại để khi chuyển khách quay lại không cần tải lại
@@ -1319,6 +1339,25 @@ function toggleUnreadDropdown(e) {
 }
 
 /**
+ * Click trực tiếp vào tab Chưa đọc -> Lọc ngay lập tức
+ */
+function triggerUnreadTabClick() {
+    AppState.currentTab = 'unreplied';
+    AppState.unrepliedScope = AppState.unrepliedScope || 'all';
+
+    document.getElementById('tabAll').classList.remove('active');
+    document.getElementById('tabMine').classList.remove('active');
+    document.getElementById('tabUnread').classList.add('active');
+
+    document.getElementById('unreadOptAll').classList.toggle('active', AppState.unrepliedScope === 'all');
+    document.getElementById('unreadOptMine').classList.toggle('active', AppState.unrepliedScope === 'mine');
+    document.getElementById('unreadTabLabel').innerText = (AppState.unrepliedScope === 'mine') ? 'Chưa đọc (Tôi)' : 'Chưa đọc';
+
+    document.getElementById('unreadDropdownMenu').classList.remove('show');
+    fetchConversations();
+}
+
+/**
  * Chọn phạm vi Chưa đọc: 'all' (toàn bộ) hoặc 'mine' (của tôi)
  */
 function selectUnreadScope(scope) {
@@ -1335,6 +1374,44 @@ function selectUnreadScope(scope) {
 
     document.getElementById('unreadDropdownMenu').classList.remove('show');
     fetchConversations();
+}
+
+/**
+ * Âm thanh thông báo tin nhắn mới tinh tế chuẩn Web Audio API Synthesizer (Ting-Ting)
+ */
+function playNotificationSound() {
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const now = ctx.currentTime;
+
+        // Âm sắc 1 (587.33 Hz - nốt D5)
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(587.33, now);
+        gain1.gain.setValueAtTime(0.15, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.22);
+
+        // Âm sắc 2 (880 Hz - nốt A5) vang sau 0.1s
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(880, now + 0.1);
+        gain2.gain.setValueAtTime(0.18, now + 0.1);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(now + 0.1);
+        osc2.stop(now + 0.42);
+    } catch (e) {
+        console.warn('Sound notification warn:', e);
+    }
 }
 
 /**
@@ -1410,29 +1487,316 @@ function selectChannelFilter(channel, channelName) {
     fetchConversations();
 }
 
-/**
- * Tìm kiếm theo Tên khách hàng & Nội dung tin nhắn
- */
-let searchDebounce = null;
-function handleSearch(val) {
-    const clearBtn = document.getElementById('btnClearSearch');
-    if (clearBtn) {
-        clearBtn.style.display = val.trim() ? 'block' : 'none';
-    }
+// ========================================================
+// HỆ THỐNG TÌM KIẾM CHUYÊN DỤNG PHONG CÁCH ZALO
+// ========================================================
+AppState.searchMode = false;
+AppState.searchSubTab = 'all'; // 'all' | 'customers' | 'messages'
+AppState.searchZaloResults = { customers: [], messages: [] };
+let zaloSearchDebounce = null;
 
-    clearTimeout(searchDebounce);
-    searchDebounce = setTimeout(() => {
-        AppState.searchQuery = val.trim();
-        fetchConversations();
-    }, 250);
+function enterSearchMode() {
+    AppState.searchMode = true;
+    const btnClose = document.getElementById('btnCloseSearch');
+    if (btnClose) btnClose.style.display = 'inline-flex';
+
+    const normalControls = document.getElementById('sidebarNormalControls');
+    if (normalControls) normalControls.style.display = 'none';
+
+    const convList = document.getElementById('conversationsContainer');
+    if (convList) convList.style.display = 'none';
+
+    const zaloPanel = document.getElementById('zaloSearchPanel');
+    if (zaloPanel) zaloPanel.classList.add('is-active');
+
+    const input = document.getElementById('searchInput');
+    if (input && input.value.trim()) {
+        handleZaloSearch(input.value.trim());
+    }
 }
 
-function clearSearch() {
-    const input = document.getElementById('searchInput');
-    input.value = '';
-    document.getElementById('btnClearSearch').style.display = 'none';
+function exitSearchMode() {
+    AppState.searchMode = false;
     AppState.searchQuery = '';
-    fetchConversations();
+    AppState.searchZaloResults = { customers: [], messages: [] };
+
+    const input = document.getElementById('searchInput');
+    if (input) input.value = '';
+
+    const btnClear = document.getElementById('btnClearSearch');
+    if (btnClear) btnClear.style.display = 'none';
+
+    const btnClose = document.getElementById('btnCloseSearch');
+    if (btnClose) btnClose.style.display = 'none';
+
+    const zaloPanel = document.getElementById('zaloSearchPanel');
+    if (zaloPanel) zaloPanel.classList.remove('is-active');
+
+    const normalControls = document.getElementById('sidebarNormalControls');
+    if (normalControls) normalControls.style.display = 'block';
+
+    const convList = document.getElementById('conversationsContainer');
+    if (convList) convList.style.display = 'block';
+}
+
+function clearZaloSearch() {
+    const input = document.getElementById('searchInput');
+    if (input) {
+        input.value = '';
+        input.focus();
+    }
+    const btnClear = document.getElementById('btnClearSearch');
+    if (btnClear) btnClear.style.display = 'none';
+
+    AppState.searchZaloResults = { customers: [], messages: [] };
+    renderZaloSearchResults();
+}
+
+function switchSearchSubTab(subTab) {
+    AppState.searchSubTab = subTab;
+    document.getElementById('searchSubTabAll')?.classList.toggle('active', subTab === 'all');
+    document.getElementById('searchSubTabCustomers')?.classList.toggle('active', subTab === 'customers');
+    document.getElementById('searchSubTabMessages')?.classList.toggle('active', subTab === 'messages');
+    renderZaloSearchResults();
+}
+
+function handleZaloSearch(val) {
+    const cleanVal = (val || '').trim();
+    const btnClear = document.getElementById('btnClearSearch');
+    if (btnClear) {
+        btnClear.style.display = cleanVal ? 'block' : 'none';
+    }
+
+    if (!cleanVal) {
+        AppState.searchZaloResults = { customers: [], messages: [] };
+        renderZaloSearchResults();
+        return;
+    }
+
+    clearTimeout(zaloSearchDebounce);
+    zaloSearchDebounce = setTimeout(async () => {
+        try {
+            // Thử gọi qua search_action.php
+            let res = await fetch(`../../api/search_action.php?q=${encodeURIComponent(cleanVal)}`);
+            let data = null;
+            if (res.ok) {
+                data = await res.json();
+            }
+            if (!data || !data.success) {
+                // Fallback qua sync_polling
+                res = await fetch(`../../api/sync_polling.php?action=search_zalo&q=${encodeURIComponent(cleanVal)}`);
+                data = await res.json();
+            }
+
+            if (data && data.success && data.data) {
+                AppState.searchZaloResults = data.data;
+            } else {
+                AppState.searchZaloResults = { customers: [], messages: [] };
+            }
+            renderZaloSearchResults();
+        } catch (e) {
+            console.error('Lỗi tìm kiếm Zalo:', e);
+        }
+    }, 200);
+}
+
+function highlightKeyword(text, keyword) {
+    if (!text) return '';
+    if (!keyword) return escapeHtml(text);
+    const escapedText = escapeHtml(text);
+    const escapedKw = escapeHtml(keyword).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escapedKw})`, 'gi');
+    return escapedText.replace(regex, '<mark>$1</mark>');
+}
+
+function renderZaloSearchResults() {
+    const container = document.getElementById('zaloSearchResultsContainer');
+    if (!container) return;
+
+    const input = document.getElementById('searchInput');
+    const keyword = input ? input.value.trim() : '';
+    const { customers, messages } = AppState.searchZaloResults || { customers: [], messages: [] };
+
+    if (!keyword) {
+        container.innerHTML = `
+            <div style="text-align:center;padding:50px 16px;color:#94a3b8;font-size:13px;">
+                <i class="fa-solid fa-magnifying-glass" style="font-size:26px;margin-bottom:8px;display:block;opacity:0.4;"></i>
+                Nhập tên khách hàng hoặc từ khóa tin nhắn để tìm kiếm
+            </div>
+        `;
+        return;
+    }
+
+    const totalCust = customers.length;
+    const totalMsg = messages.length;
+
+    if (totalCust === 0 && totalMsg === 0) {
+        container.innerHTML = `
+            <div style="text-align:center;padding:50px 16px;color:#94a3b8;font-size:13px;">
+                <i class="fa-regular fa-face-frown" style="font-size:28px;margin-bottom:8px;display:block;opacity:0.4;"></i>
+                Không tìm thấy kết quả nào khớp với "<strong>${escapeHtml(keyword)}</strong>"
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+
+    // ================= SUB-TAB: TẤT CẢ =================
+    if (AppState.searchSubTab === 'all') {
+        // Khối 1: Khách hàng (Tối đa 5)
+        if (totalCust > 0) {
+            const displayCust = customers.slice(0, 5);
+            html += `
+                <div class="zalo-search-section-header">
+                    <span>Khách hàng (${totalCust})</span>
+                    ${totalCust > 5 ? `<a href="javascript:void(0)" class="zalo-search-more-link" onclick="switchSearchSubTab('customers')">Xem thêm (${totalCust}) &gt;</a>` : ''}
+                </div>
+                <div class="zalo-search-list">
+                    ${displayCust.map(c => renderZaloCustomerCard(c, keyword)).join('')}
+                </div>
+            `;
+        }
+
+        // Khối 2: Tin nhắn (Tối đa 5)
+        if (totalMsg > 0) {
+            const displayMsg = messages.slice(0, 5);
+            html += `
+                <div class="zalo-search-section-header" style="${totalCust > 0 ? 'margin-top:10px;' : ''}">
+                    <span>Tin nhắn (${totalMsg})</span>
+                    ${totalMsg > 5 ? `<a href="javascript:void(0)" class="zalo-search-more-link" onclick="switchSearchSubTab('messages')">Xem thêm (${totalMsg}) &gt;</a>` : ''}
+                </div>
+                <div class="zalo-search-list">
+                    ${displayMsg.map(m => renderZaloMessageCard(m, keyword)).join('')}
+                </div>
+            `;
+        }
+    } 
+    // ================= SUB-TAB: KHÁCH HÀNG =================
+    else if (AppState.searchSubTab === 'customers') {
+        if (totalCust === 0) {
+            html = `<div style="text-align:center;padding:40px 16px;color:#94a3b8;font-size:13px;">Không tìm thấy khách hàng nào khớp</div>`;
+        } else {
+            html += `
+                <div class="zalo-search-section-header">
+                    <span>Tất cả khách hàng (${totalCust})</span>
+                </div>
+                <div class="zalo-search-list">
+                    ${customers.map(c => renderZaloCustomerCard(c, keyword)).join('')}
+                </div>
+            `;
+        }
+    } 
+    // ================= SUB-TAB: TIN NHẮN =================
+    else if (AppState.searchSubTab === 'messages') {
+        if (totalMsg === 0) {
+            html = `<div style="text-align:center;padding:40px 16px;color:#94a3b8;font-size:13px;">Không tìm thấy tin nhắn nào khớp</div>`;
+        } else {
+            html += `
+                <div class="zalo-search-section-header">
+                    <span>Tất cả tin nhắn (${totalMsg})</span>
+                </div>
+                <div class="zalo-search-list">
+                    ${messages.map(m => renderZaloMessageCard(m, keyword)).join('')}
+                </div>
+            `;
+        }
+    }
+
+    container.innerHTML = html;
+}
+
+function renderZaloCustomerCard(c, keyword) {
+    const channelCfg = CHANNEL_CONFIG[c.channel] || { icon: '<i class="fa-solid fa-comment"></i>' };
+    const initial = (c.sender_name || 'K').charAt(0).toUpperCase();
+    const isMine = (c.assigned_user_id == window.APP_CONFIG?.CURRENT_USER_ID);
+
+    return `
+        <div class="zalo-search-card" onclick="selectZaloSearchResult(${c.id}, ${isMine})">
+            <div class="zalo-search-avatar">
+                ${escapeHtml(initial)}
+            </div>
+            <div class="zalo-search-info">
+                <div class="zalo-search-name-line">
+                    <span class="zalo-search-name">${highlightKeyword(c.sender_name, keyword)}</span>
+                    <span class="zalo-search-time">${c.short_time || ''}</span>
+                </div>
+                <div class="zalo-search-snippet">
+                    ${c.customer_phone ? `SĐT: ${highlightKeyword(c.customer_phone, keyword)} • ` : ''}
+                    Kênh: ${c.channel}
+                </div>
+                <div>
+                    <span class="zalo-search-badge-staff ${isMine ? 'zalo-search-badge-mine' : ''}">
+                        ${isMine ? '✓ Của tôi' : `Phụ trách: ${escapeHtml(c.assigned_fullname || 'Chưa gán')}`}
+                    </span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderZaloMessageCard(m, keyword) {
+    const initial = (m.sender_name || 'K').charAt(0).toUpperCase();
+    const isMine = (m.assigned_user_id == window.APP_CONFIG?.CURRENT_USER_ID);
+
+    return `
+        <div class="zalo-search-card" onclick="selectZaloSearchResult(${m.conversation_id}, ${isMine}, ${m.id})">
+            <div class="zalo-search-avatar" style="background:#F1F5F9;color:#475569;">
+                ${escapeHtml(initial)}
+            </div>
+            <div class="zalo-search-info">
+                <div class="zalo-search-name-line">
+                    <span class="zalo-search-name">${escapeHtml(m.sender_name)}</span>
+                    <span class="zalo-search-time">${m.time_formatted || ''}</span>
+                </div>
+                <div class="zalo-search-snippet">
+                    ${highlightKeyword(m.content || '[Hình ảnh]', keyword)}
+                </div>
+                <div>
+                    <span class="zalo-search-badge-staff ${isMine ? 'zalo-search-badge-mine' : ''}">
+                        ${isMine ? '✓ Của tôi' : `Phụ trách: ${escapeHtml(m.assigned_fullname || 'Chưa gán')}`}
+                    </span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Khi người dùng bấm vào một kết quả tìm kiếm Zalo
+ */
+function selectZaloSearchResult(convId, isMine, targetMsgId = null) {
+    // 1. Thoát giao diện tìm kiếm
+    exitSearchMode();
+
+    // 2. Chuyển Tab phù hợp: Nếu là của tôi thì vào tab 'Của tôi', ngược lại vào 'Tất cả'
+    if (isMine) {
+        if (AppState.currentTab !== 'mine') {
+            switchMainTab('mine');
+        }
+    } else {
+        if (AppState.currentTab !== 'all') {
+            switchMainTab('all');
+        }
+    }
+
+    // 3. Mở hội thoại đó
+    selectConversation(convId);
+
+    // 4. Nếu có targetMsgId, sau khi tải xong cuộn tới tin nhắn đó và nháy sáng
+    if (targetMsgId) {
+        setTimeout(() => {
+            const msgEl = document.getElementById(`msg-${targetMsgId}`);
+            if (msgEl) {
+                msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                msgEl.style.transition = 'background 0.3s ease';
+                msgEl.style.background = '#FEF08A';
+                setTimeout(() => {
+                    msgEl.style.background = '';
+                }, 2000);
+            }
+        }, 500);
+    }
 }
 
 // ========================================================

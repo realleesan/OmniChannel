@@ -257,4 +257,71 @@ class Conversation {
         }
         return false;
     }
+
+    /**
+     * Tìm kiếm toàn diện chuẩn phong cách Zalo: Phân tách Khách hàng và Tin nhắn
+     */
+    public function searchZalo($keyword, $currentUserId) {
+        $clean = trim((string)$keyword);
+        if (empty($clean)) {
+            return ['customers' => [], 'messages' => []];
+        }
+        $param = '%' . $clean . '%';
+
+        // 1. Tìm Khách hàng: khớp sender_name, SĐT hoặc real_name/phone trong customer_profiles
+        $custStmt = $this->db->prepare("
+            SELECT c.*, 
+                   u.fullname AS assigned_fullname, 
+                   u.avatar AS assigned_avatar,
+                   cp.real_name,
+                   cp.phone AS customer_phone
+            FROM conversations c
+            LEFT JOIN users u ON c.assigned_user_id = u.id
+            LEFT JOIN customer_profiles cp ON c.id = cp.conversation_id
+            WHERE c.sender_name LIKE :kw1 
+               OR cp.real_name LIKE :kw2 
+               OR cp.phone LIKE :kw3
+               OR c.external_sender_id LIKE :kw4
+            ORDER BY c.last_message_at DESC
+        ");
+        $custStmt->execute([
+            ':kw1' => $param,
+            ':kw2' => $param,
+            ':kw3' => $param,
+            ':kw4' => $param
+        ]);
+        $customers = $custStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($customers as &$c) {
+            $c['is_mine'] = ($c['assigned_user_id'] == $currentUserId);
+            $c['is_view_only'] = (!empty($c['assigned_user_id']) && $c['assigned_user_id'] != $currentUserId);
+            $c['assigned_avatar'] = User::getAvatarUrl($c['assigned_avatar'] ?? '', $c['assigned_user_id'] ?? 0);
+            $c['short_time'] = formatChatTime($c['last_message_at']);
+        }
+
+        // 2. Tìm Tin nhắn: khớp nội dung content trong bảng messages
+        $msgStmt = $this->db->prepare("
+            SELECT m.id, m.conversation_id, m.sender_type, m.sender_id, m.content, m.attachment_url, m.created_at,
+                   c.channel, c.sender_name, c.assigned_user_id,
+                   u.fullname AS assigned_fullname
+            FROM messages m
+            JOIN conversations c ON m.conversation_id = c.id
+            LEFT JOIN users u ON c.assigned_user_id = u.id
+            WHERE m.content LIKE :mkw
+            ORDER BY m.created_at DESC
+            LIMIT 50
+        ");
+        $msgStmt->execute([':mkw' => $param]);
+        $messages = $msgStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($messages as &$m) {
+            $m['is_mine'] = ($m['assigned_user_id'] == $currentUserId);
+            $m['time_formatted'] = formatChatTime($m['created_at']);
+        }
+
+        return [
+            'customers' => $customers,
+            'messages'  => $messages
+        ];
+    }
 }

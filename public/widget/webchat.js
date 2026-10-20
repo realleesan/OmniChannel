@@ -20,7 +20,10 @@
         customerName: '',
         customerPhone: '',
         conversationId: null,
-        lastMsgId: 0
+        lastMsgId: 0,
+        unreadCount: 0,
+        staffName: '',
+        staffAvatar: ''
     };
 
     try {
@@ -91,6 +94,33 @@
                 height: 28px !important;
                 fill: #FFFFFF !important;
                 pointer-events: none !important;
+            }
+            #omni-unread-badge {
+                position: absolute !important;
+                top: -3px !important;
+                right: -3px !important;
+                background: #EF4444 !important;
+                color: #FFFFFF !important;
+                font-size: 11px !important;
+                font-weight: 700 !important;
+                min-width: 20px !important;
+                height: 20px !important;
+                border-radius: 10px !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                padding: 0 5px !important;
+                box-shadow: 0 2px 6px rgba(239, 68, 68, 0.6) !important;
+                border: 2px solid #FFFFFF !important;
+                box-sizing: border-box !important;
+                animation: omniBadgePulse 1.8s infinite !important;
+                z-index: 2147483647 !important;
+                line-height: 1 !important;
+            }
+            @keyframes omniBadgePulse {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.12); }
+                100% { transform: scale(1); }
             }
 
             #omni-chat-box {
@@ -838,6 +868,7 @@
         launcher.setAttribute('title', 'Hỗ trợ trực tuyến');
         launcher.innerHTML = `
             <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+            <div id="omni-unread-badge" style="display:none;">0</div>
         `;
 
         // Khung cửa sổ chat
@@ -847,12 +878,12 @@
             <!-- HEADER CHUNG -->
             <div class="omni-chat-header">
                 <div class="omni-header-info">
-                    <div class="omni-header-avatar">
+                    <div class="omni-header-avatar" id="omniHeaderAvatar">
                         <svg viewBox="0 0 24 24"><path d="M12 1a9 9 0 0 0-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2a7 7 0 0 1 14 0v2h-4v8h3c1.66 0 3-1.34 3-3v-7a9 9 0 0 0-9-9z"/></svg>
                         <span class="omni-status-online-dot"></span>
                     </div>
                     <div style="overflow:hidden;">
-                        <div class="omni-header-title">Hỗ Trợ Khách Hàng</div>
+                        <div class="omni-header-title" id="omniHeaderTitle">Hỗ Trợ Khách Hàng</div>
                         <div class="omni-header-subtitle" id="omniHeaderSubtitle">Thường phản hồi ngay lập tức</div>
                     </div>
                 </div>
@@ -1034,6 +1065,8 @@
                 handleSend();
             }
         });
+        // Khi người dùng click/focus vào ô nhập tin nhắn -> đánh dấu đã đọc
+        input.addEventListener('focus', markConversationAsRead);
 
         // Sự kiện Submit Form Pre-Chat
         const prechatForm = chatBox.querySelector('#omniPrechatForm');
@@ -1053,11 +1086,118 @@
             if (errEl) errEl.style.display = 'none';
         });
 
+        // Tự động đánh dấu đã đọc khi chuyển tab quay lại trang nếu widget đang mở
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && isOpen) {
+                markConversationAsRead();
+            }
+        });
+
+        // Khôi phục avatar & tên nhân viên nếu đã lưu trước đó
+        if (session.staffName || session.staffAvatar) {
+            updateWidgetStaffHeader(session.staffName, session.staffAvatar);
+        }
+
+        // Khôi phục hiển thị badge đếm tin chưa đọc
+        updateUnreadBadge();
+
         // Thiết lập trạng thái view ban đầu
         if (hasRealName()) {
             showConversationView();
         } else {
             showPrechatView();
+        }
+
+        // Nếu đã từng có phiên chat, chạy Polling ngay lập tức để nhận tin kể cả khi chưa mở widget
+        if (session.customerId) {
+            startPolling();
+        }
+    }
+
+    /**
+     * Cập nhật thông tin nhân viên (Tên + Avatar chân dung thật) trên thanh Header của Widget
+     */
+    function updateWidgetStaffHeader(staffName, staffAvatar) {
+        if (staffName) session.staffName = staffName;
+        if (staffAvatar) session.staffAvatar = staffAvatar;
+        saveSession();
+
+        const titleEl = document.getElementById('omniHeaderTitle');
+        const avtEl = document.getElementById('omniHeaderAvatar');
+
+        if (titleEl && session.staffName) {
+            titleEl.textContent = `${session.staffName} (Tư vấn viên)`;
+        }
+        if (avtEl && session.staffAvatar) {
+            avtEl.innerHTML = `
+                <img src="${escapeHtml(session.staffAvatar)}" alt="NV" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">
+                <span class="omni-status-online-dot"></span>
+            `;
+        }
+    }
+
+    /**
+     * Âm thanh thông báo tin nhắn mới phía Widget khách hàng (Synthesizer Chime)
+     */
+    function playWidgetNotificationSound() {
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            const ctx = new AudioCtx();
+            const now = ctx.currentTime;
+
+            // Nốt 1 (E5 - 659.25 Hz)
+            const osc1 = ctx.createOscillator();
+            const gain1 = ctx.createGain();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(659.25, now);
+            gain1.gain.setValueAtTime(0.12, now);
+            gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+            osc1.connect(gain1);
+            gain1.connect(ctx.destination);
+            osc1.start(now);
+            osc1.stop(now + 0.22);
+
+            // Nốt 2 (B5 - 987.77 Hz) ngân sau 0.08s
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(987.77, now + 0.08);
+            gain2.gain.setValueAtTime(0.15, now + 0.08);
+            gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+            osc2.connect(gain2);
+            gain2.connect(ctx.destination);
+            osc2.start(now + 0.08);
+            osc2.stop(now + 0.42);
+        } catch (e) {
+            console.warn('Widget sound notification warn:', e);
+        }
+    }
+
+    /**
+     * Cập nhật vòng đỏ đếm số tin nhắn chưa đọc trên nút Launcher
+     */
+    function updateUnreadBadge() {
+        const badge = document.getElementById('omni-unread-badge');
+        if (!badge) return;
+        const count = session.unreadCount || 0;
+        if (count > 0 && !isOpen) {
+            badge.textContent = count > 99 ? '99+' : String(count);
+            badge.style.display = 'flex';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+
+    /**
+     * Đánh dấu cuộc trò chuyện đã đọc và gửi báo nhận tới hệ thống
+     */
+    function markConversationAsRead() {
+        session.unreadCount = 0;
+        updateUnreadBadge();
+        saveSession();
+        if (session.customerId) {
+            apiCall('read', { customer_id: session.customerId, conversation_id: session.conversationId }).catch(e => {});
         }
     }
 
@@ -1070,18 +1210,18 @@
         chatBox.classList.toggle('open', isOpen);
 
         if (isOpen) {
+            // Khi mở box chat -> Đánh dấu đã đọc ngay lập tức, xóa badge
+            markConversationAsRead();
             if (hasRealName()) {
                 // Đã có tên -> Vào thẳng phòng chat
                 showConversationView();
                 initSession();
-                startPolling();
             } else {
                 // Chưa có tên -> Hiển thị Pre-Chat Form
                 showPrechatView();
             }
-        } else {
-            stopPolling();
         }
+        startPolling();
     }
 
     // Hiển thị giao diện Pre-Chat Form
@@ -1186,8 +1326,21 @@
             customerName: '',
             customerPhone: '',
             conversationId: null,
-            lastMsgId: 0
+            lastMsgId: 0,
+            unreadCount: 0,
+            staffName: '',
+            staffAvatar: ''
         };
+        updateUnreadBadge();
+        const titleEl = document.getElementById('omniHeaderTitle');
+        const avtEl = document.getElementById('omniHeaderAvatar');
+        if (titleEl) titleEl.textContent = 'Hỗ Trợ Khách Hàng';
+        if (avtEl) {
+            avtEl.innerHTML = `
+                <svg viewBox="0 0 24 24"><path d="M12 1a9 9 0 0 0-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2a7 7 0 0 1 14 0v2h-4v8h3c1.66 0 3-1.34 3-3v-7a9 9 0 0 0-9-9z"/></svg>
+                <span class="omni-status-online-dot"></span>
+            `;
+        }
         stopPolling();
         const msgContainer = document.getElementById('omniWidgetMessages');
         if (msgContainer) msgContainer.innerHTML = '';
@@ -1288,6 +1441,9 @@
                     session.customerName = data.customer_name;
                 }
                 session.conversationId = data.conversation_id;
+                if (data.staff_name || data.staff_avatar) {
+                    updateWidgetStaffHeader(data.staff_name, data.staff_avatar);
+                }
                 saveSession();
 
                 const container = document.getElementById('omniWidgetMessages');
@@ -1414,7 +1570,8 @@
     // 8. Polling kéo tin nhắn trả lời từ nhân viên
     function startPolling() {
         if (pollInterval) clearInterval(pollInterval);
-        pollInterval = setInterval(pollUpdates, 3000);
+        const intervalTime = isOpen ? 2500 : 4000;
+        pollInterval = setInterval(pollUpdates, intervalTime);
     }
 
     function stopPolling() {
@@ -1437,14 +1594,29 @@
                 const emptyHint = document.getElementById('omniEmptyHint');
                 if (emptyHint) emptyHint.remove();
 
+                let hasNewStaffMsg = false;
                 data.messages.forEach(msg => {
                     if (msg.id > session.lastMsgId) {
                         session.lastMsgId = msg.id;
                         if (msg.sender_type === 'STAFF') {
+                            hasNewStaffMsg = true;
+                            if (msg.staff_name || msg.staff_avatar) {
+                                updateWidgetStaffHeader(msg.staff_name, msg.staff_avatar);
+                            }
                             appendMessage('STAFF', msg.content, msg.time_formatted || '', msg.id, msg.attachment_url || null, msg.staff_avatar || null, msg.staff_name || null);
                         }
                     }
                 });
+
+                if (hasNewStaffMsg) {
+                    playWidgetNotificationSound();
+                    if (!isOpen || document.hidden) {
+                        session.unreadCount = (session.unreadCount || 0) + 1;
+                        updateUnreadBadge();
+                    } else {
+                        markConversationAsRead();
+                    }
+                }
                 saveSession();
             }
         } catch (e) {}

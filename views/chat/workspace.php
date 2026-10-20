@@ -85,97 +85,125 @@ if (isset($_GET['logout'])) {
          ==================================================== -->
     <aside class="zone-sidebar-left">
         <div class="sidebar-controls">
-            <!-- Ô tìm kiếm hội thoại (chỉ tìm theo tên khách & nội dung) -->
-            <div class="search-box-wrapper">
-                <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                <input type="text" id="searchInput" class="search-input" placeholder="Tìm theo tên khách, nội dung..." oninput="handleSearch(this.value)">
-                <button type="button" class="btn-clear-search" id="btnClearSearch" onclick="clearSearch()" style="display:none;" title="Xóa tìm kiếm">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </div>
-
-            <!-- Segmented Tabs: Tất cả | Của tôi | Chưa đọc (kèm dropdown v) -->
-            <div class="filter-tabs-row">
-                <button type="button" class="tab-btn" id="tabAll" onclick="switchMainTab('all')">
-                    Tất cả
-                </button>
-                <button type="button" class="tab-btn active" id="tabMine" onclick="switchMainTab('mine')">
-                    Của tôi
-                </button>
-                <div class="tab-dropdown-container" id="unreadDropdownContainer">
-                    <button type="button" class="tab-btn tab-with-dropdown" id="tabUnread" onclick="toggleUnreadDropdown(event)">
-                        <span id="unreadTabLabel">Chưa đọc</span>
-                        <i class="fa-solid fa-chevron-down tab-caret"></i>
+            <!-- Ô tìm kiếm hội thoại (Zalo Style: Tên khách & Tin nhắn) -->
+            <div class="search-box-wrapper" style="display:flex;align-items:center;gap:6px;">
+                <div style="position:relative;flex:1;">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    <input type="text" id="searchInput" class="search-input" placeholder="Tìm theo tên khách, nội dung..." 
+                           onfocus="enterSearchMode()" 
+                           oninput="handleZaloSearch(this.value)"
+                           onkeydown="if(event.key==='Escape') exitSearchMode()">
+                    <button type="button" class="btn-clear-search" id="btnClearSearch" onclick="clearZaloSearch()" style="display:none;" title="Xóa tìm kiếm">
+                        <i class="fa-solid fa-xmark"></i>
                     </button>
-                    <div class="tab-dropdown-menu" id="unreadDropdownMenu">
-                        <div class="dropdown-item active" id="unreadOptAll" onclick="selectUnreadScope('all')">
-                            <i class="fa-solid fa-layer-group"></i>
-                            <span>Tất cả</span>
-                        </div>
-                        <div class="dropdown-item" id="unreadOptMine" onclick="selectUnreadScope('mine')">
-                            <i class="fa-solid fa-user-check"></i>
-                            <span>Của tôi</span>
-                        </div>
-                    </div>
                 </div>
+                <button type="button" class="btn-close-search" id="btnCloseSearch" onclick="exitSearchMode()" title="Đóng tìm kiếm">Đóng</button>
             </div>
 
-            <!-- Sub Filter Row: Dropdown Phân loại & Dropdown Kênh -->
-            <div class="sub-filter-row">
-                <!-- Dropdown Phân loại (Labels) -->
-                <div class="filter-dropdown-container" id="labelDropdownContainer">
-                    <button type="button" class="filter-dropdown-btn" id="btnFilterLabel" onclick="toggleLabelDropdown(event)">
-                        <i class="fa-solid fa-tags"></i>
-                        <span id="currentLabelName">Phân loại</span>
-                        <i class="fa-solid fa-chevron-down caret-mini"></i>
+            <!-- Khối bộ lọc thông thường (Ẩn khi đang ở Search Mode) -->
+            <div id="sidebarNormalControls">
+                <!-- Segmented Tabs: Tất cả | Của tôi | Chưa đọc (kèm dropdown v) -->
+                <div class="filter-tabs-row" id="filterTabsRow">
+                    <button type="button" class="tab-btn" id="tabAll" onclick="switchMainTab('all')">
+                        Tất cả
                     </button>
-                    <div class="filter-dropdown-menu" id="labelDropdownMenu">
-                        <div class="dropdown-header-title">Lọc theo nhãn</div>
-                        <div class="dropdown-item active" id="labelOptAll" onclick="selectLabelFilter(0, 'Phân loại')">
-                            <span class="label-color-dot" style="background:#64748B;"></span>
-                            <span>Tất cả nhãn</span>
+                    <button type="button" class="tab-btn active" id="tabMine" onclick="switchMainTab('mine')">
+                        Của tôi
+                    </button>
+                    <div class="tab-dropdown-container" id="unreadDropdownContainer">
+                        <div class="tab-btn tab-with-dropdown" id="tabUnread" style="padding:0;">
+                            <span class="tab-unread-label-area" onclick="triggerUnreadTabClick()" title="Lọc các tin nhắn chưa đọc">
+                                <span id="unreadTabLabel">Chưa đọc</span>
+                            </span>
+                            <span class="tab-unread-caret-btn" onclick="toggleUnreadDropdown(event)" title="Chọn phạm vi chưa đọc">
+                                <i class="fa-solid fa-chevron-down tab-caret"></i>
+                            </span>
                         </div>
-                        <div id="labelsListContainer">
-                            <!-- Nạp danh sách nhãn tự động -->
-                        </div>
-                        <div class="dropdown-divider"></div>
-                        <div class="dropdown-action-item" onclick="openCreateLabelModal()">
-                            <i class="fa-solid fa-plus"></i>
-                            <span>Tạo nhãn mới</span>
+                        <div class="tab-dropdown-menu" id="unreadDropdownMenu">
+                            <div class="dropdown-item active" id="unreadOptAll" onclick="selectUnreadScope('all')">
+                                <i class="fa-solid fa-layer-group"></i>
+                                <span>Tất cả</span>
+                            </div>
+                            <div class="dropdown-item" id="unreadOptMine" onclick="selectUnreadScope('mine')">
+                                <i class="fa-solid fa-user-check"></i>
+                                <span>Của tôi</span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Dropdown Kênh (Webchat, Zalo, Facebook) -->
-                <div class="filter-dropdown-container" id="channelDropdownContainer">
-                    <button type="button" class="filter-dropdown-btn" id="btnFilterChannel" onclick="toggleChannelDropdown(event)">
-                        <i class="fa-solid fa-filter"></i>
-                        <span id="currentChannelName">Kênh</span>
-                        <i class="fa-solid fa-chevron-down caret-mini"></i>
-                    </button>
-                    <div class="filter-dropdown-menu" id="channelDropdownMenu">
-                        <div class="dropdown-item active" id="channelOptAll" onclick="selectChannelFilter('', 'Kênh')">
-                            <i class="fa-solid fa-border-all"></i>
-                            <span>Tất cả kênh</span>
+                <!-- Sub Filter Row: Dropdown Phân loại & Dropdown Kênh -->
+                <div class="sub-filter-row" id="subFilterRow">
+                    <!-- Dropdown Phân loại (Labels) -->
+                    <div class="filter-dropdown-container" id="labelDropdownContainer">
+                        <button type="button" class="filter-dropdown-btn" id="btnFilterLabel" onclick="toggleLabelDropdown(event)">
+                            <i class="fa-solid fa-tags"></i>
+                            <span id="currentLabelName">Phân loại</span>
+                            <i class="fa-solid fa-chevron-down caret-mini"></i>
+                        </button>
+                        <div class="filter-dropdown-menu" id="labelDropdownMenu">
+                            <div class="dropdown-header-title">Lọc theo nhãn</div>
+                            <div class="dropdown-item active" id="labelOptAll" onclick="selectLabelFilter(0, 'Phân loại')">
+                                <span class="label-color-dot" style="background:#64748B;"></span>
+                                <span>Tất cả nhãn</span>
+                            </div>
+                            <div id="labelsListContainer">
+                                <!-- Nạp danh sách nhãn tự động -->
+                            </div>
+                            <div class="dropdown-divider"></div>
+                            <div class="dropdown-action-item" onclick="openCreateLabelModal()">
+                                <i class="fa-solid fa-plus"></i>
+                                <span>Tạo nhãn mới</span>
+                            </div>
                         </div>
-                        <div class="dropdown-item" id="channelOptWebchat" onclick="selectChannelFilter('WEBCHAT', 'Webchat')">
-                            <i class="fa-solid fa-globe" style="color:#10B981;"></i>
-                            <span>Webchat</span>
-                        </div>
-                        <div class="dropdown-item" id="channelOptZalo" onclick="selectChannelFilter('ZALO', 'Zalo')">
-                            <i class="fa-solid fa-comment-dots" style="color:#0068FF;"></i>
-                            <span>Zalo</span>
-                        </div>
-                        <div class="dropdown-item" id="channelOptFb" onclick="selectChannelFilter('FACEBOOK', 'Facebook')">
-                            <i class="fa-brands fa-facebook-messenger" style="color:#0084FF;"></i>
-                            <span>Facebook</span>
+                    </div>
+
+                    <!-- Dropdown Kênh (Webchat, Zalo, Facebook) -->
+                    <div class="filter-dropdown-container" id="channelDropdownContainer">
+                        <button type="button" class="filter-dropdown-btn" id="btnFilterChannel" onclick="toggleChannelDropdown(event)">
+                            <i class="fa-solid fa-filter"></i>
+                            <span id="currentChannelName">Kênh</span>
+                            <i class="fa-solid fa-chevron-down caret-mini"></i>
+                        </button>
+                        <div class="filter-dropdown-menu" id="channelDropdownMenu">
+                            <div class="dropdown-item active" id="channelOptAll" onclick="selectChannelFilter('', 'Kênh')">
+                                <i class="fa-solid fa-border-all"></i>
+                                <span>Tất cả kênh</span>
+                            </div>
+                            <div class="dropdown-item" id="channelOptWebchat" onclick="selectChannelFilter('WEBCHAT', 'Webchat')">
+                                <i class="fa-solid fa-globe" style="color:#10B981;"></i>
+                                <span>Webchat</span>
+                            </div>
+                            <div class="dropdown-item" id="channelOptZalo" onclick="selectChannelFilter('ZALO', 'Zalo')">
+                                <i class="fa-solid fa-comment-dots" style="color:#0068FF;"></i>
+                                <span>Zalo</span>
+                            </div>
+                            <div class="dropdown-item" id="channelOptFb" onclick="selectChannelFilter('FACEBOOK', 'Facebook')">
+                                <i class="fa-brands fa-facebook-messenger" style="color:#0084FF;"></i>
+                                <span>Facebook</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Danh sách thẻ cuộc hội thoại (Respond.io Style) -->
+        <!-- GIAO DIỆN TÌM KIẾM CHUYÊN DỤNG (ZALO STYLE) -->
+        <div class="zalo-search-panel" id="zaloSearchPanel">
+            <div class="zalo-search-tabs-row">
+                <button type="button" class="zalo-search-tab-btn active" id="searchSubTabAll" onclick="switchSearchSubTab('all')">Tất cả</button>
+                <button type="button" class="zalo-search-tab-btn" id="searchSubTabCustomers" onclick="switchSearchSubTab('customers')">Khách hàng</button>
+                <button type="button" class="zalo-search-tab-btn" id="searchSubTabMessages" onclick="switchSearchSubTab('messages')">Tin nhắn</button>
+            </div>
+            <div class="zalo-search-results-container" id="zaloSearchResultsContainer">
+                <div style="text-align:center;padding:40px 16px;color:#94a3b8;font-size:13px;">
+                    <i class="fa-solid fa-magnifying-glass" style="font-size:24px;margin-bottom:8px;display:block;opacity:0.4;"></i>
+                    Nhập tên khách hàng hoặc từ khóa tin nhắn để tìm kiếm
+                </div>
+            </div>
+        </div>
+
+        <!-- Danh sách thẻ cuộc hội thoại (Respond.io Style - Ẩn khi đang ở Search Mode) -->
         <div class="conversations-list" id="conversationsContainer">
             <div class="conversations-loading">
                 <i class="fa-solid fa-circle-notch fa-spin"></i>

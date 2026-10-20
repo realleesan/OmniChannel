@@ -52,6 +52,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+if (($_GET['action'] ?? '') === 'search_zalo') {
+    $q = trim($_GET['q'] ?? '');
+    $convModel = new Conversation();
+    $results = $convModel->searchZalo($q, $userId);
+    echo json_encode(['success' => true, 'data' => $results], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 $tab = $_GET['tab'] ?? 'all';
 $unrepliedScope = $_GET['unreplied_scope'] ?? 'all';
 $search = $_GET['search'] ?? '';
