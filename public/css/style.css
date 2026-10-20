@@ -2651,3 +2651,49 @@ body {
     background: rgba(0, 0, 0, 0.08);
 }
 
+/* Tooltip chi tiết danh sách nhãn khi hover/click vào badge +1, +2 */
+.label-pill-more {
+    position: relative;
+    cursor: pointer;
+}
+.labels-popover-tooltip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 7px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0F172A;
+    color: #FFFFFF;
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    white-space: nowrap;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+    z-index: 1050;
+    pointer-events: none;
+    min-width: 90px;
+}
+.labels-popover-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 5px;
+    border-style: solid;
+    border-color: #0F172A transparent transparent transparent;
+}
+.label-pill-more:hover .labels-popover-tooltip {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.popover-label-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #F8FAFC;
+}
+

@@ -184,6 +184,19 @@ class Conversation {
         return $stmt->execute([':id' => $id]);
     }
 
+    /**
+     * Cập nhật trạng thái khách hàng đã xem (Seen) qua Webchat/kênh kết nối
+     */
+    public function setCustomerSeen($id, $seen = 1) {
+        $stmt = $this->db->prepare("UPDATE conversations SET customer_seen = :seen WHERE id = :id");
+        return $stmt->execute([':seen' => $seen, ':id' => $id]);
+    }
+
+    public function setCustomerSeenByExternalId($externalSenderId, $seen = 1) {
+        $stmt = $this->db->prepare("UPDATE conversations SET customer_seen = :seen WHERE external_sender_id = :ext_id");
+        return $stmt->execute([':seen' => $seen, ':ext_id' => $externalSenderId]);
+    }
+
     public function updateLastMessage($id, $content, $senderType = 'CUSTOMER', $status = null) {
         $now = date('Y-m-d H:i:s');
         $sql = "UPDATE conversations SET last_message = :content, last_sender_type = :sender_type, last_message_at = :now";
@@ -194,11 +207,12 @@ class Conversation {
             ':id'          => $id
         ];
 
-        // Nếu nhân viên gửi thì đánh dấu đã đọc, nếu khách gửi thì đánh dấu chưa đọc
+        // Nếu nhân viên gửi thì đánh dấu nhân viên đã đọc, nhưng khách CHƯA xem (customer_seen = 0)
+        // Nếu khách gửi thì đánh dấu nhân viên chưa đọc (is_read = 0)
         if ($senderType === 'STAFF') {
-            $sql .= ", is_read = 1";
+            $sql .= ", is_read = 1, customer_seen = 0";
         } else {
-            $sql .= ", is_read = 0";
+            $sql .= ", is_read = 0, customer_seen = 1";
         }
 
         if ($status !== null) {

@@ -36,6 +36,9 @@ switch ($action) {
         $icon = trim($_POST['icon'] ?? 'fa-solid fa-tag');
 
         $result = $labelModel->create($name, $color, $icon, $userId);
+        if ($result['success']) {
+            $result['all_labels'] = $labelModel->getAll();
+        }
         echo json_encode($result);
         break;
 

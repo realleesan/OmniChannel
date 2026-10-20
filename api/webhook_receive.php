@@ -34,11 +34,8 @@ $customerPhone     = trim($jsonData['customer_phone'] ?? $_POST['customer_phone'
 
 if (($jsonData['event'] ?? '') === 'READ_RECEIPT') {
     $convModel = new Conversation();
-    $conv = $convModel->findByExternalSender('WEBCHAT', $externalSenderId);
-    if ($conv) {
-        $convModel->markAsRead($conv['id']);
-    }
-    jsonResponse(true, [], 'Đã nhận xác nhận xem tin nhắn');
+    $convModel->setCustomerSeenByExternalId($externalSenderId, 1);
+    jsonResponse(true, [], 'Đã nhận xác nhận khách đã xem tin nhắn');
 }
 
 $chatController = new ChatController();

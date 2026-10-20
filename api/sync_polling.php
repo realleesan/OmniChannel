@@ -131,51 +131,45 @@ if (!file_exists(__DIR__ . '/.schema_fixed_crm')) {
     } catch (Exception $e) {}
 }
 
-// 1.5. Tự động rút tin nhắn từ Render Gateway (Webchat/Facebook/Zalo) về CSDL MySQL
-$gatewayUrl = defined('RENDER_GATEWAY_URL') ? RENDER_GATEWAY_URL : '';
-if (!empty($gatewayUrl)) {
-    if (!isset($_SESSION['last_gateway_poll']) || (time() - $_SESSION['last_gateway_poll']) >= 2) {
-        $_SESSION['last_gateway_poll'] = time();
-        $ch = curl_init(rtrim($gatewayUrl, '/') . '/api/messages/poll');
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        $pollRes = curl_exec($ch);
-        curl_close($ch);
-
-        if ($pollRes) {
-            $pollJson = json_decode($pollRes, true);
-            if (!empty($pollJson['success']) && !empty($pollJson['messages'])) {
-                require_once __DIR__ . '/../controllers/ChatController.php';
-                $chatCtrl = new ChatController();
-                foreach ($pollJson['messages'] as $m) {
-                    $chatCtrl->receiveCustomerMessage(
-                        $m['channel'],
-                        $m['external_sender_id'],
-                        $m['sender_name'],
-                        $m['content'] ?? '',
-                        $m['attachment_url'] ?? null,
-                        $m['customer_phone'] ?? null
-                    );
-                }
-            }
+// Tự động bổ sung trường customer_seen cho bảng conversations (Đánh dấu khách đã xem tin nhắn)
+if (!file_exists(__DIR__ . '/.schema_fixed_customer_seen')) {
+    @file_put_contents(__DIR__ . '/.schema_fixed_customer_seen', '1');
+    try {
+        $db = Database::getConnection();
+        $cols = $db->query("DESCRIBE conversations")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('customer_seen', $cols)) {
+            $db->exec("ALTER TABLE conversations ADD COLUMN customer_seen TINYINT(1) DEFAULT 0");
         }
+    } catch (Exception $e) {}
+}
+
+// Hỗ trợ cập nhật khách hàng đã xem (Customer Seen)
+if (($_GET['action'] ?? '') === 'customer_seen') {
+    $cid = trim($_GET['customer_id'] ?? '');
+    if ($cid) {
+        $convModel->setCustomerSeenByExternalId($cid, 1);
     }
+    echo json_encode(['success' => true]);
+    exit;
 }
 
 // 2. Lấy danh sách hội thoại theo bộ lọc mới (chuẩn plan.md)
 $conversations = $convModel->getFilteredList($userId, $tab, $unrepliedScope, $search, $labelId, $channel);
 
-// 3. Nếu đang mở 1 hội thoại cụ thể, đánh dấu đã đọc và lấy tin mới
+// 3. Nếu đang mở 1 hội thoại cụ thể, lấy tin mới và kiểm tra quyền
 $activeConversationData = null;
 if ($activeConvId) {
-    // Đánh dấu đã đọc khi xem
-    $convModel->markAsRead($activeConvId);
-
     $conv = $convModel->getById($activeConvId);
     if ($conv) {
         $isMine = ($conv['assigned_user_id'] == $userId);
         $isViewOnly = (!empty($conv['assigned_user_id']) && !$isMine);
+
+        // QUAN TRỌNG: Chỉ đánh dấu đã đọc nếu là hội thoại của chính mình hoặc hội thoại chưa được gán cho ai!
+        // Nếu là hội thoại của nhân viên khác, xem chỉ là View-only, KHÔNG làm mất trạng thái Chưa đọc của nhân viên phụ trách!
+        if ($isMine || empty($conv['assigned_user_id'])) {
+            $convModel->markAsRead($activeConvId);
+        }
+
         $newMessages = $msgModel->getLatestAfterId($activeConvId, $lastMsgId);
         $profile = $profileModel->getByConversationId($activeConvId);
         $assignedLabels = $labelModel->getLabelsForConversation($activeConvId);

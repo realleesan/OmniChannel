@@ -132,10 +132,20 @@ async function runSyncPolling() {
         });
 
         const res = await fetch(`../../api/sync_polling.php?${params.toString()}`);
-        const data = await res.json();
+        if (!res.ok) {
+            // Máy chủ 502 hoặc đang bận, bỏ qua nhẹ nhàng không làm spam lỗi JSON
+            return;
+        }
+        const text = await res.text();
+        let data = null;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            return;
+        }
 
-        if (!data.success) {
-            if (data.error === 'UNAUTHENTICATED') {
+        if (!data || !data.success) {
+            if (data && data.error === 'UNAUTHENTICATED') {
                 window.location.href = '../auth/login.php';
             }
             return;
@@ -288,7 +298,23 @@ function renderConversationsList(conversations) {
                 </span>
             `;
             if (conv.labels.length > 1) {
-                labelPillHtml += `<span class="respondio-label-pill">+${conv.labels.length - 1}</span>`;
+                const extraLabels = conv.labels.slice(1);
+                const extraNames = extraLabels.map(l => l.name).join(', ');
+                const tooltipItems = extraLabels.map(l => `
+                    <div class="popover-label-item">
+                        <span class="label-pill-dot" style="background:${l.color || '#6366F1'};"></span>
+                        <span>${escapeHtml(l.name)}</span>
+                    </div>
+                `).join('');
+
+                labelPillHtml += `
+                    <span class="respondio-label-pill label-pill-more" title="${escapeHtml(extraNames)}">
+                        +${extraLabels.length}
+                        <div class="labels-popover-tooltip">
+                            ${tooltipItems}
+                        </div>
+                    </span>
+                `;
             }
         }
 
@@ -376,7 +402,7 @@ function renderChatHeader(conv) {
         const labels = conv.labels || [];
         if (labels.length > 0) {
             tagBadge.style.display = 'inline-flex';
-            tagBadge.innerHTML = labels.map(l => `<span class="header-label-pill" style="border-left:2px solid ${l.color}; background:#F1F5F9; padding:2px 7px; border-radius:4px; font-size:11px; margin-right:4px; display:inline-flex; align-items:center; gap:4px; font-weight:600; color:#334155;"><i class="${l.icon || 'fa-solid fa-tag'}" style="color:${l.color}; font-size:9.5px;"></i>${escapeHtml(l.name)}</span>`).join('');
+            tagBadge.innerHTML = labels.map(l => `<span class="header-label-pill" style="background:#F1F5F9; padding:2px 8px; border-radius:4px; font-size:11px; margin-right:4px; display:inline-flex; align-items:center; gap:5px; font-weight:600; color:#334155;"><span class="label-pill-dot" style="background:${l.color || '#6366F1'};"></span>${escapeHtml(l.name)}</span>`).join('');
             tagBadge.className = 'header-labels-wrapper';
         } else {
             tagBadge.style.display = 'none';
@@ -400,17 +426,24 @@ async function selectConversation(convId) {
     AppState.activeConvId = convId;
     const thisRequestId = ++AppState.fetchRequestId;
 
-    // 1. Phản hồi giao diện ngay lập tức: Đánh dấu thẻ active & Gỡ bỏ trạng thái chưa đọc
-    if (AppState.cachedConversations && AppState.cachedConversations[convId]) {
-        AppState.cachedConversations[convId].is_read = 1;
+    // 1. Phản hồi giao diện ngay lập tức: Đánh dấu thẻ active
+    // QUAN TRỌNG: Nếu hội thoại này do nhân viên khác phụ trách thì KHÔNG tự ý xóa trạng thái chưa đọc của họ!
+    const targetConv = (AppState.cachedConversations ? AppState.cachedConversations[convId] : null);
+    const isOtherStaff = targetConv && targetConv.assigned_user_id && targetConv.assigned_user_id != window.APP_CONFIG?.CURRENT_USER_ID;
+
+    if (!isOtherStaff) {
+        if (AppState.cachedConversations && AppState.cachedConversations[convId]) {
+            AppState.cachedConversations[convId].is_read = 1;
+        }
+        if (AppState.conversationsCache && AppState.conversationsCache[convId] && AppState.conversationsCache[convId].conversation) {
+            AppState.conversationsCache[convId].conversation.is_read = 1;
+        }
     }
-    if (AppState.conversationsCache && AppState.conversationsCache[convId] && AppState.conversationsCache[convId].conversation) {
-        AppState.conversationsCache[convId].conversation.is_read = 1;
-    }
+
     document.querySelectorAll('.conversation-card').forEach(el => {
         const isTarget = (el.getAttribute('data-conv-id') == convId);
         el.classList.toggle('active', isTarget);
-        if (isTarget) {
+        if (isTarget && !isOtherStaff) {
             const msgLine = el.querySelector('.card-message-line');
             if (msgLine) msgLine.classList.remove('is-unread');
         }
@@ -677,6 +710,7 @@ function handleActiveConversationSync(activeData) {
 
 /**
  * Hiển thị mini avatar của khách hàng dưới tin nhắn cuối cùng do nhân viên gửi (Seen / Đã xem)
+ * CHỈ HIỂN THỊ KHI: Khách hàng thực sự đã mở khung chat xem tin nhắn (customer_seen == 1)
  */
 function updateSeenIndicator() {
     const viewport = document.getElementById('messagesViewport');
@@ -686,13 +720,27 @@ function updateSeenIndicator() {
     const oldIndicator = viewport.querySelector('#chatSeenIndicator');
     if (oldIndicator) oldIndicator.remove();
 
+    // Lấy thông tin hội thoại hiện tại
+    const currentConv = (AppState.cachedConversations ? AppState.cachedConversations[AppState.activeConvId] : null) ||
+        AppState.activeConversation || {};
+
+    // Nếu khách CHƯA xem (customer_seen == 0 hoặc chưa có giá trị), tuyệt đối KHÔNG hiển thị avatar đã xem!
+    if (!currentConv || currentConv.customer_seen != 1) {
+        return;
+    }
+
     // Tìm tin nhắn cuối cùng do STAFF gửi
     const staffMessages = viewport.querySelectorAll('.message-item.staff');
     if (staffMessages.length === 0) return;
 
     const lastStaffMsg = staffMessages[staffMessages.length - 1];
-    const currentConv = (AppState.cachedConversations ? AppState.cachedConversations[AppState.activeConvId] : null) ||
-        AppState.activeConversation || {};
+
+    // Nếu sau tin nhắn của staff, khách đã gửi tin nhắn phản hồi rồi thì không cần avatar seen nữa
+    const allMessages = viewport.querySelectorAll('.message-item');
+    if (allMessages.length > 0 && allMessages[allMessages.length - 1] !== lastStaffMsg) {
+        return;
+    }
+
     const custName = currentConv.sender_name || document.getElementById('activeSenderName')?.innerText || 'Khách';
     const initial = custName.trim().charAt(0).toUpperCase();
 
@@ -1378,6 +1426,7 @@ function selectUnreadScope(scope) {
 
 /**
  * Âm thanh thông báo tin nhắn mới tinh tế chuẩn Web Audio API Synthesizer (Ting-Ting)
+ * Âm lượng tiêu chuẩn tối ưu to, rõ ràng và vang chuẩn 0.95
  */
 function playNotificationSound() {
     try {
@@ -1389,29 +1438,29 @@ function playNotificationSound() {
         }
         const now = ctx.currentTime;
 
-        // Âm sắc 1 (587.33 Hz - nốt D5, âm lượng rõ ràng chuẩn)
+        // Âm sắc 1 (587.33 Hz - nốt D5, âm lượng to rõ chuẩn 0.90)
         const osc1 = ctx.createOscillator();
         const gain1 = ctx.createGain();
-        osc1.type = 'sine';
+        osc1.type = 'triangle';
         osc1.frequency.setValueAtTime(587.33, now);
-        gain1.gain.setValueAtTime(0.55, now);
-        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+        gain1.gain.setValueAtTime(0.90, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
         osc1.connect(gain1);
         gain1.connect(ctx.destination);
         osc1.start(now);
-        osc1.stop(now + 0.28);
+        osc1.stop(now + 0.35);
 
-        // Âm sắc 2 (880 Hz - nốt A5) vang sau 0.09s
+        // Âm sắc 2 (880 Hz - nốt A5) vang sau 0.08s, âm lượng 0.95
         const osc2 = ctx.createOscillator();
         const gain2 = ctx.createGain();
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(880, now + 0.09);
-        gain2.gain.setValueAtTime(0.65, now + 0.09);
-        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.50);
+        osc2.type = 'triangle';
+        osc2.frequency.setValueAtTime(880, now + 0.08);
+        gain2.gain.setValueAtTime(0.95, now + 0.08);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
         osc2.connect(gain2);
         gain2.connect(ctx.destination);
-        osc2.start(now + 0.09);
-        osc2.stop(now + 0.50);
+        osc2.start(now + 0.08);
+        osc2.stop(now + 0.55);
     } catch (e) {
         console.warn('Sound notification warn:', e);
     }
@@ -1808,12 +1857,24 @@ function selectZaloSearchResult(convId, isMine, targetMsgId = null) {
 let isOpenedFromManageModal = false;
 let editingLabelId = null;
 
-function openManageLabelsModal() {
+async function openManageLabelsModal() {
     document.getElementById('labelDropdownMenu')?.classList.remove('show');
     editingLabelId = null;
     renderManageLabelsList();
     const modal = document.getElementById('modalManageLabels');
     if (modal) modal.style.display = 'flex';
+
+    // Luôn chủ động fetch danh sách nhãn mới nhất từ server để danh sách luôn cập nhật
+    try {
+        const res = await fetch('../../api/label_action.php?action=get_all');
+        const data = await res.json();
+        if (data && data.success && data.labels) {
+            AppState.allLabels = data.labels;
+            renderManageLabelsList();
+            renderLabelsDropdown(data.labels);
+            renderAssignedLabels(AppState.assignedLabels);
+        }
+    } catch (e) {}
 }
 
 function closeManageLabelsModal() {
@@ -2045,6 +2106,17 @@ async function saveNewLabel() {
         const data = await res.json();
 
         if (data.success) {
+            // Nạp ngay danh sách nhãn mới vào AppState để modal danh sách hiển thị lập tức!
+            if (data.all_labels) {
+                AppState.allLabels = data.all_labels;
+            } else if (data.label) {
+                AppState.allLabels = AppState.allLabels || [];
+                AppState.allLabels.push(data.label);
+            }
+            renderManageLabelsList();
+            renderLabelsDropdown(AppState.allLabels);
+            renderAssignedLabels(AppState.assignedLabels);
+
             closeCreateLabelModal();
             runSyncPolling();
         } else {

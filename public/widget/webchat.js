@@ -106,7 +106,7 @@
                 min-width: 20px !important;
                 height: 20px !important;
                 border-radius: 10px !important;
-                display: flex !important;
+                display: none !important;
                 align-items: center !important;
                 justify-content: center !important;
                 padding: 0 5px !important;
@@ -116,6 +116,9 @@
                 animation: omniBadgePulse 1.8s infinite !important;
                 z-index: 2147483647 !important;
                 line-height: 1 !important;
+            }
+            #omni-unread-badge.omni-badge-visible {
+                display: flex !important;
             }
             @keyframes omniBadgePulse {
                 0% { transform: scale(1); }
@@ -1139,43 +1142,49 @@
 
     /**
      * Âm thanh thông báo tin nhắn mới phía Widget khách hàng (Synthesizer Chime)
+     * Âm lượng to, chuẩn tiêu chuẩn 0.95
      */
     function playWidgetNotificationSound() {
         try {
             const AudioCtx = window.AudioContext || window.webkitAudioContext;
             if (!AudioCtx) return;
             const ctx = new AudioCtx();
-            const now = ctx.currentTime;
-
-            // Nốt 1 (E5 - 659.25 Hz, âm lượng to rõ ràng tiêu chuẩn)
             if (ctx.state === 'suspended') {
                 ctx.resume();
             }
+            const now = ctx.currentTime;
+
+            // Nốt 1 (G5 - 784 Hz, âm lượng to rõ chuẩn 0.90)
             const osc1 = ctx.createOscillator();
             const gain1 = ctx.createGain();
-            osc1.type = 'sine';
-            osc1.frequency.setValueAtTime(659.25, now);
-            gain1.gain.setValueAtTime(0.50, now);
-            gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+            osc1.type = 'triangle';
+            osc1.frequency.setValueAtTime(784, now);
+            gain1.gain.setValueAtTime(0.90, now);
+            gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
             osc1.connect(gain1);
             gain1.connect(ctx.destination);
             osc1.start(now);
-            osc1.stop(now + 0.28);
+            osc1.stop(now + 0.35);
 
-            // Nốt 2 (B5 - 987.77 Hz) ngân sau 0.08s
+            // Nốt 2 (C6 - 1046.5 Hz) ngân sau 0.08s, âm lượng 0.95
             const osc2 = ctx.createOscillator();
             const gain2 = ctx.createGain();
-            osc2.type = 'sine';
-            osc2.frequency.setValueAtTime(987.77, now + 0.08);
-            gain2.gain.setValueAtTime(0.60, now + 0.08);
-            gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.48);
+            osc2.type = 'triangle';
+            osc2.frequency.setValueAtTime(1046.5, now + 0.08);
+            gain2.gain.setValueAtTime(0.95, now + 0.08);
+            gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
             osc2.connect(gain2);
             gain2.connect(ctx.destination);
             osc2.start(now + 0.08);
-            osc2.stop(now + 0.48);
+            osc2.stop(now + 0.55);
         } catch (e) {
             console.warn('Widget sound notification warn:', e);
         }
+    }
+
+    function isWidgetOpen() {
+        const box = document.getElementById('omni-chat-box');
+        return Boolean(isOpen || (box && box.classList.contains('open')));
     }
 
     /**
@@ -1184,13 +1193,24 @@
     function updateUnreadBadge() {
         const badge = document.getElementById('omni-unread-badge');
         if (!badge) return;
+        const currentlyOpen = isWidgetOpen();
+        if (currentlyOpen) {
+            session.unreadCount = 0;
+            badge.textContent = '0';
+            badge.style.setProperty('display', 'none', 'important');
+            badge.classList.remove('omni-badge-visible');
+            return;
+        }
+
         const count = session.unreadCount || 0;
-        if (count > 0 && !isOpen) {
+        if (count > 0) {
             badge.textContent = count > 99 ? '99+' : String(count);
             badge.style.setProperty('display', 'flex', 'important');
+            badge.classList.add('omni-badge-visible');
         } else {
             badge.style.setProperty('display', 'none', 'important');
             badge.textContent = '0';
+            badge.classList.remove('omni-badge-visible');
         }
     }
 
@@ -1203,6 +1223,9 @@
         saveSession();
         if (session.customerId) {
             apiCall('read', { customer_id: session.customerId, conversation_id: session.conversationId }).catch(e => {});
+            try {
+                fetch('http://omnichannel.gt.tc/api/customer_read.php?customer_id=' + encodeURIComponent(session.customerId), { mode: 'cors' }).catch(e => {});
+            } catch (e) {}
         }
     }
 
@@ -1619,7 +1642,8 @@
 
                 if (hasNewStaffMsg) {
                     playWidgetNotificationSound();
-                    if (!isOpen) {
+                    const currentlyOpen = isWidgetOpen();
+                    if (!currentlyOpen) {
                         session.unreadCount = (session.unreadCount || 0) + 1;
                         updateUnreadBadge();
                     } else {
