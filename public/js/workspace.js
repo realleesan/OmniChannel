@@ -30,18 +30,18 @@ const AppState = {
 };
 
 const CHANNEL_CONFIG = {
-    'WEBCHAT':  { icon: '<i class="fa-solid fa-globe"></i>', label: 'Webchat', class: 'badge-channel-WEBCHAT' },
+    'WEBCHAT': { icon: '<i class="fa-solid fa-globe"></i>', label: 'Webchat', class: 'badge-channel-WEBCHAT' },
     'FACEBOOK': { icon: '<i class="fa-brands fa-facebook-messenger"></i>', label: 'Facebook Messenger', class: 'badge-channel-FACEBOOK' },
-    'ZALO':     { icon: '<i class="fa-solid fa-comment-dots"></i>', label: 'Zalo Chat', class: 'badge-channel-ZALO' },
-    'SHOPEE':   { icon: '<i class="fa-solid fa-bag-shopping"></i>', label: 'Shopee Chat', class: 'badge-channel-SHOPEE' },
-    'TIKTOK':   { icon: '<i class="fa-brands fa-tiktok"></i>', label: 'TikTok Shop', class: 'badge-channel-TIKTOK' }
+    'ZALO': { icon: '<i class="fa-solid fa-comment-dots"></i>', label: 'Zalo Chat', class: 'badge-channel-ZALO' },
+    'SHOPEE': { icon: '<i class="fa-solid fa-bag-shopping"></i>', label: 'Shopee Chat', class: 'badge-channel-SHOPEE' },
+    'TIKTOK': { icon: '<i class="fa-brands fa-tiktok"></i>', label: 'TikTok Shop', class: 'badge-channel-TIKTOK' }
 };
 
 const TAG_LABELS = {
-    'DANG_TU_VAN':      'Đang tư vấn',
-    'DA_CHOT':          'Đã chốt đơn',
+    'DANG_TU_VAN': 'Đang tư vấn',
+    'DA_CHOT': 'Đã chốt đơn',
     'CHO_CHUYEN_KHOAN': 'Chờ chuyển khoản',
-    'BOOM_HANG':        'Rủi ro hoàn hàng'
+    'BOOM_HANG': 'Rủi ro hoàn hàng'
 };
 
 /**
@@ -283,15 +283,6 @@ function renderConversationsList(conversations) {
             if (conv.labels.length > 1) {
                 labelPillHtml += `<span class="respondio-label-pill">+${conv.labels.length - 1}</span>`;
             }
-        } else if (conv.tag && TAG_LABELS[conv.tag]) {
-            // Chỉ hiển thị nhãn tiến độ nếu nhân viên đã tự chọn gắn tiến độ tư vấn
-            const defaultTagName = TAG_LABELS[conv.tag];
-            labelPillHtml = `
-                <span class="respondio-label-pill" style="border-left: 3px solid #64748B;">
-                    <i class="fa-solid fa-tag" style="color:#64748B;"></i>
-                    <span>${escapeHtml(defaultTagName)}</span>
-                </span>
-            `;
         }
 
         // Tạo nội dung tin nhắn trích đoạn (Nếu nhân viên gửi thì hiện "Bạn: ...")
@@ -371,10 +362,11 @@ function renderChatHeader(conv) {
 
     const tagBadge = document.getElementById('activeTagBadge');
     if (tagBadge) {
-        if (conv.tag && TAG_LABELS[conv.tag]) {
-            tagBadge.style.display = 'inline-block';
-            tagBadge.innerText = TAG_LABELS[conv.tag];
-            tagBadge.className = `card-tag-badge tag-${conv.tag}`;
+        const labels = conv.labels || [];
+        if (labels.length > 0) {
+            tagBadge.style.display = 'inline-flex';
+            tagBadge.innerHTML = labels.map(l => `<span class="header-label-pill" style="border-left:2px solid ${l.color}; background:#F1F5F9; padding:2px 7px; border-radius:4px; font-size:11px; margin-right:4px; display:inline-flex; align-items:center; gap:4px; font-weight:600; color:#334155;"><i class="${l.icon || 'fa-solid fa-tag'}" style="color:${l.color}; font-size:9.5px;"></i>${escapeHtml(l.name)}</span>`).join('');
+            tagBadge.className = 'header-labels-wrapper';
         } else {
             tagBadge.style.display = 'none';
         }
@@ -455,7 +447,7 @@ async function selectConversation(convId) {
 
         const res = await fetch(`../../api/sync_polling.php?${pollParams.toString()}`);
         const text = await res.text();
-        
+
         let data = null;
         try {
             data = JSON.parse(text);
@@ -549,7 +541,7 @@ function renderConversationView(detail) {
     if (is_view_only) {
         lockBanner.style.display = 'flex';
         inputArea.style.display = 'none';
-        document.getElementById('viewOnlyLockText').innerText = 
+        document.getElementById('viewOnlyLockText').innerText =
             `Hội thoại đang được phụ trách bởi ${conversation.assigned_fullname || 'nhân viên khác'}. Bạn không có quyền gửi tin nhắn.`;
     } else {
         lockBanner.style.display = 'none';
@@ -576,9 +568,11 @@ function renderConversationView(detail) {
     scrollChatToBottom();
     updateSeenIndicator();
 
-    // 4. Cập nhật Sidebar Phải (Hồ sơ Agent & Nhãn tùy biến)
-    renderProfileSidebar(profile, conversation);
-    loadAssignedLabelsForActiveConv();
+    // 4. Cập nhật Sidebar Phải (Hồ sơ CRM & Nhãn tùy biến)
+    renderProfileSidebar(profile, conversation, detail.assigned_labels);
+    if (!detail.assigned_labels || detail.assigned_labels.length === 0) {
+        loadAssignedLabelsForActiveConv();
+    }
 }
 
 /**
@@ -605,7 +599,7 @@ function handleActiveConversationSync(activeData) {
         if (is_view_only) {
             lockBanner.style.display = 'flex';
             inputArea.style.display = 'none';
-            document.getElementById('viewOnlyLockText').innerText = 
+            document.getElementById('viewOnlyLockText').innerText =
                 `Hội thoại đang được phụ trách bởi ${conversation.assigned_fullname || 'nhân viên khác'}. Bạn không có quyền gửi tin nhắn.`;
         } else {
             lockBanner.style.display = 'none';
@@ -648,9 +642,8 @@ function handleActiveConversationSync(activeData) {
 
     // Cập nhật hồ sơ và nhãn
     if (profile) {
-        renderProfileSidebar(profile, conversation);
-    }
-    if (assigned_labels) {
+        renderProfileSidebar(profile, conversation, assigned_labels);
+    } else if (assigned_labels) {
         renderAssignedLabels(assigned_labels);
     }
 }
@@ -672,7 +665,7 @@ function updateSeenIndicator() {
 
     const lastStaffMsg = staffMessages[staffMessages.length - 1];
     const currentConv = (AppState.cachedConversations ? AppState.cachedConversations[AppState.activeConvId] : null) ||
-                        AppState.activeConversation || {};
+        AppState.activeConversation || {};
     const custName = currentConv.sender_name || document.getElementById('activeSenderName')?.innerText || 'Khách';
     const initial = custName.trim().charAt(0).toUpperCase();
 
@@ -706,7 +699,7 @@ function appendMessageBubble(msg, isNew = false) {
     const div = document.createElement('div');
     if (msg.id) div.id = `msg-${msg.id}`;
     div.className = `message-item ${isStaff ? 'staff' : 'customer'}`;
-    
+
     let attachmentHtml = '';
     if (msg.attachment_url) {
         attachmentHtml = `
@@ -807,7 +800,7 @@ async function sendMessage(attachmentUrl = null) {
                 if (sIdx !== -1 && eIdx !== -1) {
                     try {
                         data = JSON.parse(text.substring(sIdx, eIdx + 1));
-                    } catch (e) {}
+                    } catch (e) { }
                 }
             }
         } catch (netErr) {
@@ -830,7 +823,7 @@ async function sendMessage(attachmentUrl = null) {
                     if (sIdx !== -1 && eIdx !== -1) {
                         try {
                             data = JSON.parse(text.substring(sIdx, eIdx + 1));
-                        } catch (e) {}
+                        } catch (e) { }
                     }
                 }
             } catch (fbErr) {
@@ -850,8 +843,8 @@ async function sendMessage(attachmentUrl = null) {
             }
             // Bổ trợ kép: Trình duyệt gửi trực tiếp tới Render Gateway để khách nhận ngay lập tức
             const activeConv = AppState.activeConversation ||
-                               (AppState.cachedConversations ? AppState.cachedConversations[AppState.activeConvId] : null) ||
-                               AppState.conversationsCache[AppState.activeConvId]?.conversation;
+                (AppState.cachedConversations ? AppState.cachedConversations[AppState.activeConvId] : null) ||
+                AppState.conversationsCache[AppState.activeConvId]?.conversation;
             const targetChannel = (activeConv?.channel || '').toUpperCase();
             if (targetChannel === 'WEBCHAT' && window.APP_CONFIG?.RENDER_GATEWAY_URL && activeConv?.external_sender_id) {
                 const gatewayUrl = window.APP_CONFIG.RENDER_GATEWAY_URL.replace(/\/+$/, '');
@@ -915,10 +908,10 @@ async function fetchResolvedShortcut(shortcut) {
         const data = await res.json();
         if (data.success && data.data) {
             window.CURRENT_RESOLVED_TEMPLATE = data.data.compiled_content;
-            document.getElementById('shortcutPreviewText').innerHTML = 
+            document.getElementById('shortcutPreviewText').innerHTML =
                 `<i class="fa-solid fa-bolt"></i> Mẫu: <strong>${escapeHtml(data.data.template.title)}</strong> (<em>${escapeHtml(shortcut)}</em>)`;
         } else {
-            document.getElementById('shortcutPreviewText').innerHTML = 
+            document.getElementById('shortcutPreviewText').innerHTML =
                 `<i class="fa-solid fa-circle-question"></i> Đang tìm mẫu tin cho <strong>${escapeHtml(shortcut)}</strong>...`;
         }
     } catch (err) {
@@ -972,81 +965,107 @@ async function handleAttachmentUpload(input) {
 /**
  * Cập nhật Sidebar Phải (Hồ sơ Khách Hàng 360)
  */
-function renderProfileSidebar(profile, conv) {
+function renderProfileSidebar(profile, conv, assignedLabels) {
     if (!profile) return;
 
-    const customerName = profile.customer_name || conv.sender_name || 'Khách Hàng';
-    document.getElementById('profileCustomerName').innerText = customerName;
-    document.getElementById('rightCustomerAvatar').innerText = customerName.charAt(0).toUpperCase();
+    const customerName = profile.real_name || profile.customer_name || (conv && conv.sender_name) || 'Khách Hàng';
+    const profileCustNameEl = document.getElementById('profileCustomerName');
+    if (profileCustNameEl) profileCustNameEl.innerText = customerName;
 
-    const rightAvatarChannelIcon = document.getElementById('rightAvatarChannelIcon');
-    if (rightAvatarChannelIcon) {
-        const channelCfg = CHANNEL_CONFIG[conv.channel] || { icon: '<i class="fa-solid fa-comment"></i>', label: conv.channel || 'Webchat', class: 'badge-channel-WEBCHAT' };
-        rightAvatarChannelIcon.innerHTML = channelCfg.icon;
-        rightAvatarChannelIcon.className = `partner-channel-mini-badge badge-channel-large badge-channel-${conv.channel || 'WEBCHAT'}`;
-    }
+    const rightCustAvtEl = document.getElementById('rightCustomerAvatar');
+    if (rightCustAvtEl) rightCustAvtEl.innerText = customerName.charAt(0).toUpperCase();
 
-    document.getElementById('rightChannelSubtext').innerText = `#${conv.id}`;
-
-    document.getElementById('profilePreferredSize').innerText = profile.preferred_size || 'Chưa xác định';
-    document.getElementById('profileRecentPurchases').innerText = profile.recent_purchases || 'Chưa có thông tin đơn cũ';
-    document.getElementById('scanVersionBadge').innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> ${profile.scan_version_label || ('v' + (profile.scan_version || 1) + '.0')}`;
-
-    const lastUpdatedEl = document.getElementById('profileLastUpdated');
-    if (lastUpdatedEl) {
-        lastUpdatedEl.innerText = profile.last_scanned_formatted || 'Vừa xong';
-    }
-
-    // Cảnh báo Boom Hàng
-    const boomBadge = document.getElementById('boomRiskBadge');
-    const safeBadge = document.getElementById('safeCustomerBadge');
-    if (profile.is_boom_risk == 1) {
-        if (boomBadge) boomBadge.style.display = 'flex';
-        if (safeBadge) safeBadge.style.display = 'none';
-        if (profile.boom_note && document.getElementById('boomRiskNote')) {
-            document.getElementById('boomRiskNote').innerText = profile.boom_note;
+    if (conv) {
+        const rightAvatarChannelIcon = document.getElementById('rightAvatarChannelIcon');
+        if (rightAvatarChannelIcon) {
+            const channelCfg = CHANNEL_CONFIG[conv.channel] || { icon: '<i class="fa-solid fa-comment"></i>', label: conv.channel || 'Webchat', class: 'badge-channel-WEBCHAT' };
+            rightAvatarChannelIcon.innerHTML = channelCfg.icon;
+            rightAvatarChannelIcon.className = `partner-channel-mini-badge badge-channel-large badge-channel-${conv.channel || 'WEBCHAT'}`;
         }
-    } else {
-        if (boomBadge) boomBadge.style.display = 'none';
-        if (safeBadge) safeBadge.style.display = 'flex';
+
+        const subtextEl = document.getElementById('rightChannelSubtext');
+        if (subtextEl) subtextEl.innerText = `#${conv.id}`;
     }
 
-    // Chọn đúng Radio tiến độ tư vấn
-    const radios = document.getElementsByName('convTagRadio');
-    for (let r of radios) {
-        r.checked = (r.value === conv.tag);
+    // Các thuộc tính bóc tách thông tin khách hàng (CRM)
+    const elRealName = document.getElementById('crmRealName');
+    if (elRealName) elRealName.innerText = profile.real_name || 'Chưa có thông tin';
+
+    const elPhone = document.getElementById('crmPhone');
+    if (elPhone) elPhone.innerText = profile.phone || 'Chưa có thông tin';
+
+    const elAddress = document.getElementById('crmAddress');
+    if (elAddress) elAddress.innerText = profile.address || 'Chưa có thông tin';
+
+    const elNeeds = document.getElementById('crmCustomerNeeds');
+    if (elNeeds) elNeeds.innerText = profile.customer_needs || 'Chưa có thông tin';
+
+    const elSummary = document.getElementById('crmSummary');
+    if (elSummary) elSummary.innerText = profile.conversation_summary || 'Chưa có tóm tắt';
+
+    // Mốc thời gian ghi nhận dữ liệu
+    const elDateRange = document.getElementById('crmDateRange');
+    if (elDateRange) {
+        const fromDate = profile.from_date_formatted || '01/01/2026';
+        const toDate = profile.to_date_formatted || new Date().toLocaleDateString('vi-VN');
+        elDateRange.innerText = `${fromDate} đến ${toDate}`;
     }
+
+    // Khóa/Mở các nút chỉnh sửa CRM nếu ở chế độ Chỉ Xem
+    const crmEditBtns = document.querySelectorAll('.crm-edit-btn');
+    crmEditBtns.forEach(btn => {
+        if (AppState.isViewOnly) {
+            btn.style.pointerEvents = 'none';
+            btn.style.opacity = '0.35';
+        } else {
+            btn.style.pointerEvents = 'auto';
+            btn.style.opacity = '1';
+        }
+    });
+
+    const btnUpdate = document.getElementById('btnUpdateProfile');
+    if (btnUpdate) {
+        btnUpdate.disabled = AppState.isViewOnly;
+    }
+
+    // Render nhãn phân loại
+    const labelsToRender = assignedLabels || AppState.assignedLabels || (conv && conv.labels) || [];
+    renderAssignedLabels(labelsToRender);
 }
 
-async function quickSetSize(size) {
+/**
+ * Nút cập nhật hồ sơ khách hàng (CRM)
+ */
+async function handleUpdateCustomerProfile() {
     if (!AppState.activeConvId) return;
-    const targetSize = 'Size ' + size;
-    document.getElementById('profilePreferredSize').innerText = targetSize;
+    if (AppState.isViewOnly) {
+        alert('Hội thoại đang ở chế độ chỉ xem. Bạn không có quyền cập nhật hồ sơ.');
+        return;
+    }
+
+    const btn = document.getElementById('btnUpdateProfile');
+    const originalHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>ĐANG CẬP NHẬT...</span>';
+    }
 
     try {
         const formData = new FormData();
-        formData.append('action', 'update_field');
+        formData.append('action', 'update_crm_profile');
         formData.append('conversation_id', AppState.activeConvId);
-        formData.append('field', 'preferred_size');
-        formData.append('value', targetSize);
 
-        await fetch('../../api/customer_action.php', { method: 'POST', body: formData });
-    } catch (e) {
-        console.error('Lỗi cập nhật size nhanh:', e);
-    }
-}
+        const realName = document.getElementById('crmRealName')?.innerText;
+        const phone = document.getElementById('crmPhone')?.innerText;
+        const address = document.getElementById('crmAddress')?.innerText;
+        const needs = document.getElementById('crmCustomerNeeds')?.innerText;
+        const summary = document.getElementById('crmSummary')?.innerText;
 
-async function triggerAgentScan() {
-    if (!AppState.activeConvId) return;
-
-    const btn = document.getElementById('btnRescanAgent');
-    btn.classList.add('scanning');
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>AGENT ĐANG QUÉT DỮ LIỆU...</span>';
-
-    try {
-        const formData = new FormData();
-        formData.append('action', 'scan_agent');
-        formData.append('conversation_id', AppState.activeConvId);
+        if (realName && realName !== 'Chưa có thông tin') formData.append('real_name', realName);
+        if (phone && phone !== 'Chưa có thông tin') formData.append('phone', phone);
+        if (address && address !== 'Chưa có thông tin') formData.append('address', address);
+        if (needs && needs !== 'Chưa có thông tin') formData.append('customer_needs', needs);
+        if (summary && summary !== 'Chưa có tóm tắt') formData.append('conversation_summary', summary);
 
         const res = await fetch('../../api/customer_action.php', {
             method: 'POST',
@@ -1054,93 +1073,87 @@ async function triggerAgentScan() {
         });
         const data = await res.json();
 
-        if (data.success && data.data) {
-            const checkedRadio = document.querySelector('input[name="convTagRadio"]:checked');
-            const currentTag = checkedRadio ? checkedRadio.value : 'DANG_TU_VAN';
-
-            setTimeout(() => {
-                renderProfileSidebar(data.data, { tag: currentTag, sender_name: data.data.customer_name, channel: 'WEBCHAT', id: AppState.activeConvId });
-                btn.classList.remove('scanning');
-                btn.innerHTML = '<i class="fa-solid fa-check"></i> <span>ĐÃ BÓC TÁCH XONG</span>';
-                
-                setTimeout(() => {
-                    btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> <span>QUÉT LẠI HỒ SƠ</span>';
-                }, 2000);
-            }, 500);
+        if (data.success && data.data && data.data.profile) {
+            if (btn) btn.innerHTML = '<i class="fa-solid fa-check"></i> <span>ĐÃ CẬP NHẬT THÀNH CÔNG</span>';
+            renderProfileSidebar(data.data.profile, { id: AppState.activeConvId });
+        } else {
+            if (btn) btn.innerHTML = '<i class="fa-solid fa-check"></i> <span>HỒ SƠ ĐÃ ĐỒNG BỘ</span>';
         }
     } catch (err) {
-        console.error('Lỗi quét dữ liệu:', err);
-        btn.classList.remove('scanning');
-        btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> <span>QUÉT LẠI HỒ SƠ</span>';
+        console.error('Lỗi cập nhật hồ sơ CRM:', err);
+        if (btn) btn.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> <span>LỖI CẬP NHẬT</span>';
+    } finally {
+        setTimeout(() => {
+            if (btn) {
+                btn.disabled = AppState.isViewOnly;
+                btn.innerHTML = originalHtml;
+            }
+        }, 1500);
     }
 }
 
+/**
+ * Hộp thoại sửa nhanh từng trường thông tin CRM
+ */
 async function editFieldPrompt(fieldName, fieldTitle) {
     if (!AppState.activeConvId) return;
+    if (AppState.isViewOnly) {
+        alert('Hội thoại đang ở chế độ chỉ xem. Bạn không có quyền chỉnh sửa.');
+        return;
+    }
 
     let currentVal = '';
-    if (fieldName === 'preferred_size') {
-        currentVal = document.getElementById('profilePreferredSize').innerText;
-    } else if (fieldName === 'recent_purchases') {
-        currentVal = document.getElementById('profileRecentPurchases').innerText;
-    } else {
-        currentVal = document.getElementById('profileCustomerName').innerText;
+    let targetEl = null;
+    if (fieldName === 'real_name') {
+        targetEl = document.getElementById('crmRealName');
+    } else if (fieldName === 'phone') {
+        targetEl = document.getElementById('crmPhone');
+    } else if (fieldName === 'address') {
+        targetEl = document.getElementById('crmAddress');
+    } else if (fieldName === 'customer_needs') {
+        targetEl = document.getElementById('crmCustomerNeeds');
+    } else if (fieldName === 'conversation_summary') {
+        targetEl = document.getElementById('crmSummary');
+    } else if (fieldName === 'customer_name') {
+        targetEl = document.getElementById('profileCustomerName');
+    }
+
+    if (targetEl) {
+        currentVal = targetEl.innerText;
+        if (currentVal === 'Chưa có thông tin' || currentVal === 'Chưa có tóm tắt') {
+            currentVal = '';
+        }
     }
 
     const newVal = prompt(`Nhập ${fieldTitle} mới:`, currentVal);
-    if (newVal === null || newVal.trim() === '' || newVal.trim() === currentVal) return;
+    if (newVal === null) return; // Bấm Cancel
+    const trimmedVal = newVal.trim();
 
     try {
         const formData = new FormData();
         formData.append('action', 'update_field');
         formData.append('conversation_id', AppState.activeConvId);
         formData.append('field', fieldName);
-        formData.append('value', newVal.trim());
+        formData.append('value', trimmedVal);
 
         const res = await fetch('../../api/customer_action.php', {
             method: 'POST',
             body: formData
         });
         const data = await res.json();
-
         if (data.success) {
-            if (fieldName === 'preferred_size') {
-                document.getElementById('profilePreferredSize').innerText = newVal.trim();
-            } else if (fieldName === 'recent_purchases') {
-                document.getElementById('profileRecentPurchases').innerText = newVal.trim();
-            } else {
-                document.getElementById('profileCustomerName').innerText = newVal.trim();
-                document.getElementById('activeSenderName').innerText = newVal.trim();
+            if (targetEl) {
+                targetEl.innerText = trimmedVal || (fieldName === 'conversation_summary' ? 'Chưa có tóm tắt' : 'Chưa có thông tin');
             }
+            if (fieldName === 'real_name' && trimmedVal) {
+                const headSender = document.getElementById('activeSenderName');
+                if (headSender) headSender.innerText = trimmedVal;
+            }
+        } else {
+            alert(data.message || 'Lỗi cập nhật');
         }
     } catch (err) {
-        console.error('Lỗi cập nhật hồ sơ:', err);
-    }
-}
-
-async function handleTagChange(tagValue) {
-    if (!AppState.activeConvId) return;
-
-    try {
-        const formData = new FormData();
-        formData.append('action', 'update_tag');
-        formData.append('conversation_id', AppState.activeConvId);
-        formData.append('tag', tagValue);
-
-        const res = await fetch('../../api/customer_action.php', {
-            method: 'POST',
-            body: formData
-        });
-        const data = await res.json();
-
-        if (data.success) {
-            const tagBadge = document.getElementById('activeTagBadge');
-            tagBadge.innerText = TAG_LABELS[tagValue] || tagValue;
-            tagBadge.className = `card-tag-badge tag-${tagValue}`;
-            runSyncPolling();
-        }
-    } catch (err) {
-        console.error('Lỗi đổi tag:', err);
+        console.error('Lỗi sửa trường:', err);
     }
 }
 
@@ -1203,7 +1216,7 @@ function updateHeaderShiftStatus(status) {
         btn.classList.remove('is-online');
         btn.classList.add('is-offline');
         if (dot) dot.className = 'status-dot';
-        if (text) text.innerText = 'Tạm dừng / Hết ca';
+        if (text) text.innerText = 'Hết ca';
     }
 }
 
@@ -1411,66 +1424,46 @@ async function loadAssignedLabelsForActiveConv() {
         if (data.success && data.active_conversation && data.active_conversation.assigned_labels) {
             renderAssignedLabels(data.active_conversation.assigned_labels);
         }
-    } catch (e) {}
+    } catch (e) { }
 }
 
 function renderAssignedLabels(labels) {
-    AppState.assignedLabels = labels || [];
+    if (labels) {
+        AppState.assignedLabels = labels;
+    }
     const container = document.getElementById('profileLabelsList');
     if (!container) return;
 
-    if (!labels || labels.length === 0) {
-        container.innerHTML = '<span class="no-labels-text">Chưa gắn nhãn</span>';
+    const allLabels = AppState.allLabels || [];
+    if (allLabels.length === 0) {
+        container.innerHTML = '<span class="no-labels-text" style="font-size:12px;color:#94a3b8;padding:8px 0;display:block;">Chưa có nhãn phân loại nào. Bấm "+ Tạo nhãn" để bắt đầu.</span>';
         return;
     }
 
+    const assignedIds = (AppState.assignedLabels || []).map(l => Number(l.id));
+
     let html = '';
-    labels.forEach(l => {
+    allLabels.forEach(l => {
+        const isAssigned = assignedIds.includes(Number(l.id));
         html += `
-            <span class="assigned-label-chip" style="border-left: 3px solid ${l.color};">
-                <i class="${l.icon || 'fa-solid fa-tag'}" style="color:${l.color};font-size:10px;"></i>
-                <span>${escapeHtml(l.name)}</span>
-                <button type="button" class="btn-remove-label" onclick="toggleConversationLabel(${l.id})" title="Gỡ nhãn">&times;</button>
-            </span>
+            <div class="label-toggle-chip ${isAssigned ? 'active' : ''} ${AppState.isViewOnly ? 'is-disabled' : ''}" 
+                 onclick="toggleConversationLabel(${l.id})" 
+                 title="${AppState.isViewOnly ? 'Chế độ chỉ xem' : (isAssigned ? 'Nhấn để hủy nhãn này' : 'Nhấn để gắn nhãn này')}">
+                <span class="label-chip-dot" style="background: ${escapeHtml(l.color || '#6366F1')};"></span>
+                <span class="label-chip-name">${escapeHtml(l.name)}</span>
+                <i class="fa-solid fa-check label-chip-check"></i>
+            </div>
         `;
     });
     container.innerHTML = html;
 }
 
-/**
- * Bật/tắt popover gán nhãn cho hội thoại
- */
-function toggleAssignLabelDropdown(e) {
-    e.stopPropagation();
-    const popover = document.getElementById('assignLabelPopover');
-    if (popover.style.display === 'block') {
-        popover.style.display = 'none';
-        return;
-    }
-
-    const listContainer = document.getElementById('popoverLabelsList');
-    const assignedIds = (AppState.assignedLabels || []).map(l => l.id);
-
-    let html = '';
-    (AppState.allLabels || []).forEach(l => {
-        const isAssigned = assignedIds.includes(l.id);
-        html += `
-            <div class="popover-label-item ${isAssigned ? 'selected' : ''}" onclick="toggleConversationLabel(${l.id})">
-                <div style="display:flex;align-items:center;gap:6px;">
-                    <span class="label-color-dot" style="background:${l.color};"></span>
-                    <span>${escapeHtml(l.name)}</span>
-                </div>
-                ${isAssigned ? '<i class="fa-solid fa-check" style="color:var(--primary);font-size:11px;"></i>' : ''}
-            </div>
-        `;
-    });
-
-    listContainer.innerHTML = html || '<div style="color:#94a3b8;font-size:11px;">Chưa có nhãn nào</div>';
-    popover.style.display = 'block';
-}
-
 async function toggleConversationLabel(labelId) {
     if (!AppState.activeConvId) return;
+    if (AppState.isViewOnly) {
+        alert('Hội thoại do nhân viên khác phụ trách. Bạn không có quyền gắn hoặc hủy nhãn.');
+        return;
+    }
 
     try {
         const formData = new FormData();
@@ -1482,11 +1475,17 @@ async function toggleConversationLabel(labelId) {
         const data = await res.json();
 
         if (data.success) {
-            loadAssignedLabelsForActiveConv();
+            AppState.assignedLabels = data.assigned_labels || [];
+            renderAssignedLabels(AppState.assignedLabels);
+            if (AppState.conversationsCache[AppState.activeConvId]) {
+                AppState.conversationsCache[AppState.activeConvId].assigned_labels = AppState.assignedLabels;
+            }
             runSyncPolling();
+        } else {
+            alert(data.message || 'Lỗi thao tác nhãn');
         }
     } catch (err) {
-        console.error('Lỗi gắn nhãn:', err);
+        console.error('Lỗi gắn/hủy nhãn:', err);
     }
 }
 

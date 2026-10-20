@@ -26,28 +26,66 @@ class CustomerProfile {
             $customerName = $conv['sender_name'] ?? 'Khách Hàng';
 
             $insertStmt = $this->db->prepare("
-                INSERT INTO customer_profiles (conversation_id, customer_name, preferred_size, recent_purchases, is_boom_risk, boom_note, scan_version, last_scanned_at)
-                VALUES (:cid, :cname, 'Chưa xác định', 'Chưa có đơn hàng cũ', 0, NULL, 1, NOW())
+                INSERT INTO customer_profiles (conversation_id, customer_name, real_name, phone, address, customer_needs, conversation_summary, from_date, to_date, last_scanned_at)
+                VALUES (:cid, :cname, NULL, NULL, NULL, NULL, NULL, CURDATE(), CURDATE(), NOW())
             ");
             $insertStmt->execute([':cid' => $conversationId, ':cname' => $customerName]);
             return $this->getByConversationId($conversationId);
         }
 
-        $scanVer = !empty($profile['scan_version']) ? (float)$profile['scan_version'] : 1.0;
-        $profile['scan_version_label'] = 'v' . number_format($scanVer, 1);
+        // Lấy ngày bắt đầu nhắn tin đầu tiên và ngày nhắn tin gần nhất từ messages
+        $dateStmt = $this->db->prepare("
+            SELECT DATE(MIN(created_at)) as min_date, DATE(MAX(created_at)) as max_date 
+            FROM messages 
+            WHERE conversation_id = :cid
+        ");
+        $dateStmt->execute([':cid' => $conversationId]);
+        $dateRange = $dateStmt->fetch();
+
+        $fromDate = !empty($profile['from_date']) ? $profile['from_date'] : ($dateRange['min_date'] ?? date('Y-m-d'));
+        $toDate = !empty($profile['to_date']) ? $profile['to_date'] : ($dateRange['max_date'] ?? date('Y-m-d'));
+
+        $profile['from_date_formatted'] = date('d/m/Y', strtotime($fromDate));
+        $profile['to_date_formatted'] = date('d/m/Y', strtotime($toDate));
+
         $scannedTime = !empty($profile['last_scanned_at']) ? strtotime($profile['last_scanned_at']) : time();
-        $profile['last_scanned_formatted'] = date('H:i - d/m', $scannedTime);
+        $profile['last_scanned_formatted'] = date('H:i - d/m/Y', $scannedTime);
         return $profile;
     }
 
     public function updateManual($conversationId, $field, $value) {
-        $allowedFields = ['customer_name', 'preferred_size', 'recent_purchases', 'is_boom_risk', 'boom_note'];
+        $allowedFields = ['customer_name', 'real_name', 'phone', 'address', 'customer_needs', 'conversation_summary', 'from_date', 'to_date'];
         if (!in_array($field, $allowedFields)) {
             return false;
         }
 
-        $stmt = $this->db->prepare("UPDATE customer_profiles SET {$field} = :value WHERE conversation_id = :cid");
+        $stmt = $this->db->prepare("UPDATE customer_profiles SET {$field} = :value, last_scanned_at = NOW() WHERE conversation_id = :cid");
         return $stmt->execute([':value' => $value, ':cid' => $conversationId]);
+    }
+
+    /**
+     * Cập nhật toàn bộ hồ sơ CRM
+     */
+    public function updateCrmProfile($conversationId, array $data) {
+        $stmt = $this->db->prepare("
+            UPDATE customer_profiles SET
+                real_name = :real_name,
+                phone = :phone,
+                address = :address,
+                customer_needs = :customer_needs,
+                conversation_summary = :conversation_summary,
+                to_date = CURDATE(),
+                last_scanned_at = NOW()
+            WHERE conversation_id = :cid
+        ");
+        return $stmt->execute([
+            ':real_name'            => !empty($data['real_name']) ? trim($data['real_name']) : null,
+            ':phone'                => !empty($data['phone']) ? trim($data['phone']) : null,
+            ':address'              => !empty($data['address']) ? trim($data['address']) : null,
+            ':customer_needs'       => !empty($data['customer_needs']) ? trim($data['customer_needs']) : null,
+            ':conversation_summary' => !empty($data['conversation_summary']) ? trim($data['conversation_summary']) : null,
+            ':cid'                  => $conversationId
+        ]);
     }
 
     /**

@@ -270,9 +270,6 @@ if (isset($_GET['logout'])) {
                 <i class="fa-solid fa-id-card-clip"></i>
                 <span>Tóm Tắt Khách Hàng</span>
             </div>
-            <span class="profile-version-chip" id="scanVersionBadge">
-                <i class="fa-solid fa-wand-magic-sparkles"></i> v1.0
-            </span>
         </div>
 
         <!-- Thẻ đại diện danh tính khách hàng -->
@@ -286,129 +283,96 @@ if (isset($_GET['logout'])) {
             <div class="customer-primary-meta">
                 <div class="customer-name-heading">
                     <span id="profileCustomerName">Đang tải...</span>
-                    <button type="button" class="btn-edit-icon" title="Chỉnh sửa tên khách hàng" onclick="editFieldPrompt('customer_name', 'Tên khách hàng')">
-                        <i class="fa-solid fa-pen"></i>
-                    </button>
                 </div>
                 <div class="customer-channel-subtext" id="rightChannelSubtext">#1</div>
             </div>
         </div>
 
-        <!-- UC3.3: Thẻ Cảnh báo Rủi ro Bùng hàng -->
-        <div class="boom-risk-warning-badge" id="boomRiskBadge" style="display:none;">
-            <div class="boom-badge-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
-            <div class="boom-badge-content">
-                <div class="boom-text-title">CẢNH BÁO RỦI RO BÙNG HÀNG</div>
-                <div class="boom-text-desc" id="boomRiskNote">
-                    Phát hiện lịch sử từ chối nhận hàng. Đề nghị yêu cầu đặt cọc trước khi giao!
-                </div>
-            </div>
-        </div>
-
-        <div class="safe-customer-badge" id="safeCustomerBadge" style="display:none;">
-            <i class="fa-solid fa-circle-check"></i>
-            <span>Khách hàng uy tín - Chưa ghi nhận rủi ro hoàn đơn</span>
-        </div>
-
-        <!-- Thuộc tính bóc tách thông tin khách hàng (Customer Attributes) -->
+        <!-- Thuộc tính bóc tách thông tin khách hàng (Customer Attributes CRM) -->
         <div class="profile-section-widget">
             <div class="section-widget-title">
-                <i class="fa-solid fa-sliders"></i> Thông Tin Bóc Tách
+                <i class="fa-solid fa-user-check"></i> Thông Tin Khách Hàng
             </div>
 
-            <!-- Size thường mặc -->
+            <!-- Tên thật khách hàng -->
             <div class="attribute-item-box">
                 <div class="attr-header">
-                    <span class="attr-label"><i class="fa-solid fa-shirt"></i> Size thường mặc:</span>
-                    <button type="button" class="btn-edit-inline" onclick="editFieldPrompt('preferred_size', 'Kích cỡ thường mặc')">
+                    <span class="attr-label"><i class="fa-solid fa-signature"></i> Tên thật:</span>
+                    <button type="button" class="btn-edit-inline crm-edit-btn" onclick="editFieldPrompt('real_name', 'Tên thật khách hàng')">
                         <i class="fa-solid fa-pen-to-square"></i> Sửa
                     </button>
                 </div>
-                <div class="attr-value-pill" id="profilePreferredSize">Chưa xác định</div>
-                <div class="quick-size-row">
-                    <span class="quick-size-hint">Chọn nhanh:</span>
-                    <button type="button" class="size-chip-btn" onclick="quickSetSize('S')">S</button>
-                    <button type="button" class="size-chip-btn" onclick="quickSetSize('M')">M</button>
-                    <button type="button" class="size-chip-btn" onclick="quickSetSize('L')">L</button>
-                    <button type="button" class="size-chip-btn" onclick="quickSetSize('XL')">XL</button>
-                </div>
+                <div class="attr-value-text" id="crmRealName">Chưa có thông tin</div>
             </div>
 
-            <!-- Sản phẩm quan tâm / Mua gần nhất -->
+            <!-- Số điện thoại -->
             <div class="attribute-item-box">
                 <div class="attr-header">
-                    <span class="attr-label"><i class="fa-solid fa-bag-shopping"></i> Mua gần nhất:</span>
-                    <button type="button" class="btn-edit-inline" onclick="editFieldPrompt('recent_purchases', 'Sản phẩm mua gần nhất')">
+                    <span class="attr-label"><i class="fa-solid fa-phone"></i> Số điện thoại:</span>
+                    <button type="button" class="btn-edit-inline crm-edit-btn" onclick="editFieldPrompt('phone', 'Số điện thoại')">
                         <i class="fa-solid fa-pen-to-square"></i> Sửa
                     </button>
                 </div>
-                <div class="attr-value-text" id="profileRecentPurchases">Chưa có thông tin đơn cũ</div>
+                <div class="attr-value-text" id="crmPhone">Chưa có thông tin</div>
             </div>
 
-            <!-- Thời gian cập nhật gần nhất -->
+            <!-- Địa chỉ nhận hàng / Khu vực -->
+            <div class="attribute-item-box">
+                <div class="attr-header">
+                    <span class="attr-label"><i class="fa-solid fa-location-dot"></i> Địa chỉ / Khu vực:</span>
+                    <button type="button" class="btn-edit-inline crm-edit-btn" onclick="editFieldPrompt('address', 'Địa chỉ giao hàng / Khu vực')">
+                        <i class="fa-solid fa-pen-to-square"></i> Sửa
+                    </button>
+                </div>
+                <div class="attr-value-text" id="crmAddress">Chưa có thông tin</div>
+            </div>
+
+            <!-- Nhu cầu / Sản phẩm quan tâm -->
+            <div class="attribute-item-box">
+                <div class="attr-header">
+                    <span class="attr-label"><i class="fa-solid fa-bag-shopping"></i> Nhu cầu / Sản phẩm:</span>
+                    <button type="button" class="btn-edit-inline crm-edit-btn" onclick="editFieldPrompt('customer_needs', 'Nhu cầu hoặc sản phẩm quan tâm')">
+                        <i class="fa-solid fa-pen-to-square"></i> Sửa
+                    </button>
+                </div>
+                <div class="attr-value-text" id="crmCustomerNeeds">Chưa có thông tin</div>
+            </div>
+
+            <!-- Tóm tắt trao đổi -->
+            <div class="attribute-item-box">
+                <div class="attr-header">
+                    <span class="attr-label"><i class="fa-solid fa-comment-dots"></i> Tóm tắt trao đổi:</span>
+                    <button type="button" class="btn-edit-inline crm-edit-btn" onclick="editFieldPrompt('conversation_summary', 'Tóm tắt nội dung trao đổi')">
+                        <i class="fa-solid fa-pen-to-square"></i> Sửa
+                    </button>
+                </div>
+                <div class="attr-value-text" id="crmSummary">Chưa có tóm tắt</div>
+            </div>
+
+            <!-- Mốc thời gian ghi nhận dữ liệu -->
             <div class="attr-footer-time">
-                <span>Cập nhật lần cuối:</span>
-                <strong id="profileLastUpdated">Vừa xong</strong>
+                <i class="fa-regular fa-calendar-days"></i>
+                <span>Dữ liệu từ:</span>
+                <strong id="crmDateRange">--/--/---- đến --/--/----</strong>
             </div>
         </div>
 
-        <!-- Quản lý Nhãn Hội Thoại Tùy Biến (Custom Labels Widget) -->
-        <div class="profile-section-widget">
-            <div class="section-widget-title" style="display:flex; justify-content:space-between; align-items:center;">
-                <span><i class="fa-solid fa-tags"></i> Nhãn Hội Thoại</span>
-                <button type="button" class="btn-edit-inline" onclick="toggleAssignLabelDropdown(event)">
-                    <i class="fa-solid fa-plus"></i> Gán nhãn
-                </button>
-            </div>
-            <div class="assigned-labels-container" id="profileLabelsList">
-                <span class="no-labels-text">Chưa gắn nhãn</span>
-            </div>
-            <!-- Popover dropdown gán nhãn cho hội thoại hiện tại -->
-            <div class="assign-label-popover" id="assignLabelPopover" style="display:none;">
-                <div class="popover-title">Chọn nhãn cho hội thoại:</div>
-                <div class="popover-labels-list" id="popoverLabelsList"></div>
-            </div>
-        </div>
-
-        <!-- UC3.3: Nút Kích hoạt Quét Lại -->
-        <button type="button" class="btn-rescan-agent" id="btnRescanAgent" onclick="triggerAgentScan()">
-            <i class="fa-solid fa-wand-magic-sparkles"></i>
-            <span>QUÉT LẠI HỒ SƠ</span>
+        <!-- Nút Cập nhật hồ sơ -->
+        <button type="button" class="btn-update-profile" id="btnUpdateProfile" onclick="handleUpdateCustomerProfile()">
+            <i class="fa-solid fa-arrows-rotate"></i>
+            <span>CẬP NHẬT HỒ SƠ</span>
         </button>
 
-        <!-- UC3.4: Bộ chọn Gắn nhãn trạng thái tiến độ -->
-        <div class="tag-selector-widget">
-            <div class="section-widget-title">
-                <i class="fa-solid fa-chart-line"></i> Tiến Độ Tư Vấn
+        <!-- Quản lý Nhãn Phân Loại (Custom Labels - Chip Toggle Đa Chọn) -->
+        <div class="profile-section-widget">
+            <div class="section-widget-title" style="display:flex; justify-content:space-between; align-items:center;">
+                <span><i class="fa-solid fa-tags"></i> Nhãn Phân Loại</span>
+                <button type="button" class="btn-edit-inline crm-edit-btn" onclick="openCreateLabelModal()">
+                    <i class="fa-solid fa-plus"></i> Tạo nhãn
+                </button>
             </div>
-            <div class="tag-options-list">
-                <label class="tag-radio-label tag-opt-consulting">
-                    <input type="radio" name="convTagRadio" value="DANG_TU_VAN" onchange="handleTagChange(this.value)">
-                    <span class="tag-indicator-dot"></span>
-                    <span class="tag-label-text">Đang tư vấn</span>
-                    <i class="fa-solid fa-check tag-check-icon"></i>
-                </label>
-
-                <label class="tag-radio-label tag-opt-closed">
-                    <input type="radio" name="convTagRadio" value="DA_CHOT" onchange="handleTagChange(this.value)">
-                    <span class="tag-indicator-dot"></span>
-                    <span class="tag-label-text">Đã chốt đơn</span>
-                    <i class="fa-solid fa-check tag-check-icon"></i>
-                </label>
-
-                <label class="tag-radio-label tag-opt-pending">
-                    <input type="radio" name="convTagRadio" value="CHO_CHUYEN_KHOAN" onchange="handleTagChange(this.value)">
-                    <span class="tag-indicator-dot"></span>
-                    <span class="tag-label-text">Chờ chuyển khoản</span>
-                    <i class="fa-solid fa-check tag-check-icon"></i>
-                </label>
-
-                <label class="tag-radio-label tag-opt-boom">
-                    <input type="radio" name="convTagRadio" value="BOOM_HANG" onchange="handleTagChange(this.value)">
-                    <span class="tag-indicator-dot"></span>
-                    <span class="tag-label-text">Rủi ro hoàn hàng</span>
-                    <i class="fa-solid fa-check tag-check-icon"></i>
-                </label>
+            <div class="chips-selector-grid" id="profileLabelsList">
+                <!-- Render các chip nhãn tương tác trực tiếp -->
             </div>
         </div>
     </aside>

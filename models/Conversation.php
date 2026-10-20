@@ -78,16 +78,18 @@ class Conversation {
         ";
         $params = [];
 
-        // 1. Phân loại theo Tab
-        if ($tab === 'mine') {
-            $sql .= " AND c.assigned_user_id = :current_user_id";
-            $params[':current_user_id'] = $currentUserId;
-        } elseif ($tab === 'unreplied') {
-            // Tab Chưa đọc: xét is_read = 0 hoặc status = 'UNREPLIED'
-            $sql .= " AND (c.is_read = 0 OR c.status = 'UNREPLIED')";
-            if ($unrepliedScope === 'mine') {
+        // 1. Phân loại theo Tab (Nếu đang có từ khóa tìm kiếm thì bỏ qua giới hạn của Tab để tìm kiếm xuyên suốt toàn bộ khách hàng)
+        if (empty($search)) {
+            if ($tab === 'mine') {
                 $sql .= " AND c.assigned_user_id = :current_user_id";
                 $params[':current_user_id'] = $currentUserId;
+            } elseif ($tab === 'unreplied') {
+                // Tab Chưa đọc: xét is_read = 0 hoặc status = 'UNREPLIED'
+                $sql .= " AND (c.is_read = 0 OR c.status = 'UNREPLIED')";
+                if ($unrepliedScope === 'mine') {
+                    $sql .= " AND c.assigned_user_id = :current_user_id";
+                    $params[':current_user_id'] = $currentUserId;
+                }
             }
         }
 
@@ -103,9 +105,17 @@ class Conversation {
             $params[':label_id'] = (int)$labelId;
         }
 
-        // 4. Tìm kiếm theo Tên khách hàng hoặc Nội dung tin nhắn
+        // 4. Tìm kiếm toàn diện theo Tên khách hàng hoặc BẤT KỲ tin nhắn nào trong lịch sử trò chuyện
         if (!empty($search)) {
-            $sql .= " AND (c.sender_name LIKE :search OR c.last_message LIKE :search)";
+            $sql .= " AND (
+                c.sender_name LIKE :search 
+                OR c.last_message LIKE :search 
+                OR EXISTS (
+                    SELECT 1 FROM messages m 
+                    WHERE m.conversation_id = c.id 
+                    AND m.content LIKE :search
+                )
+            )";
             $params[':search'] = '%' . trim($search) . '%';
         }
 

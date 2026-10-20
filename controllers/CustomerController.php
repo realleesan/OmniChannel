@@ -34,13 +34,13 @@ class CustomerController {
         ];
     }
 
-    public function updateTag($conversationId, $tag) {
-        $success = $this->convModel->updateTag($conversationId, $tag);
+    public function updateCrmProfile($conversationId, array $data) {
+        $success = $this->profileModel->updateCrmProfile($conversationId, $data);
+        $updatedProfile = $this->profileModel->getByConversationId($conversationId);
         return [
             'success' => $success,
-            'message' => $success ? 'Đã đổi nhãn hội thoại' : 'Nhãn không hợp lệ',
-            'tag'     => $tag,
-            'tag_info'=> TAGS[$tag] ?? null
+            'message' => $success ? 'Đã cập nhật hồ sơ khách hàng thành công' : 'Lỗi cập nhật hồ sơ',
+            'profile' => $updatedProfile
         ];
     }
 }

@@ -84,6 +84,29 @@ if (!file_exists(__DIR__ . '/.schema_fixed_v2')) {
     } catch (Exception $e) {}
 }
 
+// Tự động bổ sung các trường CRM thực tế cho bảng customer_profiles
+if (!file_exists(__DIR__ . '/.schema_fixed_crm')) {
+    @file_put_contents(__DIR__ . '/.schema_fixed_crm', '1');
+    try {
+        $db = Database::getConnection();
+        $cols = $db->query("DESCRIBE customer_profiles")->fetchAll(PDO::FETCH_COLUMN);
+        $needed = [
+            'real_name'            => "VARCHAR(150) NULL",
+            'phone'                => "VARCHAR(50) NULL",
+            'address'              => "VARCHAR(255) NULL",
+            'customer_needs'       => "TEXT NULL",
+            'conversation_summary' => "TEXT NULL",
+            'from_date'            => "DATE NULL",
+            'to_date'              => "DATE NULL"
+        ];
+        foreach ($needed as $col => $def) {
+            if (!in_array($col, $cols)) {
+                $db->exec("ALTER TABLE customer_profiles ADD COLUMN $col $def");
+            }
+        }
+    } catch (Exception $e) {}
+}
+
 // 1.5. Tự động rút tin nhắn từ Render Gateway (Webchat/Facebook/Zalo) về CSDL MySQL
 $gatewayUrl = defined('RENDER_GATEWAY_URL') ? RENDER_GATEWAY_URL : '';
 if (!empty($gatewayUrl)) {

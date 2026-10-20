@@ -704,10 +704,11 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 700;
+    font-weight: 800;
     font-size: 16px;
-    color: #FFFFFF;
-    background: linear-gradient(135deg, #6366F1, #4F46E5);
+    color: var(--primary);
+    background: linear-gradient(135deg, #EEF2FF, #E0E7FF);
+    border: 1px solid #C7D2FE;
 }
 
 .card-channel-mini-badge {
@@ -1203,16 +1204,17 @@ body {
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #6366F1, #8B5CF6);
-    color: #FFFFFF;
+    background: linear-gradient(135deg, #EEF2FF, #E0E7FF);
+    color: var(--primary);
+    border: 1px solid #C7D2FE;
     font-size: 13px;
-    font-weight: 700;
+    font-weight: 800;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     margin-bottom: 2px;
-    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.25);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     user-select: none;
 }
 
@@ -1722,67 +1724,68 @@ body {
     padding-top: 4px;
 }
 
-/* Nút quét lại Agent */
-.btn-rescan-agent {
+/* Nút Cập nhật hồ sơ CRM */
+.btn-update-profile {
     width: 100%;
-    padding: 10px 14px;
+    padding: 11px 16px;
     background: linear-gradient(135deg, #4F46E5, #6366F1);
     color: #FFFFFF;
     border: none;
     border-radius: 8px;
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 700;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.2s ease;
     box-shadow: 0 2px 6px rgba(79, 70, 229, 0.25);
+    letter-spacing: 0.3px;
 }
 
-.btn-rescan-agent:hover {
+.btn-update-profile:hover:not(:disabled) {
+    background: linear-gradient(135deg, #4338CA, #4F46E5);
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
 }
 
-.btn-rescan-agent.scanning {
-    opacity: 0.75;
-    pointer-events: none;
+.btn-update-profile:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
 }
 
-/* Bộ chọn nhãn tiến độ */
-.tag-selector-widget {
-    background: #F8FAFC;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: 14px;
-}
-
-.tag-options-list {
+/* Quản lý Nhãn Phân Loại (Custom Labels Chip Toggle Đa Chọn) */
+.chips-selector-grid {
     display: flex;
     flex-direction: column;
-    gap: 7px;
-    margin-top: 8px;
+    gap: 8px;
+    margin-top: 4px;
 }
 
-.tag-radio-label {
+.label-toggle-chip {
     display: flex;
     align-items: center;
-    padding: 8px 10px;
+    padding: 9px 12px;
     background: #FFFFFF;
     border: 1px solid #E2E8F0;
     border-radius: 8px;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all 0.18s ease;
+    user-select: none;
     position: relative;
 }
 
-.tag-radio-label input[type="radio"] {
-    display: none;
+.label-toggle-chip:hover:not(.is-disabled) {
+    border-color: #CBD5E1;
+    background: #F8FAFC;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
 }
 
-.tag-indicator-dot {
+.label-chip-dot {
     width: 10px;
     height: 10px;
     border-radius: 50%;
@@ -1790,37 +1793,40 @@ body {
     flex-shrink: 0;
 }
 
-.tag-label-text {
+.label-chip-name {
     font-size: 12.5px;
     font-weight: 600;
     color: #334155;
     flex: 1;
 }
 
-.tag-check-icon {
+.label-chip-check {
     font-size: 12px;
     opacity: 0;
-    transition: opacity 0.15s;
+    color: var(--primary);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    transform: scale(0.7);
 }
 
-.tag-opt-consulting .tag-indicator-dot { background: var(--success); }
-.tag-opt-closed     .tag-indicator-dot { background: var(--info); }
-.tag-opt-pending    .tag-indicator-dot { background: var(--warning); }
-.tag-opt-boom       .tag-indicator-dot { background: var(--danger); }
-
-.tag-radio-label:has(input[type="radio"]:checked) {
-    border-color: #6366F1;
+.label-toggle-chip.active {
+    border-color: #818CF8;
     background: #EEF2FF;
 }
 
-.tag-radio-label:has(input[type="radio"]:checked) .tag-label-text {
-    color: var(--primary);
+.label-toggle-chip.active .label-chip-name {
+    color: #4F46E5;
     font-weight: 700;
 }
 
-.tag-radio-label:has(input[type="radio"]:checked) .tag-check-icon {
+.label-toggle-chip.active .label-chip-check {
     opacity: 1;
-    color: var(--primary);
+    transform: scale(1);
+}
+
+.label-toggle-chip.is-disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: #F8FAFC;
 }
 
 /* ========================================================

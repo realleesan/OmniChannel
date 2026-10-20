@@ -17,19 +17,13 @@ if (session_status() === PHP_SESSION_ACTIVE) {
     session_write_close();
 }
 
+require_once __DIR__ . '/../models/Conversation.php';
+
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 $customerController = new CustomerController();
+$convModel = new Conversation();
 
 switch ($action) {
-    case 'scan_agent':
-        $conversationId = (int)($_POST['conversation_id'] ?? 0);
-        if (!$conversationId) {
-            jsonResponse(false, [], 'Thiếu mã hội thoại', 400);
-        }
-        $res = $customerController->scanAgentData($conversationId);
-        jsonResponse(true, $res['profile'], $res['message']);
-        break;
-
     case 'update_field':
         $conversationId = (int)($_POST['conversation_id'] ?? 0);
         $field = trim($_POST['field'] ?? '');
@@ -39,20 +33,37 @@ switch ($action) {
             jsonResponse(false, [], 'Tham số không hợp lệ', 400);
         }
 
+        $conv = $convModel->getById($conversationId);
+        if ($conv && !empty($conv['assigned_user_id']) && $conv['assigned_user_id'] != $userId) {
+            jsonResponse(false, [], 'Hội thoại do nhân viên khác phụ trách. Bạn không có quyền chỉnh sửa.', 403);
+        }
+
         $res = $customerController->updateField($conversationId, $field, $value);
         jsonResponse($res['success'], [], $res['message']);
         break;
 
-    case 'update_tag':
+    case 'update_crm_profile':
         $conversationId = (int)($_POST['conversation_id'] ?? 0);
-        $tag = trim($_POST['tag'] ?? '');
-
-        if (!$conversationId || empty($tag)) {
-            jsonResponse(false, [], 'Tham số không hợp lệ', 400);
+        if (!$conversationId) {
+            jsonResponse(false, [], 'Thiếu mã hội thoại', 400);
         }
 
-        $res = $customerController->updateTag($conversationId, $tag);
-        jsonResponse($res['success'], ['tag' => $res['tag'], 'tag_info' => $res['tag_info']], $res['message']);
+        $conv = $convModel->getById($conversationId);
+        if ($conv && !empty($conv['assigned_user_id']) && $conv['assigned_user_id'] != $userId) {
+            jsonResponse(false, [], 'Hội thoại do nhân viên khác phụ trách. Bạn không có quyền chỉnh sửa hồ sơ.', 403);
+        }
+
+        $res = $customerController->updateCrmProfile($conversationId, $_POST);
+        jsonResponse($res['success'], ['profile' => $res['profile']], $res['message']);
+        break;
+
+    case 'scan_agent':
+        $conversationId = (int)($_POST['conversation_id'] ?? 0);
+        if (!$conversationId) {
+            jsonResponse(false, [], 'Thiếu mã hội thoại', 400);
+        }
+        $res = $customerController->scanAgentData($conversationId);
+        jsonResponse(true, $res['profile'], $res['message']);
         break;
 
     default:

@@ -21,6 +21,9 @@ if (session_status() === PHP_SESSION_ACTIVE) {
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 $labelModel = new Label();
 
+require_once __DIR__ . '/../models/Conversation.php';
+$convModel = new Conversation();
+
 switch ($action) {
     case 'get_all':
         $labels = $labelModel->getAll();
@@ -45,7 +48,14 @@ switch ($action) {
             exit;
         }
 
+        $conv = $convModel->getById($conversationId);
+        if ($conv && !empty($conv['assigned_user_id']) && $conv['assigned_user_id'] != $userId) {
+            echo json_encode(['success' => false, 'message' => 'Hội thoại do nhân viên khác phụ trách. Bạn không có quyền gắn/hủy nhãn.']);
+            exit;
+        }
+
         $result = $labelModel->toggleLabel($conversationId, $labelId);
+        $result['assigned_labels'] = $labelModel->getLabelsForConversation($conversationId);
         echo json_encode($result);
         break;
 
