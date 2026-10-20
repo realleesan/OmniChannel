@@ -281,14 +281,12 @@ class Conversation {
             WHERE c.sender_name LIKE :kw1 
                OR cp.real_name LIKE :kw2 
                OR cp.phone LIKE :kw3
-               OR c.external_sender_id LIKE :kw4
             ORDER BY c.last_message_at DESC
         ");
         $custStmt->execute([
             ':kw1' => $param,
             ':kw2' => $param,
-            ':kw3' => $param,
-            ':kw4' => $param
+            ':kw3' => $param
         ]);
         $customers = $custStmt->fetchAll(PDO::FETCH_ASSOC);
 

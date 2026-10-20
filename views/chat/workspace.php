@@ -151,9 +151,9 @@ if (isset($_GET['logout'])) {
                                 <!-- Nạp danh sách nhãn tự động -->
                             </div>
                             <div class="dropdown-divider"></div>
-                            <div class="dropdown-action-item" onclick="openCreateLabelModal()">
-                                <i class="fa-solid fa-plus"></i>
-                                <span>Tạo nhãn mới</span>
+                            <div class="dropdown-action-item" onclick="openManageLabelsModal()">
+                                <i class="fa-solid fa-gear"></i>
+                                <span>Quản lý nhãn</span>
                             </div>
                         </div>
                     </div>
@@ -398,8 +398,8 @@ if (isset($_GET['logout'])) {
         <div class="profile-section-widget">
             <div class="section-widget-title" style="display:flex; justify-content:space-between; align-items:center;">
                 <span><i class="fa-solid fa-tags"></i> Nhãn Phân Loại</span>
-                <button type="button" class="btn-edit-inline crm-edit-btn" onclick="openCreateLabelModal()">
-                    <i class="fa-solid fa-plus"></i> Tạo nhãn
+                <button type="button" class="btn-edit-inline crm-edit-btn" onclick="openManageLabelsModal()">
+                    <i class="fa-solid fa-gear"></i> Quản lý nhãn
                 </button>
             </div>
             <div class="chips-selector-grid" id="profileLabelsList">
@@ -411,12 +411,35 @@ if (isset($_GET['logout'])) {
 </div>
 
 <!-- ========================================================
-     MODAL POPUP TẠO NHÃN MỚI
+     MODAL POPUP QUẢN LÝ NHÃN (DANH SÁCH, SỬA, XÓA, NÚT THÊM)
+     ======================================================== -->
+<div class="modal-overlay" id="modalManageLabels" style="display:none;">
+    <div class="modal-content" style="max-width: 520px;">
+        <div class="modal-header">
+            <h3 class="modal-title"><i class="fa-solid fa-tags" style="color:var(--primary);"></i> Quản Lý Nhãn Phân Loại</h3>
+            <button type="button" class="modal-close-btn" onclick="closeManageLabelsModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding:16px;">
+            <div id="labelManageListContainer" class="label-manage-list">
+                <!-- Danh sách nhãn nạp động -->
+            </div>
+        </div>
+        <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;">
+            <button type="button" class="tab-btn" onclick="closeManageLabelsModal()">Đóng</button>
+            <button type="button" class="btn-send-message" onclick="openCreateLabelFromManage()">
+                <i class="fa-solid fa-plus"></i> Thêm nhãn mới
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================
+     MODAL POPUP TẠO NHÃN MỚI (BẢNG MÀU TÙY Ý)
      ======================================================== -->
 <div class="modal-overlay" id="modalCreateLabel" style="display:none;">
     <div class="modal-content" style="max-width: 440px;">
         <div class="modal-header">
-            <h3 class="modal-title"><i class="fa-solid fa-tag" style="color:#2563EB;"></i> Tạo Nhãn Mới</h3>
+            <h3 class="modal-title"><i class="fa-solid fa-circle-plus" style="color:var(--primary);"></i> Tạo Nhãn Mới</h3>
             <button type="button" class="modal-close-btn" onclick="closeCreateLabelModal()">&times;</button>
         </div>
         <div class="modal-body">
@@ -436,6 +459,16 @@ if (isset($_GET['logout'])) {
                     <button type="button" class="color-swatch" style="background:#EC4899;" onclick="selectLabelColor(this, '#EC4899')"></button>
                     <button type="button" class="color-swatch" style="background:#0F172A;" onclick="selectLabelColor(this, '#0F172A')"></button>
                     <button type="button" class="color-swatch" style="background:#06B6D4;" onclick="selectLabelColor(this, '#06B6D4')"></button>
+                </div>
+
+                <!-- Bộ chọn màu tự do (Kéo chọn màu tùy ý) -->
+                <div class="custom-color-picker-row">
+                    <input type="color" id="newLabelColorPicker" class="color-picker-input-circle" value="#2563EB" oninput="syncColorFromPicker(this.value)">
+                    <div style="flex:1;">
+                        <div style="font-size:12px;font-weight:600;color:#334155;">Chọn màu tùy ý từ bảng màu</div>
+                        <div style="font-size:11px;color:#94a3b8;">Kéo thanh trượt hoặc bảng màu để chọn</div>
+                    </div>
+                    <span class="color-hex-badge" id="colorHexDisplay">#2563EB</span>
                 </div>
                 <input type="hidden" id="newLabelColor" value="#2563EB">
             </div>

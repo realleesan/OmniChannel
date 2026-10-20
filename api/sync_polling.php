@@ -49,6 +49,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newStatus = trim($_POST['status'] ?? 'ONLINE');
         $res = $authController->toggleStatus($newStatus);
         jsonResponse($res['success'], ['status' => $res['status']], 'Đã cập nhật ca trực', 200);
+    } elseif ($postAction === 'update_label') {
+        require_once __DIR__ . '/../models/Label.php';
+        $labelModel = new Label();
+        $id = (int)($_POST['id'] ?? 0);
+        $name = trim($_POST['name'] ?? '');
+        $color = trim($_POST['color'] ?? '#3B82F6');
+        $res = $labelModel->update($id, $name, $color);
+        echo json_encode($res);
+        exit;
+    } elseif ($postAction === 'delete_label') {
+        require_once __DIR__ . '/../models/Label.php';
+        $labelModel = new Label();
+        $id = (int)($_POST['id'] ?? 0);
+        $res = $labelModel->delete($id);
+        echo json_encode($res);
+        exit;
     }
 }
 

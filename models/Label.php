@@ -103,4 +103,52 @@ class Label {
             return ['success' => true, 'action' => 'added', 'message' => 'Đã gắn nhãn'];
         }
     }
+
+    /**
+     * Cập nhật thông tin nhãn (Tên và Màu sắc)
+     */
+    public function update(int $id, string $name, string $color): array {
+        $name = trim($name);
+        $color = trim($color) ?: '#3B82F6';
+
+        if (empty($name)) {
+            return ['success' => false, 'message' => 'Tên nhãn không được để trống'];
+        }
+
+        $stmt = $this->db->prepare("
+            UPDATE labels 
+            SET name = :name, color = :color 
+            WHERE id = :id
+        ");
+        $stmt->execute([
+            ':name'  => $name,
+            ':color' => $color,
+            ':id'    => $id
+        ]);
+
+        return [
+            'success' => true,
+            'message' => 'Cập nhật nhãn thành công',
+            'label'   => [
+                'id'    => $id,
+                'name'  => $name,
+                'color' => $color
+            ]
+        ];
+    }
+
+    /**
+     * Xóa nhãn và gỡ khỏi tất cả hội thoại đang sử dụng
+     */
+    public function delete(int $id): array {
+        // Gỡ nhãn khỏi các hội thoại
+        $delRelStmt = $this->db->prepare("DELETE FROM conversation_labels WHERE label_id = :id");
+        $delRelStmt->execute([':id' => $id]);
+
+        // Xóa nhãn khỏi bảng labels
+        $delStmt = $this->db->prepare("DELETE FROM labels WHERE id = :id");
+        $delStmt->execute([':id' => $id]);
+
+        return ['success' => true, 'message' => 'Đã xóa nhãn thành công'];
+    }
 }

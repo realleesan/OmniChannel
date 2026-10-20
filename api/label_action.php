@@ -59,6 +59,31 @@ switch ($action) {
         echo json_encode($result);
         break;
 
+    case 'update':
+        $id = (int)($_POST['id'] ?? 0);
+        $name = trim($_POST['name'] ?? '');
+        $color = trim($_POST['color'] ?? '#3B82F6');
+
+        if ($id <= 0 || empty($name)) {
+            echo json_encode(['success' => false, 'message' => 'Dữ liệu sửa nhãn không hợp lệ']);
+            exit;
+        }
+
+        $result = $labelModel->update($id, $name, $color);
+        echo json_encode($result);
+        break;
+
+    case 'delete':
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id <= 0) {
+            echo json_encode(['success' => false, 'message' => 'ID nhãn không hợp lệ']);
+            exit;
+        }
+
+        $result = $labelModel->delete($id);
+        echo json_encode($result);
+        break;
+
     default:
         echo json_encode(['success' => false, 'message' => 'Hành động không hợp lệ']);
 }

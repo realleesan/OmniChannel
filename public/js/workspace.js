@@ -282,8 +282,8 @@ function renderConversationsList(conversations) {
         if (conv.labels && conv.labels.length > 0) {
             const firstLabel = conv.labels[0];
             labelPillHtml = `
-                <span class="respondio-label-pill" style="border-left: 3px solid ${firstLabel.color};" title="${escapeHtml(firstLabel.name)}">
-                    <i class="${firstLabel.icon || 'fa-solid fa-tag'}" style="color:${firstLabel.color};"></i>
+                <span class="respondio-label-pill" title="${escapeHtml(firstLabel.name)}">
+                    <span class="label-pill-dot" style="background:${firstLabel.color || '#6366F1'};"></span>
                     <span>${escapeHtml(firstLabel.name)}</span>
                 </span>
             `;
@@ -1384,31 +1384,34 @@ function playNotificationSound() {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         if (!AudioCtx) return;
         const ctx = new AudioCtx();
+        if (ctx.state === 'suspended') {
+            ctx.resume();
+        }
         const now = ctx.currentTime;
 
-        // Âm sắc 1 (587.33 Hz - nốt D5)
+        // Âm sắc 1 (587.33 Hz - nốt D5, âm lượng rõ ràng chuẩn)
         const osc1 = ctx.createOscillator();
         const gain1 = ctx.createGain();
         osc1.type = 'sine';
         osc1.frequency.setValueAtTime(587.33, now);
-        gain1.gain.setValueAtTime(0.15, now);
-        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+        gain1.gain.setValueAtTime(0.55, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
         osc1.connect(gain1);
         gain1.connect(ctx.destination);
         osc1.start(now);
-        osc1.stop(now + 0.22);
+        osc1.stop(now + 0.28);
 
-        // Âm sắc 2 (880 Hz - nốt A5) vang sau 0.1s
+        // Âm sắc 2 (880 Hz - nốt A5) vang sau 0.09s
         const osc2 = ctx.createOscillator();
         const gain2 = ctx.createGain();
         osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(880, now + 0.1);
-        gain2.gain.setValueAtTime(0.18, now + 0.1);
-        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+        osc2.frequency.setValueAtTime(880, now + 0.09);
+        gain2.gain.setValueAtTime(0.65, now + 0.09);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.50);
         osc2.connect(gain2);
         gain2.connect(ctx.destination);
-        osc2.start(now + 0.1);
-        osc2.stop(now + 0.42);
+        osc2.start(now + 0.09);
+        osc2.stop(now + 0.50);
     } catch (e) {
         console.warn('Sound notification warn:', e);
     }
@@ -1802,21 +1805,223 @@ function selectZaloSearchResult(convId, isMine, targetMsgId = null) {
 // ========================================================
 // QUẢN LÝ NHÃN PHÂN LOẠI TÙY BIẾN (CUSTOM LABELS)
 // ========================================================
+let isOpenedFromManageModal = false;
+let editingLabelId = null;
+
+function openManageLabelsModal() {
+    document.getElementById('labelDropdownMenu')?.classList.remove('show');
+    editingLabelId = null;
+    renderManageLabelsList();
+    const modal = document.getElementById('modalManageLabels');
+    if (modal) modal.style.display = 'flex';
+}
+
+function closeManageLabelsModal() {
+    const modal = document.getElementById('modalManageLabels');
+    if (modal) modal.style.display = 'none';
+    editingLabelId = null;
+}
+
+function renderManageLabelsList() {
+    const container = document.getElementById('labelManageListContainer');
+    if (!container) return;
+
+    const allLabels = AppState.allLabels || [];
+    if (allLabels.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center;padding:30px 16px;color:#94a3b8;font-size:13px;">
+                Chưa có nhãn phân loại nào trong hệ thống.
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    allLabels.forEach(l => {
+        const isEditing = (editingLabelId === l.id);
+        if (isEditing) {
+            html += `
+                <div class="label-manage-row is-editing" id="labelRow_${l.id}">
+                    <div class="label-manage-left">
+                        <input type="color" id="editLabelColor_${l.id}" value="${l.color || '#2563EB'}" class="color-picker-input-circle" style="width:30px;height:30px;" title="Bấm để chọn màu mới">
+                        <input type="text" id="editLabelName_${l.id}" value="${escapeHtml(l.name)}" class="form-input" style="height:32px;font-size:13px;padding:4px 8px;flex:1;">
+                    </div>
+                    <div class="label-manage-actions">
+                        <button type="button" class="btn-manage-action btn-manage-save" onclick="saveEditLabel(${l.id})">
+                            <i class="fa-solid fa-check"></i> Lưu
+                        </button>
+                        <button type="button" class="btn-manage-action btn-manage-cancel" onclick="cancelEditLabel()">
+                            <i class="fa-solid fa-xmark"></i> Hủy
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else {
+            html += `
+                <div class="label-manage-row" id="labelRow_${l.id}">
+                    <div class="label-manage-left">
+                        <span class="label-color-dot" style="background:${l.color || '#64748B'};width:12px;height:12px;"></span>
+                        <span class="label-manage-name" title="${escapeHtml(l.name)}">${escapeHtml(l.name)}</span>
+                        ${l.usage_count !== undefined ? `<span class="label-manage-usage" title="Số hội thoại đang gắn">${l.usage_count} khách</span>` : ''}
+                    </div>
+                    <div class="label-manage-actions">
+                        <button type="button" class="btn-manage-action btn-manage-edit" onclick="startEditLabel(${l.id})">
+                            <i class="fa-solid fa-pen"></i> Sửa
+                        </button>
+                        <button type="button" class="btn-manage-action btn-manage-delete" onclick="deleteLabelItem(${l.id}, '${escapeHtml(l.name)}')">
+                            <i class="fa-solid fa-trash"></i> Xóa
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+    });
+
+    container.innerHTML = html;
+}
+
+function startEditLabel(id) {
+    editingLabelId = id;
+    renderManageLabelsList();
+    const input = document.getElementById(`editLabelName_${id}`);
+    if (input) {
+        input.focus();
+        input.select();
+    }
+}
+
+function cancelEditLabel() {
+    editingLabelId = null;
+    renderManageLabelsList();
+}
+
+async function saveEditLabel(id) {
+    const nameInput = document.getElementById(`editLabelName_${id}`);
+    const colorInput = document.getElementById(`editLabelColor_${id}`);
+    const name = nameInput ? nameInput.value.trim() : '';
+    const color = colorInput ? colorInput.value : '#2563EB';
+
+    if (!name) {
+        alert('Tên nhãn không được để trống');
+        return;
+    }
+
+    try {
+        const formData = new FormData();
+        formData.append('action', 'update');
+        formData.append('id', id);
+        formData.append('name', name);
+        formData.append('color', color);
+
+        let res = await fetch('../../api/label_action.php', { method: 'POST', body: formData });
+        let data = null;
+        if (res.ok) {
+            data = await res.json();
+        }
+        if (!data || !data.success) {
+            formData.set('action', 'update_label');
+            res = await fetch('../../api/sync_polling.php', { method: 'POST', body: formData });
+            data = await res.json();
+        }
+
+        if (data && data.success) {
+            editingLabelId = null;
+            const idx = (AppState.allLabels || []).findIndex(l => l.id == id);
+            if (idx !== -1) {
+                AppState.allLabels[idx].name = name;
+                AppState.allLabels[idx].color = color;
+            }
+            renderManageLabelsList();
+            renderLabelsDropdown(AppState.allLabels);
+            renderAssignedLabels(AppState.assignedLabels);
+            fetchConversations();
+        } else {
+            alert(data?.message || 'Lỗi cập nhật nhãn');
+        }
+    } catch (e) {
+        console.error('Lỗi lưu nhãn:', e);
+        alert('Lỗi kết nối khi cập nhật nhãn');
+    }
+}
+
+async function deleteLabelItem(id, name) {
+    if (!confirm(`Bạn có chắc chắn muốn xóa nhãn "${name}"? Nhãn sẽ được tự động gỡ khỏi tất cả hội thoại đang sử dụng.`)) {
+        return;
+    }
+
+    try {
+        const formData = new FormData();
+        formData.append('action', 'delete');
+        formData.append('id', id);
+
+        let res = await fetch('../../api/label_action.php', { method: 'POST', body: formData });
+        let data = null;
+        if (res.ok) {
+            data = await res.json();
+        }
+        if (!data || !data.success) {
+            formData.set('action', 'delete_label');
+            res = await fetch('../../api/sync_polling.php', { method: 'POST', body: formData });
+            data = await res.json();
+        }
+
+        if (data && data.success) {
+            AppState.allLabels = (AppState.allLabels || []).filter(l => l.id != id);
+            AppState.assignedLabels = (AppState.assignedLabels || []).filter(l => l.id != id);
+            renderManageLabelsList();
+            renderLabelsDropdown(AppState.allLabels);
+            renderAssignedLabels(AppState.assignedLabels);
+            fetchConversations();
+        } else {
+            alert(data?.message || 'Lỗi xóa nhãn');
+        }
+    } catch (e) {
+        console.error('Lỗi xóa nhãn:', e);
+        alert('Lỗi kết nối khi xóa nhãn');
+    }
+}
+
+function openCreateLabelFromManage() {
+    isOpenedFromManageModal = true;
+    closeManageLabelsModal();
+    openCreateLabelModal();
+}
 
 function openCreateLabelModal() {
-    document.getElementById('labelDropdownMenu').classList.remove('show');
+    document.getElementById('labelDropdownMenu')?.classList.remove('show');
     document.getElementById('modalCreateLabel').style.display = 'flex';
     document.getElementById('newLabelName').value = '';
+    selectLabelColor(null, '#2563EB');
     document.getElementById('newLabelName').focus();
 }
 
 function closeCreateLabelModal() {
     document.getElementById('modalCreateLabel').style.display = 'none';
+    if (isOpenedFromManageModal) {
+        isOpenedFromManageModal = false;
+        openManageLabelsModal();
+    }
 }
 
 function selectLabelColor(btn, color) {
-    document.querySelectorAll('.color-swatch').forEach(el => el.classList.remove('active'));
-    btn.classList.add('active');
+    document.querySelectorAll('#modalCreateLabel .color-swatch').forEach(el => {
+        el.classList.toggle('active', el.style.background === color || el.getAttribute('data-color') === color);
+    });
+    if (btn) btn.classList.add('active');
+
+    const picker = document.getElementById('newLabelColorPicker');
+    if (picker) picker.value = color;
+
+    const hexDisplay = document.getElementById('colorHexDisplay');
+    if (hexDisplay) hexDisplay.innerText = color.toUpperCase();
+
+    document.getElementById('newLabelColor').value = color;
+}
+
+function syncColorFromPicker(color) {
+    document.querySelectorAll('#modalCreateLabel .color-swatch').forEach(el => el.classList.remove('active'));
+    const hexDisplay = document.getElementById('colorHexDisplay');
+    if (hexDisplay) hexDisplay.innerText = color.toUpperCase();
     document.getElementById('newLabelColor').value = color;
 }
 

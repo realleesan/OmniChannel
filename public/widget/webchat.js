@@ -1065,7 +1065,8 @@
                 handleSend();
             }
         });
-        // Khi người dùng click/focus vào ô nhập tin nhắn -> đánh dấu đã đọc
+        // Khi người dùng click/focus vào bất kỳ vị trí nào trong chat box -> đánh dấu đã đọc
+        chatBox.addEventListener('click', markConversationAsRead);
         input.addEventListener('focus', markConversationAsRead);
 
         // Sự kiện Submit Form Pre-Chat
@@ -1146,29 +1147,32 @@
             const ctx = new AudioCtx();
             const now = ctx.currentTime;
 
-            // Nốt 1 (E5 - 659.25 Hz)
+            // Nốt 1 (E5 - 659.25 Hz, âm lượng to rõ ràng tiêu chuẩn)
+            if (ctx.state === 'suspended') {
+                ctx.resume();
+            }
             const osc1 = ctx.createOscillator();
             const gain1 = ctx.createGain();
             osc1.type = 'sine';
             osc1.frequency.setValueAtTime(659.25, now);
-            gain1.gain.setValueAtTime(0.12, now);
-            gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+            gain1.gain.setValueAtTime(0.50, now);
+            gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
             osc1.connect(gain1);
             gain1.connect(ctx.destination);
             osc1.start(now);
-            osc1.stop(now + 0.22);
+            osc1.stop(now + 0.28);
 
             // Nốt 2 (B5 - 987.77 Hz) ngân sau 0.08s
             const osc2 = ctx.createOscillator();
             const gain2 = ctx.createGain();
             osc2.type = 'sine';
             osc2.frequency.setValueAtTime(987.77, now + 0.08);
-            gain2.gain.setValueAtTime(0.15, now + 0.08);
-            gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+            gain2.gain.setValueAtTime(0.60, now + 0.08);
+            gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.48);
             osc2.connect(gain2);
             gain2.connect(ctx.destination);
             osc2.start(now + 0.08);
-            osc2.stop(now + 0.42);
+            osc2.stop(now + 0.48);
         } catch (e) {
             console.warn('Widget sound notification warn:', e);
         }
@@ -1183,9 +1187,10 @@
         const count = session.unreadCount || 0;
         if (count > 0 && !isOpen) {
             badge.textContent = count > 99 ? '99+' : String(count);
-            badge.style.display = 'flex';
+            badge.style.setProperty('display', 'flex', 'important');
         } else {
-            badge.style.display = 'none';
+            badge.style.setProperty('display', 'none', 'important');
+            badge.textContent = '0';
         }
     }
 
@@ -1210,7 +1215,9 @@
         chatBox.classList.toggle('open', isOpen);
 
         if (isOpen) {
-            // Khi mở box chat -> Đánh dấu đã đọc ngay lập tức, xóa badge
+            // Khi mở box chat -> Xóa sạch badge ngay lập tức và gửi báo đã đọc
+            session.unreadCount = 0;
+            updateUnreadBadge();
             markConversationAsRead();
             if (hasRealName()) {
                 // Đã có tên -> Vào thẳng phòng chat
@@ -1220,6 +1227,8 @@
                 // Chưa có tên -> Hiển thị Pre-Chat Form
                 showPrechatView();
             }
+        } else {
+            updateUnreadBadge();
         }
         startPolling();
     }
@@ -1610,10 +1619,12 @@
 
                 if (hasNewStaffMsg) {
                     playWidgetNotificationSound();
-                    if (!isOpen || document.hidden) {
+                    if (!isOpen) {
                         session.unreadCount = (session.unreadCount || 0) + 1;
                         updateUnreadBadge();
                     } else {
+                        session.unreadCount = 0;
+                        updateUnreadBadge();
                         markConversationAsRead();
                     }
                 }
