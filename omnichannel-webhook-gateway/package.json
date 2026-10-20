@@ -4,7 +4,7 @@
   "description": "External Webhook Gateway for Facebook, Zalo, and third-party channels on Render",
   "main": "server.js",
   "scripts": {
-    "start": "node -e \"const fs=require('fs'); if(fs.existsSync('../public/widget/webchat.js')) fs.copyFileSync('../public/widget/webchat.js', 'public/widget/webchat.js');\" && node server.js",
+    "start": "node server.js",
     "dev": "node --watch server.js"
   },
   "dependencies": {

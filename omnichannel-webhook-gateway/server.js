@@ -230,22 +230,19 @@ app.get(['/public/widget/webchat.js', '/widget/webchat.js', '/webchat.js'], (req
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
 
-    // Ưu tiên tệp gốc duy nhất của dự án: public/widget/webchat.js
+    // Phục vụ trực tiếp từ tệp gốc duy nhất của dự án: public/widget/webchat.js
     const rootPath = path.resolve(__dirname, '../public/widget/webchat.js');
     if (fs.existsSync(rootPath)) {
         return res.sendFile(rootPath);
-    }
-    const localPath = path.resolve(__dirname, 'public/widget/webchat.js');
-    if (fs.existsSync(localPath)) {
-        return res.sendFile(localPath);
     }
     res.status(404).send('// webchat.js not found');
 });
 
 const widgetStaticPath = path.join(__dirname, '../public/widget');
-const localWidgetPath = path.join(__dirname, 'public/widget');
-app.use('/public/widget', express.static(fs.existsSync(widgetStaticPath) ? widgetStaticPath : localWidgetPath));
-app.use('/widget', express.static(fs.existsSync(widgetStaticPath) ? widgetStaticPath : localWidgetPath));
+if (fs.existsSync(widgetStaticPath)) {
+    app.use('/public/widget', express.static(widgetStaticPath));
+    app.use('/widget', express.static(widgetStaticPath));
+}
 
 // Khởi tạo phiên Webchat
 app.all('/api/webchat/init', (req, res) => {
