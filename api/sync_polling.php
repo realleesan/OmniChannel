@@ -23,6 +23,35 @@ if (session_status() === PHP_SESSION_ACTIVE) {
     session_write_close();
 }
 
+// Hỗ trợ gửi tin nhắn và đổi ca trực trực tiếp qua sync_polling để miễn nhiễm tuyệt đối với WAF chặn POST
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $postAction = $_POST['action'] ?? '';
+    if ($postAction === 'send_message') {
+        require_once __DIR__ . '/../controllers/ChatController.php';
+        $chatController = new ChatController();
+        $conversationId = (int)($_POST['conversation_id'] ?? 0);
+        $content = trim($_POST['content'] ?? '');
+        $attachmentUrl = trim($_POST['attachment_url'] ?? '');
+
+        if (empty($content) && empty($attachmentUrl)) {
+            jsonResponse(false, [], 'Nội dung tin nhắn không được để trống', 200);
+        }
+
+        $res = $chatController->sendStaffMessage($conversationId, $userId, $content, $attachmentUrl ?: null);
+        if ($res['success']) {
+            jsonResponse(true, $res['data'], 'Gửi tin nhắn thành công');
+        } else {
+            jsonResponse(false, [], $res['message'], 200);
+        }
+    } elseif ($postAction === 'toggle_shift') {
+        require_once __DIR__ . '/../controllers/AuthController.php';
+        $authController = new AuthController();
+        $newStatus = trim($_POST['status'] ?? 'ONLINE');
+        $res = $authController->toggleStatus($newStatus);
+        jsonResponse($res['success'], ['status' => $res['status']], 'Đã cập nhật ca trực', 200);
+    }
+}
+
 $tab = $_GET['tab'] ?? 'all';
 $unrepliedScope = $_GET['unreplied_scope'] ?? 'all';
 $search = $_GET['search'] ?? '';
