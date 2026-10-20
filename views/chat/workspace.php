@@ -46,7 +46,7 @@ if (!$currentUser) {
              onclick="toggleShiftStatus()"
              title="Bấm để chuyển đổi ca trực">
             <span class="status-dot <?= $currentUser['status'] === 'ONLINE' ? 'online' : '' ?>" id="shiftDot"></span>
-            <span class="shift-text" id="shiftText"><?= $currentUser['status'] === 'ONLINE' ? 'Sẵn sàng nhận khách' : 'Tạm dừng / Hết ca' ?></span>
+            <span class="shift-text" id="shiftText"><?= $currentUser['status'] === 'ONLINE' ? 'Sẵn sàng nhận khách' : 'Hết ca' ?></span>
             <div class="shift-switch-track">
                 <div class="shift-switch-thumb"></div>
             </div>

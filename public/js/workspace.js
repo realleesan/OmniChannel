@@ -256,8 +256,17 @@ function renderConversationsList(conversations) {
         const isActive = (conv.id == AppState.activeConvId);
         const channelCfg = CHANNEL_CONFIG[conv.channel] || { icon: '<i class="fa-solid fa-comment"></i>', label: conv.channel, class: 'badge-channel-WEBCHAT' };
         const assignedName = conv.assigned_fullname || 'Chưa gán';
-        const assignedAvatar = conv.assigned_fullname ? conv.assigned_fullname.charAt(0).toUpperCase() : '<i class="fa-solid fa-user" style="font-size:8px;"></i>';
-        const isUnread = (conv.is_read == 0 || conv.status === 'UNREPLIED');
+        let assignedAvatarHtml = '';
+        if (conv.assigned_fullname) {
+            if (conv.assigned_avatar) {
+                assignedAvatarHtml = `<img src="${escapeHtml(conv.assigned_avatar)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" alt="Avatar">`;
+            } else {
+                assignedAvatarHtml = escapeHtml(conv.assigned_fullname.trim().charAt(0).toUpperCase());
+            }
+        } else {
+            assignedAvatarHtml = '<i class="fa-solid fa-user" style="font-size:8px;"></i>';
+        }
+        const isUnread = (conv.id == AppState.activeConvId) ? false : (conv.is_read == 0);
         const initial = (conv.sender_name || 'K').charAt(0).toUpperCase();
         const isStaffLast = (conv.last_sender_type === 'STAFF');
 
@@ -285,6 +294,18 @@ function renderConversationsList(conversations) {
             `;
         }
 
+        // Tạo nội dung tin nhắn trích đoạn (Nếu nhân viên gửi thì hiện "Bạn: ...")
+        let snippetHtml = '';
+        if (conv.last_message) {
+            if (isStaffLast) {
+                snippetHtml = `<span class="snippet-prefix-you">Bạn: </span>${escapeHtml(conv.last_message)}`;
+            } else {
+                snippetHtml = escapeHtml(conv.last_message);
+            }
+        } else {
+            snippetHtml = '<i>[Bắt đầu trò chuyện]</i>';
+        }
+
         html += `
             <div class="conversation-card ${isActive ? 'active' : ''}" data-conv-id="${conv.id}" onclick="selectConversation(${conv.id})">
                 <div class="card-avatar-wrap">
@@ -301,23 +322,19 @@ function renderConversationsList(conversations) {
                         <span class="card-time-ago">${conv.short_time || formatChatTime(conv.last_message_at) || ''}</span>
                     </div>
 
-                    <!-- Dòng 2: Icon chiều tin (khách gửi / nhân viên gửi) & Nội dung -->
+                    <!-- Dòng 2: Nội dung trích đoạn chat (căn thẳng hàng trực tiếp với tên khách) -->
                     <div class="card-message-line ${isUnread ? 'is-unread' : ''}">
-                        <span class="msg-dir-icon ${isStaffLast ? 'outgoing' : 'incoming'}">
-                            ${isStaffLast ? '<i class="fa-solid fa-check-double"></i>' : '<i class="fa-solid fa-arrow-down-left"></i>'}
-                        </span>
-                        <span class="card-snippet-text">${conv.last_message ? escapeHtml(conv.last_message) : '<i>[Bắt đầu trò chuyện]</i>'}</span>
+                        <span class="card-snippet-text">${snippetHtml}</span>
                     </div>
 
-                    <!-- Dòng 3: Chip Nhãn + Checkmark + Avatar nhân viên phụ trách -->
+                    <!-- Dòng 3: Chip Nhãn + Avatar nhân viên phụ trách đồng bộ -->
                     <div class="card-footer-line">
                         <div class="card-labels-cluster">
                             ${labelPillHtml}
                         </div>
                         <div class="card-status-meta">
-                            <i class="fa-solid fa-circle-check card-resolved-icon" title="Hội thoại hoạt động"></i>
                             <div class="card-assignee-avatar ${conv.assigned_fullname ? '' : 'is-unassigned'}" title="Phụ trách: ${escapeHtml(assignedName)}">
-                                ${assignedAvatar}
+                                ${assignedAvatarHtml}
                             </div>
                         </div>
                     </div>
@@ -380,9 +397,20 @@ async function selectConversation(convId) {
     AppState.activeConvId = convId;
     const thisRequestId = ++AppState.fetchRequestId;
 
-    // 1. Phản hồi giao diện ngay lập tức: Đánh dấu thẻ active
+    // 1. Phản hồi giao diện ngay lập tức: Đánh dấu thẻ active & Gỡ bỏ trạng thái chưa đọc
+    if (AppState.cachedConversations && AppState.cachedConversations[convId]) {
+        AppState.cachedConversations[convId].is_read = 1;
+    }
+    if (AppState.conversationsCache && AppState.conversationsCache[convId] && AppState.conversationsCache[convId].conversation) {
+        AppState.conversationsCache[convId].conversation.is_read = 1;
+    }
     document.querySelectorAll('.conversation-card').forEach(el => {
-        el.classList.toggle('active', el.getAttribute('data-conv-id') == convId);
+        const isTarget = (el.getAttribute('data-conv-id') == convId);
+        el.classList.toggle('active', isTarget);
+        if (isTarget) {
+            const msgLine = el.querySelector('.card-message-line');
+            if (msgLine) msgLine.classList.remove('is-unread');
+        }
     });
 
     // 2. PHƯƠNG ÁN 1: KIỂM TRA BỘ NHỚ ĐỆM (IN-MEMORY CLIENT CACHE) -> HIỂN THỊ TỨC THÌ 0 MILI-GIÂY!
@@ -546,6 +574,7 @@ function renderConversationView(detail) {
         `;
     }
     scrollChatToBottom();
+    updateSeenIndicator();
 
     // 4. Cập nhật Sidebar Phải (Hồ sơ Agent & Nhãn tùy biến)
     renderProfileSidebar(profile, conversation);
@@ -601,6 +630,7 @@ function handleActiveConversationSync(activeData) {
             }
         });
         if (hasNew) {
+            updateSeenIndicator();
             scrollChatToBottom();
         }
 
@@ -623,6 +653,36 @@ function handleActiveConversationSync(activeData) {
     if (assigned_labels) {
         renderAssignedLabels(assigned_labels);
     }
+}
+
+/**
+ * Hiển thị mini avatar của khách hàng dưới tin nhắn cuối cùng do nhân viên gửi (Seen / Đã xem)
+ */
+function updateSeenIndicator() {
+    const viewport = document.getElementById('messagesViewport');
+    if (!viewport) return;
+
+    // Gỡ bỏ seen cũ nếu có
+    const oldIndicator = viewport.querySelector('#chatSeenIndicator');
+    if (oldIndicator) oldIndicator.remove();
+
+    // Tìm tin nhắn cuối cùng do STAFF gửi
+    const staffMessages = viewport.querySelectorAll('.message-item.staff');
+    if (staffMessages.length === 0) return;
+
+    const lastStaffMsg = staffMessages[staffMessages.length - 1];
+    const currentConv = (AppState.cachedConversations ? AppState.cachedConversations[AppState.activeConvId] : null) ||
+                        AppState.activeConversation || {};
+    const custName = currentConv.sender_name || document.getElementById('activeSenderName')?.innerText || 'Khách';
+    const initial = custName.trim().charAt(0).toUpperCase();
+
+    const seenDiv = document.createElement('div');
+    seenDiv.id = 'chatSeenIndicator';
+    seenDiv.className = 'chat-seen-indicator';
+    seenDiv.title = `${escapeHtml(custName)} đã xem`;
+    seenDiv.innerHTML = `<div class="seen-avatar-mini">${escapeHtml(initial)}</div>`;
+
+    lastStaffMsg.after(seenDiv);
 }
 
 /**
@@ -806,6 +866,7 @@ async function sendMessage(attachmentUrl = null) {
                 }).catch(e => console.warn('Browser direct reply push warning:', e));
             }
 
+            updateSeenIndicator();
             scrollChatToBottom();
             runSyncPolling();
         } else {

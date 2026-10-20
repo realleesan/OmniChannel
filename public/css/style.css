@@ -691,12 +691,15 @@ body {
 /* Avatar kèm Channel Badge góc avatar */
 .card-avatar-wrap {
     position: relative;
+    width: 42px;
+    height: 42px;
     flex-shrink: 0;
+    align-self: flex-start;
 }
 
 .card-avatar-circle {
-    width: 44px;
-    height: 44px;
+    width: 42px;
+    height: 42px;
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -711,15 +714,16 @@ body {
     position: absolute;
     bottom: -2px;
     right: -2px;
-    width: 18px;
-    height: 18px;
+    width: 17px;
+    height: 17px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 10px;
+    font-size: 9.5px;
     border: 2px solid #FFFFFF;
     box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    z-index: 2;
 }
 
 .badge-channel-FACEBOOK { background: var(--channel-fb); color: white; }
@@ -761,14 +765,13 @@ body {
     white-space: nowrap;
 }
 
-/* Dòng 2: Icon chiều tin nhắn (↙ / ✓✓) & Trích đoạn chat */
+/* Dòng 2: Nội dung trích đoạn chat (căn thẳng hàng với tên khách) */
 .card-message-line {
     display: flex;
     align-items: center;
-    gap: 6px;
     font-size: 12.5px;
     color: #64748B;
-    line-height: 1.3;
+    line-height: 1.35;
 }
 
 .card-message-line.is-unread {
@@ -776,19 +779,9 @@ body {
     color: #0F172A;
 }
 
-.msg-dir-icon {
-    font-size: 12px;
-    display: inline-flex;
-    align-items: center;
-    flex-shrink: 0;
-}
-
-.msg-dir-icon.incoming {
-    color: #EA580C; /* Màu cam đậm mũi tên khách nhắn đến ↙ */
-}
-
-.msg-dir-icon.outgoing {
-    color: #2563EB; /* Màu xanh dấu tick nhân viên gửi đi */
+.snippet-prefix-you {
+    font-weight: 600;
+    color: #475569;
 }
 
 .card-snippet-text {
@@ -798,7 +791,7 @@ body {
     flex: 1;
 }
 
-/* Dòng 3: Nhãn phân loại tùy biến (Pill) + Checkmark tròn + Avatar nhân viên phụ trách */
+/* Dòng 3: Nhãn phân loại tùy biến (Pill) + Avatar nhân viên phụ trách */
 .card-footer-line {
     display: flex;
     align-items: center;
@@ -838,28 +831,27 @@ body {
     flex-shrink: 0;
 }
 
-.card-resolved-icon {
-    color: #10B981;
-    font-size: 13px;
-}
-
 .card-assignee-avatar {
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    background: #E2E8F0;
-    color: #475569;
-    font-size: 9.5px;
+    background: linear-gradient(135deg, #6366F1, #8B5CF6);
+    color: #FFFFFF;
+    font-size: 10px;
     font-weight: 700;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid #CBD5E1;
+    border: 1.5px solid #FFFFFF;
+    box-shadow: 0 1px 3px rgba(99, 102, 241, 0.25);
+    flex-shrink: 0;
 }
 
 .card-assignee-avatar.is-unassigned {
-    background: #F1F5F9;
+    background: #E2E8F0;
     color: #94A3B8;
+    border: 1px solid #CBD5E1;
+    box-shadow: none;
 }
 
 /* Bảng chọn màu nhãn (Color Picker Grid) */
@@ -1281,6 +1273,36 @@ body {
     text-align: right;
 }
 
+/* Đánh dấu khách đã xem tin nhắn cuối của nhân viên (Seen Indicator) */
+.chat-seen-indicator {
+    display: flex;
+    justify-content: flex-end;
+    padding-right: 6px;
+    margin-top: 3px;
+    margin-bottom: 6px;
+    animation: fadeInSeen 0.2s ease-in-out;
+}
+
+@keyframes fadeInSeen {
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.seen-avatar-mini {
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #EEF2FF, #E0E7FF);
+    color: var(--primary);
+    border: 1px solid #C7D2FE;
+    font-size: 8.5px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
 /* Chat Input Bar */
 .chat-input-container {
     background: #FFFFFF;
@@ -1468,9 +1490,8 @@ body {
 
 .avatar-wrapper-large {
     position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    width: 44px;
+    height: 44px;
     flex-shrink: 0;
 }
 
@@ -1493,14 +1514,16 @@ body {
     position: absolute;
     bottom: -2px;
     right: -2px;
-    width: 19px;
-    height: 19px;
+    width: 17px;
+    height: 17px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 10px;
+    font-size: 9.5px;
     border: 2px solid white;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    z-index: 2;
 }
 
 .customer-primary-meta {

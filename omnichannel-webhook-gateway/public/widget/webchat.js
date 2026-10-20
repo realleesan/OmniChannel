@@ -403,12 +403,17 @@
                 align-items: flex-start !important;
             }
             .omni-bubble {
-                padding: 10px 14px !important;
+                padding: 9px 13px !important;
                 border-radius: 14px !important;
                 font-size: 13.5px !important;
                 line-height: 1.45 !important;
                 word-break: break-word !important;
                 box-sizing: border-box !important;
+                position: relative !important;
+                max-width: 100% !important;
+            }
+            .omni-bubble-content {
+                word-break: break-word !important;
             }
             .omni-msg.customer .omni-bubble {
                 background: #10B981 !important;
@@ -423,10 +428,19 @@
                 box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
             }
             .omni-time {
-                font-size: 10.5px !important;
+                font-size: 10px !important;
+                margin-top: 4px !important;
+                line-height: 1 !important;
+                display: block !important;
+                opacity: 0.85 !important;
+            }
+            .omni-msg.customer .omni-time {
+                color: rgba(255, 255, 255, 0.85) !important;
+                text-align: right !important;
+            }
+            .omni-msg.staff .omni-time {
                 color: #94A3B8 !important;
-                margin-top: 3px !important;
-                padding: 0 4px !important;
+                text-align: left !important;
             }
 
             .omni-chat-input-area {
@@ -890,8 +904,8 @@
         const emptyHint = document.getElementById('omniEmptyHint');
         if (emptyHint) emptyHint.remove();
 
-        // Hiển thị ngay tin nhắn của khách
-        appendMessage('CUSTOMER', text, 'Vừa xong');
+        // Hiển thị ngay tin nhắn của khách với giờ HH:mm nằm trong bubble
+        appendMessage('CUSTOMER', text, '');
 
         try {
             const data = await apiCall('send', {
@@ -944,13 +958,28 @@
                     if (msg.id > session.lastMsgId) {
                         session.lastMsgId = msg.id;
                         if (msg.sender_type === 'STAFF') {
-                            appendMessage('STAFF', msg.content, msg.time_formatted || 'Vừa xong', msg.id);
+                            appendMessage('STAFF', msg.content, msg.time_formatted || '', msg.id);
                         }
                     }
                 });
                 saveSession();
             }
         } catch (e) {}
+    }
+
+    function formatWidgetTime(timeInput) {
+        if (!timeInput || timeInput === 'Vừa xong') {
+            const now = new Date();
+            return String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+        }
+        if (typeof timeInput === 'string' && /^\d{1,2}:\d{2}$/.test(timeInput.trim())) {
+            return timeInput.trim();
+        }
+        const d = new Date(typeof timeInput === 'string' ? timeInput.replace(/-/g, '/') : timeInput);
+        if (!isNaN(d.getTime())) {
+            return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+        }
+        return timeInput;
     }
 
     function appendMessage(senderType, content, time, msgId = null) {
@@ -962,9 +991,12 @@
         const div = document.createElement('div');
         if (msgId) div.id = `omni-msg-${msgId}`;
         div.className = `omni-msg ${senderType.toLowerCase()}`;
+        const displayTime = formatWidgetTime(time);
         div.innerHTML = `
-            <div class="omni-bubble">${escapeHtml(content)}</div>
-            <div class="omni-time">${escapeHtml(time)}</div>
+            <div class="omni-bubble">
+                <div class="omni-bubble-content">${escapeHtml(content)}</div>
+                <div class="omni-time">${escapeHtml(displayTime)}</div>
+            </div>
         `;
         container.appendChild(div);
         container.scrollTop = container.scrollHeight;
