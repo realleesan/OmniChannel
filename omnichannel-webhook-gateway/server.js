@@ -222,10 +222,28 @@ app.post('/api/messages/send', (req, res) => {
 // ========================================================
 const webchatSessions = {};
 
-// Phục vụ file webchat.js tĩnh với Header CORS đầy đủ
+// Phục vụ file webchat.js tĩnh từ nguồn duy nhất với Header CORS và No-Cache đầy đủ
+app.get(['/public/widget/webchat.js', '/widget/webchat.js', '/webchat.js'], (req, res) => {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
+    // Ưu tiên tệp gốc duy nhất của dự án: public/widget/webchat.js
+    const rootPath = path.resolve(__dirname, '../public/widget/webchat.js');
+    if (fs.existsSync(rootPath)) {
+        return res.sendFile(rootPath);
+    }
+    const localPath = path.resolve(__dirname, 'public/widget/webchat.js');
+    if (fs.existsSync(localPath)) {
+        return res.sendFile(localPath);
+    }
+    res.status(404).send('// webchat.js not found');
+});
+
 const widgetStaticPath = path.join(__dirname, '../public/widget');
 const localWidgetPath = path.join(__dirname, 'public/widget');
-
 app.use('/public/widget', express.static(fs.existsSync(widgetStaticPath) ? widgetStaticPath : localWidgetPath));
 app.use('/widget', express.static(fs.existsSync(widgetStaticPath) ? widgetStaticPath : localWidgetPath));
 
