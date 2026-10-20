@@ -207,12 +207,15 @@
             /* PRE-CHAT FORM VIEW */
             #omniPrechatView {
                 flex: 1 !important;
-                display: flex !important;
+                display: flex;
                 flex-direction: column !important;
                 overflow-y: auto !important;
                 padding: 20px 22px !important;
                 background: #FFFFFF !important;
                 box-sizing: border-box !important;
+            }
+            #omniPrechatView.omni-hidden {
+                display: none !important;
             }
             .omni-welcome-box {
                 text-align: center !important;
@@ -368,9 +371,12 @@
             /* CONVERSATION VIEW */
             #omniConversationView {
                 flex: 1 !important;
-                display: none;
+                display: none !important;
                 flex-direction: column !important;
                 overflow: hidden !important;
+            }
+            #omniConversationView.omni-active {
+                display: flex !important;
             }
 
             .omni-chat-messages {
@@ -493,9 +499,6 @@
                     </div>
                 </div>
                 <div style="display:flex;align-items:center;gap:6px;">
-                    <button class="omni-header-btn" id="omniResetBtn" title="Bắt đầu phiên trò chuyện mới (Xóa lịch sử)">
-                        <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
-                    </button>
                     <button class="omni-close-btn" id="omniCloseBtn" title="Đóng cửa sổ chat">
                         <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
                     </button>
@@ -523,7 +526,7 @@
 
                     <div class="omni-form-group">
                         <label class="omni-form-label" for="omniInputPhone">
-                            <span>Số điện thoại / Zalo</span>
+                            <span>SĐT</span>
                             <span class="omni-opt">Không bắt buộc</span>
                         </label>
                         <input type="tel" id="omniInputPhone" class="omni-form-input" placeholder="Ví dụ: 0912 345 678" autocomplete="tel">
@@ -611,6 +614,13 @@
             const errEl = chatBox.querySelector('#omniNameError');
             if (errEl) errEl.style.display = 'none';
         });
+
+        // Thiết lập trạng thái view ban đầu
+        if (hasRealName()) {
+            showConversationView();
+        } else {
+            showPrechatView();
+        }
     }
 
     // 4. Bật / Tắt khung chat
@@ -646,8 +656,14 @@
         const inputInitial = document.getElementById('omniInputInitialMsg');
         const subtitle = document.getElementById('omniHeaderSubtitle');
 
-        if (prechatView) prechatView.style.display = 'flex';
-        if (convView) convView.style.display = 'none';
+        if (prechatView) {
+            prechatView.classList.remove('omni-hidden');
+            prechatView.style.setProperty('display', 'flex', 'important');
+        }
+        if (convView) {
+            convView.classList.remove('omni-active');
+            convView.style.setProperty('display', 'none', 'important');
+        }
 
         if (subtitle) {
             subtitle.innerHTML = 'Vui lòng cung cấp thông tin liên hệ';
@@ -685,8 +701,14 @@
         const subtitle = document.getElementById('omniHeaderSubtitle');
         const input = document.getElementById('omniWidgetInput');
 
-        if (prechatView) prechatView.style.display = 'none';
-        if (convView) convView.style.display = 'flex';
+        if (prechatView) {
+            prechatView.classList.add('omni-hidden');
+            prechatView.style.setProperty('display', 'none', 'important');
+        }
+        if (convView) {
+            convView.classList.add('omni-active');
+            convView.style.setProperty('display', 'flex', 'important');
+        }
 
         // Cập nhật Subtitle hiển thị tên khách, nút đổi tên và nút bắt đầu mới
         if (subtitle) {
