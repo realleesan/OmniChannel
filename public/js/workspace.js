@@ -523,6 +523,39 @@ async function selectConversation(convId) {
 }
 
 /**
+ * Đánh giá trạng thái khóa View-Only (Hết ca trực hoặc Hội thoại của nhân viên khác)
+ */
+function evaluateViewOnlyLock() {
+    const isShiftOffline = (window.APP_CONFIG?.CURRENT_STATUS === 'OFFLINE');
+    const activeConv = AppState.activeConversation ||
+        (AppState.cachedConversations ? AppState.cachedConversations[AppState.activeConvId] : null);
+    const isOtherStaff = Boolean(activeConv && activeConv.assigned_user_id && activeConv.assigned_user_id != window.APP_CONFIG?.CURRENT_USER_ID);
+
+    const lockBanner = document.getElementById('viewOnlyLockBanner');
+    const inputArea = document.getElementById('chatInputArea');
+    const lockTitle = lockBanner ? lockBanner.querySelector('.lock-banner-title') : null;
+    const lockDesc = document.getElementById('viewOnlyLockText');
+
+    if (isShiftOffline) {
+        AppState.isViewOnly = true;
+        if (lockBanner) lockBanner.style.display = 'flex';
+        if (inputArea) inputArea.style.display = 'none';
+        if (lockTitle) lockTitle.innerText = 'CHẾ ĐỘ CHỈ XEM';
+        if (lockDesc) lockDesc.innerText = 'Hội thoại sẽ được phân chia cho nhân viên khác. Bạn không có quyền gửi tin nhắn.';
+    } else if (isOtherStaff) {
+        AppState.isViewOnly = true;
+        if (lockBanner) lockBanner.style.display = 'flex';
+        if (inputArea) inputArea.style.display = 'none';
+        if (lockTitle) lockTitle.innerText = 'CHẾ ĐỘ CHỈ XEM';
+        if (lockDesc) lockDesc.innerText = `Hội thoại đang được phụ trách bởi ${activeConv.assigned_fullname || 'nhân viên khác'}. Bạn không có quyền gửi tin nhắn.`;
+    } else {
+        AppState.isViewOnly = false;
+        if (lockBanner) lockBanner.style.display = 'none';
+        if (inputArea && AppState.activeConvId) inputArea.style.display = 'block';
+    }
+}
+
+/**
  * Render toàn bộ khung chat và hồ sơ khách hàng
  */
 function renderConversationView(detail) {
@@ -533,20 +566,8 @@ function renderConversationView(detail) {
     renderChatHeader(conversation);
     document.getElementById('rightSidebar').style.display = 'flex';
 
-    // 2. Xử lý cơ chế khóa View-Only (UC2.2)
-    AppState.isViewOnly = is_view_only;
-    const lockBanner = document.getElementById('viewOnlyLockBanner');
-    const inputArea = document.getElementById('chatInputArea');
-
-    if (is_view_only) {
-        lockBanner.style.display = 'flex';
-        inputArea.style.display = 'none';
-        document.getElementById('viewOnlyLockText').innerText =
-            `Hội thoại đang được phụ trách bởi ${conversation.assigned_fullname || 'nhân viên khác'}. Bạn không có quyền gửi tin nhắn.`;
-    } else {
-        lockBanner.style.display = 'none';
-        inputArea.style.display = 'block';
-    }
+    // 2. Xử lý cơ chế khóa View-Only (Hết ca hoặc Xem chéo)
+    evaluateViewOnlyLock();
 
     // 3. Xóa sạch vùng tin nhắn và render lịch sử tin nhắn chuẩn
     const viewport = document.getElementById('messagesViewport');
@@ -590,22 +611,8 @@ function handleActiveConversationSync(activeData) {
     // Đảm bảo Header luôn hiển thị thông tin khách hàng
     renderChatHeader(conversation);
 
-    // Cập nhật quyền View-Only nếu có sự thay đổi
-    if (AppState.isViewOnly !== is_view_only) {
-        AppState.isViewOnly = is_view_only;
-        const lockBanner = document.getElementById('viewOnlyLockBanner');
-        const inputArea = document.getElementById('chatInputArea');
-
-        if (is_view_only) {
-            lockBanner.style.display = 'flex';
-            inputArea.style.display = 'none';
-            document.getElementById('viewOnlyLockText').innerText =
-                `Hội thoại đang được phụ trách bởi ${conversation.assigned_fullname || 'nhân viên khác'}. Bạn không có quyền gửi tin nhắn.`;
-        } else {
-            lockBanner.style.display = 'none';
-            inputArea.style.display = 'block';
-        }
-    }
+    // Cập nhật quyền View-Only
+    evaluateViewOnlyLock();
 
     // Gỡ bỏ trạng thái empty state hoặc placeholder nếu có
     const viewport = document.getElementById('messagesViewport');
@@ -679,7 +686,69 @@ function updateSeenIndicator() {
 }
 
 /**
- * Thêm một bong bóng tin nhắn vào khung chat (Định dạng thời gian chuẩn Việt Nam)
+ * Phân tích attachment_url thành mảng danh sách URL (hỗ trợ url đơn, comma-separated, JSON array)
+ */
+function parseAttachmentUrls(raw) {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw.filter(Boolean);
+    const trimmed = String(raw).trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        try {
+            const arr = JSON.parse(trimmed);
+            if (Array.isArray(arr)) return arr.filter(Boolean);
+        } catch (e) {}
+    }
+    return trimmed.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+/**
+ * Xây dựng HTML hiển thị ảnh theo Smart Grid Layout (1-5+ ảnh, không bọc viền bong bóng)
+ */
+function buildMediaGridHtml(urls, senderName, displayTime, msgId, isStaff) {
+    if (!urls || urls.length === 0) return '';
+    const count = urls.length;
+    let gridClass = 'grid-1';
+    if (count === 2) gridClass = 'grid-2';
+    else if (count === 3) gridClass = 'grid-3';
+    else if (count === 4) gridClass = 'grid-4';
+    else if (count >= 5) gridClass = 'grid-5-plus';
+
+    const maxDisplay = Math.min(count, 4);
+    let itemsHtml = '';
+
+    for (let i = 0; i < maxDisplay; i++) {
+        const u = urls[i];
+        const isLastMore = (count > 4 && i === 3);
+        const moreCount = count - 4;
+
+        itemsHtml += `
+            <div class="omni-media-item" onclick="openLightboxFromGrid('${msgId}', ${i})" title="Bấm để xem ảnh phóng to">
+                <img src="${escapeHtml(u)}" alt="Ảnh tin nhắn" loading="lazy">
+                ${isLastMore ? `<div class="omni-media-overlay-more">+${moreCount}</div>` : ''}
+            </div>
+        `;
+    }
+
+    window.__GALLERY_CACHE__ = window.__GALLERY_CACHE__ || {};
+    window.__GALLERY_CACHE__[msgId] = {
+        urls: urls,
+        senderName: senderName,
+        displayTime: displayTime,
+        isStaff: isStaff
+    };
+
+    return `
+        <div class="message-media-wrap">
+            <div class="omni-media-grid ${gridClass}">
+                ${itemsHtml}
+                <div class="media-timestamp-pill">${escapeHtml(displayTime)}</div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Thêm một bong bóng tin nhắn vào khung chat (Định dạng thời gian chuẩn & Smart Grid ảnh)
  */
 function appendMessageBubble(msg, isNew = false) {
     const viewport = document.getElementById('messagesViewport');
@@ -695,52 +764,51 @@ function appendMessageBubble(msg, isNew = false) {
     placeholders.forEach(p => p.remove());
 
     const isStaff = (msg.sender_type === 'STAFF');
+    const currentConv = (AppState.cachedConversations ? AppState.cachedConversations[AppState.activeConvId] : null) || AppState.activeConversation || {};
+    const staffName = msg.staff_name || window.APP_CONFIG?.CURRENT_FULLNAME || 'Nhân viên tư vấn';
+    const custName = currentConv.sender_name || document.getElementById('activeSenderName')?.innerText || 'Khách hàng';
+    const senderName = isStaff ? staffName : custName;
+    const initial = custName.trim().charAt(0).toUpperCase();
 
-    const div = document.createElement('div');
-    if (msg.id) div.id = `msg-${msg.id}`;
-    div.className = `message-item ${isStaff ? 'staff' : 'customer'}`;
-
-    let attachmentHtml = '';
-    if (msg.attachment_url) {
-        attachmentHtml = `
-            <div>
-                <a href="${escapeHtml(msg.attachment_url)}" target="_blank">
-                    <img src="${escapeHtml(msg.attachment_url)}" class="message-attachment-img" alt="Ảnh đính kèm">
-                </a>
-            </div>
-        `;
-    }
-
-    // Định dạng giờ hiển thị theo chuẩn các app chat lớn (Hôm nay: HH:mm, Hôm qua: HH:mm Hôm qua, Cũ hơn: HH:mm d/m hoặc d/m/Y)
+    // Định dạng giờ hiển thị theo chuẩn các app chat lớn
     let displayTime = msg.time_formatted || '';
     if (!displayTime && msg.created_at) {
         displayTime = formatChatTime(msg.created_at);
     }
 
+    const uniqueMsgKey = msg.id || ('temp_' + Math.random().toString(36).substring(2, 8));
+    const urls = parseAttachmentUrls(msg.attachment_url);
+    const hasMedia = urls.length > 0;
+    const hasText = Boolean(msg.content && msg.content.trim().length > 0);
+    const mediaHtml = hasMedia ? buildMediaGridHtml(urls, senderName, displayTime, uniqueMsgKey, isStaff) : '';
+
+    const div = document.createElement('div');
+    if (msg.id) div.id = `msg-${msg.id}`;
+    div.className = `message-item ${isStaff ? 'staff' : 'customer'}`;
+
+    let contentHtml = '';
+    if (hasText) {
+        contentHtml = `
+            <div class="message-bubble">
+                <div class="message-text">${escapeHtml(msg.content)}</div>
+                ${hasMedia ? '' : `<div class="message-timestamp">${escapeHtml(displayTime)}</div>`}
+            </div>
+        `;
+    }
+
     if (isStaff) {
         div.innerHTML = `
             <div class="message-bubble-wrap">
-                <div class="message-bubble">
-                    ${escapeHtml(msg.content)}
-                    ${attachmentHtml}
-                    <div class="message-timestamp">${escapeHtml(displayTime)}</div>
-                </div>
+                ${contentHtml}
+                ${mediaHtml}
             </div>
         `;
     } else {
-        // Bên khách hàng gửi đến: hiển thị Avatar tròn kèm tin nhắn (chuẩn Messenger / Zalo / Telegram)
-        const currentConv = AppState.cachedConversations[AppState.activeConvId] || {};
-        const custName = currentConv.sender_name || document.getElementById('activeSenderName')?.innerText || 'Khách hàng';
-        const initial = custName.trim().charAt(0).toUpperCase();
-
         div.innerHTML = `
             <div class="message-customer-avatar" title="${escapeHtml(custName)}">${escapeHtml(initial)}</div>
             <div class="message-bubble-wrap">
-                <div class="message-bubble">
-                    ${escapeHtml(msg.content)}
-                    ${attachmentHtml}
-                    <div class="message-timestamp">${escapeHtml(displayTime)}</div>
-                </div>
+                ${contentHtml}
+                ${mediaHtml}
             </div>
         `;
     }
@@ -854,7 +922,9 @@ async function sendMessage(attachmentUrl = null) {
                     body: JSON.stringify({
                         customer_id: activeConv.external_sender_id,
                         content: content,
-                        staff_name: data.data.staff_name || 'Nhân viên tư vấn'
+                        attachment_url: attachmentUrl || data.data.attachment_url || null,
+                        staff_name: data.data.staff_name || window.APP_CONFIG.CURRENT_FULLNAME || 'Nhân viên tư vấn',
+                        staff_avatar: data.data.staff_avatar || window.APP_CONFIG.CURRENT_AVATAR || ''
                     })
                 }).catch(e => console.warn('Browser direct reply push warning:', e));
             }
@@ -929,11 +999,11 @@ function applyShortcutDirectly() {
 
 async function handleAttachmentUpload(input) {
     if (!input.files || input.files.length === 0) return;
-    const file = input.files[0];
+    const files = Array.from(input.files);
 
     const formData = new FormData();
     formData.append('action', 'upload_attachment');
-    formData.append('file', file);
+    files.forEach(f => formData.append('files[]', f));
 
     try {
         const res = await fetch('../../api/message_action.php', {
@@ -950,8 +1020,9 @@ async function handleAttachmentUpload(input) {
             if (sIdx !== -1 && eIdx !== -1) data = JSON.parse(text.substring(sIdx, eIdx + 1));
         }
 
-        if (data && data.success && data.data.url) {
-            sendMessage(data.data.url);
+        if (data && data.success && (data.data.attachment_url || data.data.url)) {
+            const finalAttachment = data.data.attachment_url || data.data.url;
+            sendMessage(finalAttachment);
         } else {
             alert(data ? data.message : 'Lỗi tải ảnh');
         }
@@ -982,9 +1053,6 @@ function renderProfileSidebar(profile, conv, assignedLabels) {
             rightAvatarChannelIcon.innerHTML = channelCfg.icon;
             rightAvatarChannelIcon.className = `partner-channel-mini-badge badge-channel-large badge-channel-${conv.channel || 'WEBCHAT'}`;
         }
-
-        const subtextEl = document.getElementById('rightChannelSubtext');
-        if (subtextEl) subtextEl.innerText = `#${conv.id}`;
     }
 
     // Các thuộc tính bóc tách thông tin khách hàng (CRM)
@@ -1218,6 +1286,11 @@ function updateHeaderShiftStatus(status) {
         if (dot) dot.className = 'status-dot';
         if (text) text.innerText = 'Hết ca';
     }
+
+    if (window.APP_CONFIG) {
+        window.APP_CONFIG.CURRENT_STATUS = status;
+    }
+    evaluateViewOnlyLock();
 }
 
 // ========================================================
@@ -1548,4 +1621,160 @@ function escapeHtml(text) {
     if (!text) return '';
     const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
     return text.toString().replace(/[&<>"']/g, m => map[m]);
+}
+
+// ========================================================
+// BỘ ĐIỀU KHIỂN LIGHTBOX GALLERY OVERLAY PHÓNG TO ẢNH CHUYÊN NGHIỆP
+// ========================================================
+let currentLightboxState = {
+    urls: [],
+    currentIndex: 0,
+    senderName: '',
+    displayTime: '',
+    isStaff: false
+};
+
+function ensureLightboxModalInDom() {
+    if (document.getElementById('omniLightboxModal')) return;
+
+    const modal = document.createElement('div');
+    modal.id = 'omniLightboxModal';
+    modal.className = 'omni-lightbox-modal';
+    modal.innerHTML = `
+        <div class="lightbox-topbar">
+            <div class="lightbox-sender-info">
+                <div class="lightbox-sender-avatar" id="lightboxAvatar">?</div>
+                <div>
+                    <div class="lightbox-sender-name" id="lightboxSenderName">Người gửi</div>
+                    <div class="lightbox-send-time" id="lightboxSendTime">Thời gian</div>
+                </div>
+            </div>
+            <div class="lightbox-counter-badge" id="lightboxCounter">Ảnh 1 / 1</div>
+            <div class="lightbox-topbar-actions">
+                <a href="javascript:void(0)" class="lightbox-btn-icon" id="lightboxBtnDownload" title="Tải ảnh về máy" download target="_blank">
+                    <i class="fa-solid fa-download"></i>
+                </a>
+                <button type="button" class="lightbox-btn-icon" id="lightboxBtnClose" onclick="closeLightboxGallery()" title="Đóng (Esc)">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+        <div class="lightbox-stage">
+            <button type="button" class="lightbox-nav-btn" id="lightboxPrevBtn" onclick="navigateLightbox(-1)" title="Ảnh trước (← hoặc ↑)">
+                <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <div class="lightbox-main-container">
+                <img id="lightboxMainImg" class="lightbox-main-img" src="" alt="Ảnh phóng to">
+            </div>
+            <button type="button" class="lightbox-nav-btn" id="lightboxNextBtn" onclick="navigateLightbox(1)" title="Ảnh tiếp (→ hoặc ↓)">
+                <i class="fa-solid fa-chevron-right"></i>
+            </button>
+        </div>
+        <div class="lightbox-thumbnails-strip" id="lightboxThumbsStrip"></div>
+    `;
+    document.body.appendChild(modal);
+
+    // Bắt sự kiện phím tắt chuyển ảnh và đóng
+    window.addEventListener('keydown', (e) => {
+        const lb = document.getElementById('omniLightboxModal');
+        if (!lb || !lb.classList.contains('is-open')) return;
+        if (e.key === 'Escape') {
+            closeLightboxGallery();
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+            navigateLightbox(-1);
+        } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+            navigateLightbox(1);
+        }
+    });
+}
+
+function openLightboxFromGrid(msgId, startIndex = 0) {
+    ensureLightboxModalInDom();
+    const cached = window.__GALLERY_CACHE__ && window.__GALLERY_CACHE__[msgId];
+    if (!cached || !cached.urls || cached.urls.length === 0) return;
+
+    currentLightboxState.urls = cached.urls;
+    currentLightboxState.currentIndex = Math.max(0, Math.min(startIndex, cached.urls.length - 1));
+    currentLightboxState.senderName = cached.senderName || 'Người gửi';
+    currentLightboxState.displayTime = cached.displayTime || '';
+    currentLightboxState.isStaff = cached.isStaff;
+
+    const modal = document.getElementById('omniLightboxModal');
+    modal.classList.add('is-open');
+
+    // Cập nhật thông tin người gửi
+    document.getElementById('lightboxSenderName').innerText = currentLightboxState.senderName;
+    document.getElementById('lightboxSendTime').innerText = currentLightboxState.displayTime ? `Gửi lúc: ${currentLightboxState.displayTime}` : '';
+    const avatarEl = document.getElementById('lightboxAvatar');
+    if (cached.isStaff && window.APP_CONFIG?.CURRENT_AVATAR) {
+        avatarEl.innerHTML = `<img src="${escapeHtml(window.APP_CONFIG.CURRENT_AVATAR)}" alt="Avatar">`;
+    } else {
+        avatarEl.innerText = (currentLightboxState.senderName || 'U').charAt(0).toUpperCase();
+    }
+
+    renderLightboxThumbs();
+    updateLightboxActiveImage();
+}
+
+function updateLightboxActiveImage() {
+    const { urls, currentIndex } = currentLightboxState;
+    if (urls.length === 0) return;
+
+    const mainImg = document.getElementById('lightboxMainImg');
+    const counterEl = document.getElementById('lightboxCounter');
+    const downloadBtn = document.getElementById('lightboxBtnDownload');
+    const currentUrl = urls[currentIndex];
+
+    mainImg.src = currentUrl;
+    counterEl.innerText = `Ảnh ${currentIndex + 1} / ${urls.length}`;
+    if (downloadBtn) downloadBtn.href = currentUrl;
+
+    // Ẩn nút điều hướng nếu chỉ có 1 ảnh duy nhất
+    document.getElementById('lightboxPrevBtn').style.visibility = (urls.length > 1) ? 'visible' : 'hidden';
+    document.getElementById('lightboxNextBtn').style.visibility = (urls.length > 1) ? 'visible' : 'hidden';
+
+    // Đổi chỉ mục thumbnail đang kích hoạt
+    const thumbs = document.querySelectorAll('.lightbox-thumb-item');
+    thumbs.forEach((t, idx) => {
+        t.classList.toggle('active', idx === currentIndex);
+        if (idx === currentIndex) {
+            t.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
+    });
+}
+
+function renderLightboxThumbs() {
+    const strip = document.getElementById('lightboxThumbsStrip');
+    const { urls } = currentLightboxState;
+    if (urls.length <= 1) {
+        strip.style.display = 'none';
+        return;
+    }
+    strip.style.display = 'flex';
+    strip.innerHTML = urls.map((u, idx) => `
+        <div class="lightbox-thumb-item ${idx === currentLightboxState.currentIndex ? 'active' : ''}" onclick="selectLightboxIndex(${idx})">
+            <img src="${escapeHtml(u)}" alt="Thumb ${idx + 1}">
+        </div>
+    `).join('');
+}
+
+function selectLightboxIndex(idx) {
+    if (idx < 0 || idx >= currentLightboxState.urls.length) return;
+    currentLightboxState.currentIndex = idx;
+    updateLightboxActiveImage();
+}
+
+function navigateLightbox(dir) {
+    const { urls, currentIndex } = currentLightboxState;
+    if (urls.length <= 1) return;
+    let next = currentIndex + dir;
+    if (next < 0) next = urls.length - 1;
+    else if (next >= urls.length) next = 0;
+    currentLightboxState.currentIndex = next;
+    updateLightboxActiveImage();
+}
+
+function closeLightboxGallery() {
+    const modal = document.getElementById('omniLightboxModal');
+    if (modal) modal.classList.remove('is-open');
 }

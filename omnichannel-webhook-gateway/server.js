@@ -289,14 +289,49 @@ app.all('/api/webchat/init', (req, res) => {
     });
 });
 
-// Khách gửi tin nhắn từ Webchat Widget
+// Thư mục lưu ảnh upload từ Webchat Widget
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+app.use('/uploads', express.static(uploadsDir));
+
+// Endpoint upload ảnh trực tiếp từ Webchat Widget (dạng Base64)
+app.post('/api/webchat/upload', (req, res) => {
+    try {
+        const { data } = req.body || {};
+        if (!data) {
+            return res.status(400).json({ success: false, message: 'Thiếu dữ liệu ảnh' });
+        }
+        const matches = data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        if (!matches || matches.length !== 3) {
+            return res.status(400).json({ success: false, message: 'Định dạng Base64 không hợp lệ' });
+        }
+        const mime = matches[1];
+        let ext = mime.split('/')[1] || 'jpg';
+        if (ext === 'jpeg') ext = 'jpg';
+        const buffer = Buffer.from(matches[2], 'base64');
+        const safeName = 'chat_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8) + '.' + ext;
+        const filePath = path.join(uploadsDir, safeName);
+        fs.writeFileSync(filePath, buffer);
+
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        const host = req.get('host');
+        const fileUrl = `${protocol}://${host}/uploads/${safeName}`;
+
+        res.json({ success: true, url: fileUrl });
+    } catch (e) {
+        res.status(500).json({ success: false, message: 'Lỗi lưu ảnh: ' + e.message });
+    }
+});
+
+// Khách gửi tin nhắn từ Webchat Widget (Hỗ trợ cả text và ảnh)
 app.post('/api/webchat/send', (req, res) => {
     const customerId = req.body?.customer_id || ('web_' + Math.random().toString(36).substring(2, 10));
     const customerName = req.body?.customer_name || webchatSessions[customerId]?.customerName || ('Khách Web ' + customerId.substring(customerId.length - 4));
     const customerPhone = req.body?.customer_phone || webchatSessions[customerId]?.customerPhone || '';
     const content = req.body?.content || '';
+    const attachmentUrl = req.body?.attachment_url || null;
 
-    if (!content.trim()) {
+    if (!content.trim() && !attachmentUrl) {
         return res.status(400).json({ success: false, message: 'Nội dung trống' });
     }
 
@@ -312,6 +347,7 @@ app.post('/api/webchat/send', (req, res) => {
         id: msgId,
         sender_type: 'CUSTOMER',
         content,
+        attachment_url: attachmentUrl,
         created_at: new Date().toISOString(),
         time_formatted: new Date().toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false })
     };
@@ -324,7 +360,7 @@ app.post('/api/webchat/send', (req, res) => {
         sender_name: customerName,
         customer_phone: customerPhone,
         content: content,
-        attachment_url: null,
+        attachment_url: attachmentUrl,
         received_at: new Date().toISOString()
     });
 
@@ -336,15 +372,16 @@ app.post('/api/webchat/send', (req, res) => {
         conversation_id: customerId,
         message_id: msgId,
         content: content,
+        attachment_url: attachmentUrl,
         sender_type: 'CUSTOMER',
         time: newMsg.time_formatted
     });
 });
 
-// Nhân viên phản hồi lại khách từ CRM
+// Nhân viên phản hồi lại khách từ CRM (kèm attachment_url và staff_avatar)
 app.post('/api/webchat/reply', (req, res) => {
-    const { customer_id, content, staff_name } = req.body || {};
-    if (!customer_id || !content) {
+    const { customer_id, content, staff_name, staff_avatar, attachment_url } = req.body || {};
+    if (!customer_id || (!content && !attachment_url)) {
         return res.status(400).json({ success: false, message: 'Thiếu dữ liệu' });
     }
 
@@ -356,6 +393,7 @@ app.post('/api/webchat/reply', (req, res) => {
     const isDuplicate = webchatSessions[customer_id].messages.some(m => 
         m.sender_type === 'STAFF' && 
         m.content === content && 
+        m.attachment_url === (attachment_url || null) &&
         (Date.now() - (m.id || 0)) < 6000
     );
     if (isDuplicate) {
@@ -367,7 +405,9 @@ app.post('/api/webchat/reply', (req, res) => {
         id: msgId,
         sender_type: 'STAFF',
         staff_name: staff_name || 'Nhân viên tư vấn',
-        content,
+        staff_avatar: staff_avatar || '',
+        content: content || '',
+        attachment_url: attachment_url || null,
         created_at: new Date().toISOString(),
         time_formatted: new Date().toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false })
     };

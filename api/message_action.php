@@ -59,33 +59,51 @@ switch ($action) {
         break;
 
     case 'upload_attachment':
-        if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
-            jsonResponse(false, [], 'Không có tệp tải lên hoặc lỗi tải tệp');
-        }
-
-        $file = $_FILES['file'];
+        $uploadedUrls = [];
         $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-
-        if (!in_array($ext, $allowedExtensions)) {
-            jsonResponse(false, [], 'Chỉ chấp nhận file ảnh: jpg, jpeg, png, gif, webp');
-        }
-
-        if ($file['size'] > 5 * 1024 * 1024) { // 5MB
-            jsonResponse(false, [], 'Dung lượng ảnh tối đa là 5MB');
-        }
-
         $uploadDir = __DIR__ . '/../public/uploads/';
         if (!is_dir($uploadDir)) {
             @mkdir($uploadDir, 0777, true);
         }
 
-        $fileName = 'attach_' . time() . '_' . uniqid() . '.' . $ext;
-        $targetPath = $uploadDir . $fileName;
+        $filesToProcess = [];
+        if (isset($_FILES['files']) && is_array($_FILES['files']['name'])) {
+            foreach ($_FILES['files']['name'] as $idx => $name) {
+                if ($_FILES['files']['error'][$idx] === UPLOAD_ERR_OK) {
+                    $filesToProcess[] = [
+                        'name'     => $name,
+                        'tmp_name' => $_FILES['files']['tmp_name'][$idx],
+                        'size'     => $_FILES['files']['size'][$idx]
+                    ];
+                }
+            }
+        } elseif (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
+            $filesToProcess[] = $_FILES['file'];
+        }
 
-        if (move_uploaded_file($file['tmp_name'], $targetPath)) {
-            $fileUrl = BASE_URL . '/public/uploads/' . $fileName;
-            jsonResponse(true, ['url' => $fileUrl], 'Tải ảnh thành công');
+        if (empty($filesToProcess)) {
+            jsonResponse(false, [], 'Không có tệp tải lên hợp lệ');
+        }
+
+        foreach ($filesToProcess as $f) {
+            $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
+            if (!in_array($ext, $allowedExtensions)) continue;
+            if ($f['size'] > 10 * 1024 * 1024) continue; // 10MB max
+
+            $fileName = 'attach_' . time() . '_' . uniqid() . '.' . $ext;
+            $targetPath = $uploadDir . $fileName;
+
+            if (move_uploaded_file($f['tmp_name'], $targetPath)) {
+                $uploadedUrls[] = BASE_URL . '/public/uploads/' . $fileName;
+            }
+        }
+
+        if (!empty($uploadedUrls)) {
+            jsonResponse(true, [
+                'url'            => $uploadedUrls[0],
+                'urls'           => $uploadedUrls,
+                'attachment_url' => implode(',', $uploadedUrls)
+            ], 'Tải ảnh thành công');
         } else {
             jsonResponse(false, [], 'Không thể lưu tệp ảnh lên máy chủ');
         }

@@ -47,6 +47,7 @@ class AuthController {
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['username'] = $user['username'];
         $_SESSION['fullname'] = $user['fullname'];
+        $_SESSION['avatar'] = User::getAvatarUrl($user['avatar'] ?? '', $user['id']);
         
         $this->userModel->updateStatus($user['id'], 'ONLINE');
 

@@ -57,7 +57,11 @@ class Conversation {
             WHERE c.id = :id
         ");
         $stmt->execute([':id' => $id]);
-        return $stmt->fetch();
+        $conv = $stmt->fetch();
+        if ($conv) {
+            $conv['assigned_avatar'] = User::getAvatarUrl($conv['assigned_avatar'] ?? '', $conv['assigned_user_id'] ?? 0);
+        }
+        return $conv;
     }
 
     /**
@@ -156,6 +160,7 @@ class Conversation {
         foreach ($conversations as &$conv) {
             $conv['is_mine'] = ($conv['assigned_user_id'] == $currentUserId);
             $conv['is_view_only'] = (!empty($conv['assigned_user_id']) && $conv['assigned_user_id'] != $currentUserId);
+            $conv['assigned_avatar'] = User::getAvatarUrl($conv['assigned_avatar'] ?? '', $conv['assigned_user_id'] ?? 0);
             $conv['time_ago'] = timeAgo($conv['last_message_at']);
             $conv['labels'] = $labelsMap[$conv['id']] ?? [];
 

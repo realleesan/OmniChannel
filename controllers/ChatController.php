@@ -81,7 +81,7 @@ class ChatController {
 
         // Đẩy tin phản hồi của nhân viên sang Render Gateway để Widget Webchat nhận ngay
         if ($conv['channel'] === 'WEBCHAT' && defined('RENDER_GATEWAY_URL') && !empty(RENDER_GATEWAY_URL)) {
-            $this->pushReplyToWebchatGateway($conv['external_sender_id'], $content);
+            $this->pushReplyToWebchatGateway($conv['external_sender_id'], $content, $attachmentUrl);
         }
 
         return [
@@ -93,6 +93,7 @@ class ChatController {
                 'sender_type'    => 'STAFF',
                 'sender_id'      => $userId,
                 'staff_name'     => $_SESSION['fullname'] ?? 'Nhân viên tư vấn',
+                'staff_avatar'   => $_SESSION['avatar'] ?? '',
                 'attachment_url' => $attachmentUrl,
                 'created_at'     => date('Y-m-d H:i:s'),
                 'time_formatted' => date('H:i')
@@ -103,7 +104,7 @@ class ChatController {
     /**
      * Gửi bản sao tin nhắn trả lời của nhân viên tới Webchat Gateway
      */
-    private function pushReplyToWebchatGateway($customerId, $content) {
+    private function pushReplyToWebchatGateway($customerId, $content, $attachmentUrl = null) {
         if (!defined('RENDER_GATEWAY_URL') || empty(RENDER_GATEWAY_URL) || empty($customerId)) return;
         try {
             $url = rtrim(RENDER_GATEWAY_URL, '/') . '/api/webchat/reply';
@@ -116,9 +117,11 @@ class ChatController {
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
             curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-                'customer_id' => $customerId,
-                'content'     => $content,
-                'staff_name'  => $_SESSION['fullname'] ?? 'Nhân viên tư vấn'
+                'customer_id'    => $customerId,
+                'content'        => $content,
+                'attachment_url' => $attachmentUrl,
+                'staff_name'     => $_SESSION['fullname'] ?? 'Nhân viên tư vấn',
+                'staff_avatar'   => $_SESSION['avatar'] ?? ''
             ]));
             curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
             @curl_exec($ch);
@@ -175,10 +178,10 @@ class ChatController {
             $transferredAgentId = $this->convModel->checkAndTransferShiftIfNeeded($conversationId);
         }
 
-        // Lưu tin nhắn của khách vào CSDL (chỉ tạo khi có nội dung thực tế)
+        // Lưu tin nhắn của khách vào CSDL (chỉ tạo khi có nội dung thực tế hoặc có ảnh đính kèm)
         $messageId = null;
-        if (isset($content) && strlen(trim($content)) > 0) {
-            $messageId = $this->msgModel->create($conversationId, 'CUSTOMER', null, $content, $attachmentUrl);
+        if ((isset($content) && strlen(trim($content)) > 0) || !empty($attachmentUrl)) {
+            $messageId = $this->msgModel->create($conversationId, 'CUSTOMER', null, $content ?: '', $attachmentUrl);
         }
 
         return [

@@ -54,7 +54,11 @@ if (!$currentUser) {
 
         <!-- Thông tin nhân viên -->
         <div class="user-profile-badge">
-            <div class="user-avatar-circle"><?= mb_substr($currentUser['fullname'], 0, 1, 'UTF-8') ?></div>
+            <?php if (!empty($currentUser['avatar']) && filter_var($currentUser['avatar'], FILTER_VALIDATE_URL)): ?>
+                <img src="<?= htmlspecialchars($currentUser['avatar']) ?>" class="user-avatar-circle" style="object-fit:cover;border:1.5px solid #C7D2FE;width:34px;height:34px;border-radius:50%;" alt="Avatar">
+            <?php else: ?>
+                <div class="user-avatar-circle"><?= mb_substr($currentUser['fullname'], 0, 1, 'UTF-8') ?></div>
+            <?php endif; ?>
             <div class="user-meta-name">NV: <?= htmlspecialchars($currentUser['fullname']) ?></div>
             <a href="?logout=1" class="btn-logout" title="Đăng xuất" onclick="return confirm('Bạn có chắc muốn đăng xuất và rời ca trực?');">
                 <i class="fa-solid fa-right-from-bracket"></i>
@@ -240,8 +244,8 @@ if (isset($_GET['logout'])) {
                 <textarea id="chatInput" class="chat-textarea" rows="2" placeholder="Nhập tin nhắn tư vấn... (Gõ / để dùng mẫu trả lời nhanh, Enter để gửi)" onkeydown="handleChatKeyDown(event)" onkeyup="handleShortcutDetect(event)"></textarea>
 
                 <div class="input-actions-group">
-                    <!-- UC3.1: Ghim đính kèm ảnh -->
-                    <input type="file" id="attachmentInput" accept="image/*" style="display:none;" onchange="handleAttachmentUpload(this)">
+                    <!-- UC3.1: Ghim đính kèm ảnh (Hỗ trợ chọn nhiều ảnh) -->
+                    <input type="file" id="attachmentInput" accept="image/*" multiple style="display:none;" onchange="handleAttachmentUpload(this)">
                     <button type="button" class="icon-action-btn" title="Đính kèm ảnh sản phẩm / bảng size" onclick="document.getElementById('attachmentInput').click()">
                         <i class="fa-solid fa-paperclip"></i>
                     </button>
@@ -284,7 +288,6 @@ if (isset($_GET['logout'])) {
                 <div class="customer-name-heading">
                     <span id="profileCustomerName">Đang tải...</span>
                 </div>
-                <div class="customer-channel-subtext" id="rightChannelSubtext">#1</div>
             </div>
         </div>
 
@@ -316,22 +319,22 @@ if (isset($_GET['logout'])) {
                 <div class="attr-value-text" id="crmPhone">Chưa có thông tin</div>
             </div>
 
-            <!-- Địa chỉ nhận hàng / Khu vực -->
+            <!-- Địa chỉ nhận hàng -->
             <div class="attribute-item-box">
                 <div class="attr-header">
-                    <span class="attr-label"><i class="fa-solid fa-location-dot"></i> Địa chỉ / Khu vực:</span>
-                    <button type="button" class="btn-edit-inline crm-edit-btn" onclick="editFieldPrompt('address', 'Địa chỉ giao hàng / Khu vực')">
+                    <span class="attr-label"><i class="fa-solid fa-location-dot"></i> Địa chỉ:</span>
+                    <button type="button" class="btn-edit-inline crm-edit-btn" onclick="editFieldPrompt('address', 'Địa chỉ giao hàng')">
                         <i class="fa-solid fa-pen-to-square"></i> Sửa
                     </button>
                 </div>
                 <div class="attr-value-text" id="crmAddress">Chưa có thông tin</div>
             </div>
 
-            <!-- Nhu cầu / Sản phẩm quan tâm -->
+            <!-- Sản phẩm quan tâm -->
             <div class="attribute-item-box">
                 <div class="attr-header">
-                    <span class="attr-label"><i class="fa-solid fa-bag-shopping"></i> Nhu cầu / Sản phẩm:</span>
-                    <button type="button" class="btn-edit-inline crm-edit-btn" onclick="editFieldPrompt('customer_needs', 'Nhu cầu hoặc sản phẩm quan tâm')">
+                    <span class="attr-label"><i class="fa-solid fa-bag-shopping"></i> Sản phẩm quan tâm:</span>
+                    <button type="button" class="btn-edit-inline crm-edit-btn" onclick="editFieldPrompt('customer_needs', 'Sản phẩm quan tâm')">
                         <i class="fa-solid fa-pen-to-square"></i> Sửa
                     </button>
                 </div>
@@ -461,6 +464,7 @@ if (isset($_GET['logout'])) {
         CURRENT_USER_ID: <?= (int)$currentUser['id'] ?>,
         CURRENT_USERNAME: '<?= addslashes($currentUser['username']) ?>',
         CURRENT_FULLNAME: '<?= addslashes($currentUser['fullname']) ?>',
+        CURRENT_AVATAR: '<?= addslashes($currentUser['avatar'] ?? '') ?>',
         CURRENT_STATUS: '<?= addslashes($currentUser['status']) ?>',
         BASE_URL: '<?= addslashes(BASE_URL) ?>',
         RENDER_GATEWAY_URL: '<?= addslashes(RENDER_GATEWAY_URL) ?>'
