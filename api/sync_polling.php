@@ -71,13 +71,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($postAction === 'save_settings' || $postAction === 'save_config' || $postAction === 'sync_data' || $postAction === 'sync' || $postAction === 'gsheet_sync' || $postAction === 'gsheet_save_config') {
         require __DIR__ . '/google_sheet_action.php';
         exit;
-    } elseif ($postAction === 'create_template' || $postAction === 'update_template' || $postAction === 'delete_template' || $postAction === 'get_templates' || strpos($postAction, 'template') !== false) {
+    } elseif ($postAction === 'create_template' || $postAction === 'update_template' || $postAction === 'delete_template' || $postAction === 'get_templates' || strpos($postAction, 'template') !== false || strpos($postAction, 'tpl') !== false) {
         require __DIR__ . '/template_action.php';
         exit;
     }
 }
 
-if (in_array(($_GET['action'] ?? ''), ['get_templates', 'get_template_list', 'check_shortcut'])) {
+if (in_array(($_GET['action'] ?? ''), ['get_templates', 'get_template_list', 'check_shortcut', 'tpl_list'])) {
     require __DIR__ . '/template_action.php';
     exit;
 }

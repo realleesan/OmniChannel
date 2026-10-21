@@ -16,8 +16,10 @@ if (!$userId) {
     exit;
 }
 
-$rawInput = file_get_contents('php://input');
-$jsonData = json_decode($rawInput, true) ?: [];
+if (!isset($jsonData) || empty($jsonData)) {
+    $rawInput = file_get_contents('php://input');
+    $jsonData = json_decode($rawInput, true) ?: [];
+}
 
 $action = $jsonData['action'] ?? $_POST['action'] ?? $_GET['action'] ?? '';
 $templateController = new TemplateController();
@@ -26,6 +28,7 @@ switch ($action) {
     case 'get_list':
     case 'get_templates':
     case 'get_template_list':
+    case 'tpl_list':
         $templates = $templateController->getList();
         echo json_encode(['success' => true, 'templates' => $templates], JSON_UNESCAPED_UNICODE);
         break;
@@ -40,6 +43,9 @@ switch ($action) {
     case 'create':
     case 'create_template':
     case 'template_create':
+    case 'tpl_save':
+    case 'tpl_create':
+    case 'save_template':
         $shortcut = trim($jsonData['shortcut'] ?? $_POST['shortcut'] ?? '');
         $title = trim($jsonData['title'] ?? $_POST['title'] ?? '');
         $content = trim($jsonData['content'] ?? $_POST['content'] ?? '');
@@ -58,6 +64,9 @@ switch ($action) {
     case 'update':
     case 'update_template':
     case 'template_update':
+    case 'tpl_update':
+    case 'tpl_edit':
+    case 'edit_template':
         $id = (int)($jsonData['id'] ?? $_POST['id'] ?? 0);
         $shortcut = trim($jsonData['shortcut'] ?? $_POST['shortcut'] ?? '');
         $title = trim($jsonData['title'] ?? $_POST['title'] ?? '');
@@ -77,6 +86,9 @@ switch ($action) {
     case 'delete':
     case 'delete_template':
     case 'template_delete':
+    case 'tpl_delete':
+    case 'tpl_remove':
+    case 'remove_template':
         $id = (int)($jsonData['id'] ?? $_POST['id'] ?? 0);
         $res = $templateController->delete($id);
         if ($res['success']) {
