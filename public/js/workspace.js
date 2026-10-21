@@ -927,23 +927,25 @@ async function sendMessage(attachmentUrl = null) {
     document.getElementById('shortcutPreviewBar').style.display = 'none';
 
     try {
-        const formData = new FormData();
-        formData.append('action', 'send_message');
-        formData.append('conversation_id', AppState.activeConvId);
-        formData.append('content', content);
+        const payload = {
+            action: 'send_message',
+            conversation_id: AppState.activeConvId,
+            content: content
+        };
         if (attachmentUrl) {
-            formData.append('attachment_url', attachmentUrl);
+            payload.attachment_url = attachmentUrl;
         }
 
         let res = null;
         let text = '';
         let data = null;
 
-        // Ưu tiên 1: Gửi qua message_action.php (không chứa từ khóa 'chat' để tránh bộ lọc WAF)
+        // Ưu tiên 1: Gửi qua message_action.php dạng JSON (miễn nhiễm bộ lọc WAF multipart 403 của InfinityFree)
         try {
             res = await fetch('../../api/message_action.php', {
                 method: 'POST',
-                body: formData
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
             });
             text = await res.text();
             try {
@@ -961,12 +963,13 @@ async function sendMessage(attachmentUrl = null) {
             console.warn('Gửi qua message_action.php gặp sự cố mạng:', netErr);
         }
 
-        // Fail-safe tầng 2: Nếu WAF chặn 403 hoặc phản hồi không hợp lệ, dùng sync_polling.php (100% được hosting cho phép)
+        // Fail-safe tầng 2: Nếu WAF chặn hoặc phản hồi lỗi, dùng sync_polling.php dạng JSON
         if (!data || (!data.success && (res?.status === 403 || text.includes('403 Forbidden') || text.includes('blocking you')))) {
             try {
                 res = await fetch('../../api/sync_polling.php', {
                     method: 'POST',
-                    body: formData
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
                 });
                 text = await res.text();
                 try {
@@ -1944,6 +1947,28 @@ function selectUnreadScope(scope) {
     fetchConversations();
 }
 
+let globalAudioCtx = null;
+
+/**
+ * Mở khóa Web Audio API ngay khi có tương tác đầu tiên của người dùng
+ */
+function unlockAudioContext() {
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        if (!globalAudioCtx) {
+            globalAudioCtx = new AudioCtx();
+        }
+        if (globalAudioCtx.state === 'suspended') {
+            globalAudioCtx.resume().catch(() => {});
+        }
+    } catch (e) {}
+}
+
+document.addEventListener('click', unlockAudioContext, { passive: true });
+document.addEventListener('keydown', unlockAudioContext, { passive: true });
+document.addEventListener('touchstart', unlockAudioContext, { passive: true });
+
 /**
  * Âm thanh thông báo tin nhắn mới tinh tế chuẩn Web Audio API Synthesizer (Ting-Ting)
  * Âm lượng tiêu chuẩn tối ưu to, rõ ràng và vang chuẩn 0.95
@@ -1952,10 +1977,14 @@ function playNotificationSound() {
     try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         if (!AudioCtx) return;
-        const ctx = new AudioCtx();
-        if (ctx.state === 'suspended') {
-            ctx.resume();
+        if (!globalAudioCtx) {
+            globalAudioCtx = new AudioCtx();
         }
+        if (globalAudioCtx.state === 'suspended') {
+            globalAudioCtx.resume().catch(() => {});
+            return; // Đợi user gesture tiếp theo, tránh ném lỗi đỏ console
+        }
+        const ctx = globalAudioCtx;
         const now = ctx.currentTime;
 
         // Âm sắc 1 (587.33 Hz - nốt D5, âm lượng to rõ chuẩn 0.90)

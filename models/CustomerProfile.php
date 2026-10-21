@@ -11,39 +11,118 @@ class CustomerProfile {
 
     public function __construct() {
         $this->db = Database::getConnection();
+
+        // Tự động kiểm tra và bổ sung các cột CRM nếu CSDL chưa có (Self-healing schema)
+        static $checkedCrmSchema = false;
+        if (!$checkedCrmSchema) {
+            $checkedCrmSchema = true;
+            try {
+                $cols = $this->db->query("DESCRIBE customer_profiles")->fetchAll(PDO::FETCH_COLUMN);
+                $needed = [
+                    'real_name'            => "VARCHAR(150) NULL AFTER customer_name",
+                    'phone'                => "VARCHAR(50) NULL AFTER real_name",
+                    'address'              => "VARCHAR(255) NULL AFTER phone",
+                    'customer_needs'       => "TEXT NULL AFTER address",
+                    'conversation_summary' => "TEXT NULL AFTER customer_needs",
+                    'from_date'            => "DATE NULL AFTER conversation_summary",
+                    'to_date'              => "DATE NULL AFTER from_date",
+                    'preferred_size'       => "VARCHAR(50) DEFAULT 'Chưa xác định'",
+                    'recent_purchases'     => "TEXT NULL",
+                    'is_boom_risk'         => "TINYINT(1) DEFAULT 0",
+                    'boom_note'            => "VARCHAR(255) NULL",
+                    'scan_version'         => "INT DEFAULT 1"
+                ];
+                foreach ($needed as $col => $def) {
+                    if (!in_array($col, $cols)) {
+                        @$this->db->exec("ALTER TABLE customer_profiles ADD COLUMN $col $def");
+                    }
+                }
+            } catch (Throwable $e) {}
+        }
     }
 
     public function getByConversationId($conversationId) {
-        $stmt = $this->db->prepare("SELECT * FROM customer_profiles WHERE conversation_id = :conversation_id LIMIT 1");
-        $stmt->execute([':conversation_id' => $conversationId]);
-        $profile = $stmt->fetch();
+        try {
+            $stmt = $this->db->prepare("SELECT * FROM customer_profiles WHERE conversation_id = :conversation_id LIMIT 1");
+            $stmt->execute([':conversation_id' => $conversationId]);
+            $profile = $stmt->fetch();
+        } catch (Throwable $e) {
+            $profile = false;
+        }
 
         if (!$profile) {
             // Khởi tạo hồ sơ mặc định nếu chưa có
-            $convStmt = $this->db->prepare("SELECT sender_name FROM conversations WHERE id = :id");
-            $convStmt->execute([':id' => $conversationId]);
-            $conv = $convStmt->fetch();
-            $customerName = $conv['sender_name'] ?? 'Khách Hàng';
+            $customerName = 'Khách Hàng';
+            try {
+                $convStmt = $this->db->prepare("SELECT sender_name FROM conversations WHERE id = :id");
+                $convStmt->execute([':id' => $conversationId]);
+                $conv = $convStmt->fetch();
+                if (!empty($conv['sender_name'])) {
+                    $customerName = $conv['sender_name'];
+                }
+            } catch (Throwable $e) {}
 
-            $insertStmt = $this->db->prepare("
-                INSERT INTO customer_profiles (conversation_id, customer_name, real_name, phone, address, customer_needs, conversation_summary, from_date, to_date, last_scanned_at)
-                VALUES (:cid, :cname, NULL, NULL, NULL, NULL, NULL, CURDATE(), CURDATE(), NOW())
-            ");
-            $insertStmt->execute([':cid' => $conversationId, ':cname' => $customerName]);
-            return $this->getByConversationId($conversationId);
+            $inserted = false;
+            // Thử chèn đầy đủ cột
+            try {
+                $insertStmt = $this->db->prepare("
+                    INSERT INTO customer_profiles (conversation_id, customer_name, real_name, phone, address, customer_needs, conversation_summary, from_date, to_date, last_scanned_at)
+                    VALUES (:cid, :cname, NULL, NULL, NULL, NULL, NULL, CURDATE(), CURDATE(), NOW())
+                ");
+                $insertStmt->execute([':cid' => $conversationId, ':cname' => $customerName]);
+                $inserted = true;
+            } catch (Throwable $e1) {
+                // Fallback nếu bảng chưa có các cột nâng cao
+                try {
+                    $insertStmt = $this->db->prepare("INSERT INTO customer_profiles (conversation_id, customer_name) VALUES (:cid, :cname)");
+                    $insertStmt->execute([':cid' => $conversationId, ':cname' => $customerName]);
+                    $inserted = true;
+                } catch (Throwable $e2) {}
+            }
+
+            if ($inserted) {
+                try {
+                    $stmt = $this->db->prepare("SELECT * FROM customer_profiles WHERE conversation_id = :conversation_id LIMIT 1");
+                    $stmt->execute([':conversation_id' => $conversationId]);
+                    $profile = $stmt->fetch();
+                } catch (Throwable $e) {}
+            }
+
+            if (!$profile) {
+                return [
+                    'conversation_id'        => $conversationId,
+                    'customer_name'          => $customerName,
+                    'real_name'              => null,
+                    'phone'                  => null,
+                    'address'                => null,
+                    'customer_needs'         => null,
+                    'conversation_summary'   => null,
+                    'from_date_formatted'    => date('d/m/Y'),
+                    'to_date_formatted'      => date('d/m/Y'),
+                    'last_scanned_formatted' => date('H:i - d/m/Y')
+                ];
+            }
         }
 
         // Lấy ngày bắt đầu nhắn tin đầu tiên và ngày nhắn tin gần nhất từ messages
-        $dateStmt = $this->db->prepare("
-            SELECT DATE(MIN(created_at)) as min_date, DATE(MAX(created_at)) as max_date 
-            FROM messages 
-            WHERE conversation_id = :cid
-        ");
-        $dateStmt->execute([':cid' => $conversationId]);
-        $dateRange = $dateStmt->fetch();
-
-        $fromDate = !empty($profile['from_date']) ? $profile['from_date'] : ($dateRange['min_date'] ?? date('Y-m-d'));
-        $toDate = !empty($profile['to_date']) ? $profile['to_date'] : ($dateRange['max_date'] ?? date('Y-m-d'));
+        $fromDate = $profile['from_date'] ?? null;
+        $toDate = $profile['to_date'] ?? null;
+        if (empty($fromDate) || empty($toDate)) {
+            try {
+                $dateStmt = $this->db->prepare("
+                    SELECT DATE(MIN(created_at)) as min_date, DATE(MAX(created_at)) as max_date 
+                    FROM messages 
+                    WHERE conversation_id = :cid
+                ");
+                $dateStmt->execute([':cid' => $conversationId]);
+                $dateRange = $dateStmt->fetch();
+                if (!$fromDate) $fromDate = $dateRange['min_date'] ?? date('Y-m-d');
+                if (!$toDate) $toDate = $dateRange['max_date'] ?? date('Y-m-d');
+            } catch (Throwable $e) {
+                if (!$fromDate) $fromDate = date('Y-m-d');
+                if (!$toDate) $toDate = date('Y-m-d');
+            }
+        }
 
         $profile['from_date_formatted'] = date('d/m/Y', strtotime($fromDate));
         $profile['to_date_formatted'] = date('d/m/Y', strtotime($toDate));
@@ -54,13 +133,17 @@ class CustomerProfile {
     }
 
     public function updateManual($conversationId, $field, $value) {
-        $allowedFields = ['customer_name', 'real_name', 'phone', 'address', 'customer_needs', 'conversation_summary', 'from_date', 'to_date'];
+        $allowedFields = ['customer_name', 'real_name', 'phone', 'address', 'customer_needs', 'conversation_summary', 'from_date', 'to_date', 'recent_purchases', 'preferred_size'];
         if (!in_array($field, $allowedFields)) {
             return false;
         }
 
-        $stmt = $this->db->prepare("UPDATE customer_profiles SET {$field} = :value, last_scanned_at = NOW() WHERE conversation_id = :cid");
-        return $stmt->execute([':value' => $value, ':cid' => $conversationId]);
+        try {
+            $stmt = $this->db->prepare("UPDATE customer_profiles SET {$field} = :value, last_scanned_at = NOW() WHERE conversation_id = :cid");
+            return $stmt->execute([':value' => $value, ':cid' => $conversationId]);
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 
     /**

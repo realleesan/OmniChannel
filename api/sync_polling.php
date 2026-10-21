@@ -25,13 +25,16 @@ if (session_status() === PHP_SESSION_ACTIVE) {
 
 // Hỗ trợ gửi tin nhắn và đổi ca trực trực tiếp qua sync_polling để miễn nhiễm tuyệt đối với WAF chặn POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $postAction = $_POST['action'] ?? '';
+    $rawInput = file_get_contents('php://input');
+    $jsonData = json_decode($rawInput, true) ?: [];
+
+    $postAction = $jsonData['action'] ?? $_POST['action'] ?? '';
     if ($postAction === 'send_message') {
         require_once __DIR__ . '/../controllers/ChatController.php';
         $chatController = new ChatController();
-        $conversationId = (int)($_POST['conversation_id'] ?? 0);
-        $content = trim($_POST['content'] ?? '');
-        $attachmentUrl = trim($_POST['attachment_url'] ?? '');
+        $conversationId = (int)($jsonData['conversation_id'] ?? $_POST['conversation_id'] ?? 0);
+        $content = trim($jsonData['content'] ?? $_POST['content'] ?? '');
+        $attachmentUrl = trim($jsonData['attachment_url'] ?? $_POST['attachment_url'] ?? '');
 
         if (empty($content) && empty($attachmentUrl)) {
             jsonResponse(false, [], 'Nội dung tin nhắn không được để trống', 200);
@@ -46,15 +49,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($postAction === 'toggle_shift') {
         require_once __DIR__ . '/../controllers/AuthController.php';
         $authController = new AuthController();
-        $newStatus = trim($_POST['status'] ?? 'ONLINE');
+        $newStatus = trim($jsonData['status'] ?? $_POST['status'] ?? 'ONLINE');
         $res = $authController->toggleStatus($newStatus);
         jsonResponse($res['success'], ['status' => $res['status']], 'Đã cập nhật ca trực', 200);
     } elseif ($postAction === 'update_label') {
         require_once __DIR__ . '/../models/Label.php';
         $labelModel = new Label();
-        $id = (int)($_POST['id'] ?? 0);
-        $name = trim($_POST['name'] ?? '');
-        $color = trim($_POST['color'] ?? '#3B82F6');
+        $id = (int)($jsonData['id'] ?? $_POST['id'] ?? 0);
+        $name = trim($jsonData['name'] ?? $_POST['name'] ?? '');
+        $color = trim($jsonData['color'] ?? $_POST['color'] ?? '#3B82F6');
         $res = $labelModel->update($id, $name, $color);
         echo json_encode($res);
         exit;

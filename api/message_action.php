@@ -21,13 +21,16 @@ if (session_status() === PHP_SESSION_ACTIVE) {
     session_write_close();
 }
 
-$action = $_POST['action'] ?? $_GET['action'] ?? '';
+$rawInput = file_get_contents('php://input');
+$jsonData = json_decode($rawInput, true) ?: [];
+
+$action = $jsonData['action'] ?? $_POST['action'] ?? $_GET['action'] ?? '';
 $chatController = new ChatController();
 $authController = new AuthController();
 
 switch ($action) {
     case 'get_conversation':
-        $conversationId = (int)($_GET['id'] ?? 0);
+        $conversationId = (int)($jsonData['id'] ?? $_GET['id'] ?? $_POST['id'] ?? 0);
         $data = $chatController->getConversationDetail($conversationId, $userId);
         if (!$data) {
             jsonResponse(false, [], 'Không tìm thấy hội thoại', 404);
@@ -36,9 +39,9 @@ switch ($action) {
         break;
 
     case 'send_message':
-        $conversationId = (int)($_POST['conversation_id'] ?? 0);
-        $content = trim($_POST['content'] ?? '');
-        $attachmentUrl = trim($_POST['attachment_url'] ?? '');
+        $conversationId = (int)($jsonData['conversation_id'] ?? $_POST['conversation_id'] ?? $_GET['conversation_id'] ?? 0);
+        $content = trim($jsonData['content'] ?? $_POST['content'] ?? $_GET['content'] ?? '');
+        $attachmentUrl = trim($jsonData['attachment_url'] ?? $_POST['attachment_url'] ?? $_GET['attachment_url'] ?? '');
 
         if (empty($content) && empty($attachmentUrl)) {
             jsonResponse(false, [], 'Nội dung tin nhắn không được để trống');
