@@ -143,6 +143,23 @@ if (!file_exists(__DIR__ . '/.schema_fixed_customer_seen')) {
     } catch (Exception $e) {}
 }
 
+// Tự động bổ sung trường last_active_at cho bảng users (Heartbeat kiểm soát ca trực tự động)
+if (!file_exists(__DIR__ . '/.schema_fixed_user_active')) {
+    @file_put_contents(__DIR__ . '/.schema_fixed_user_active', '1');
+    try {
+        $db = Database::getConnection();
+        $cols = $db->query("DESCRIBE users")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('last_active_at', $cols)) {
+            $db->exec("ALTER TABLE users ADD COLUMN last_active_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP");
+        }
+    } catch (Exception $e) {}
+}
+
+// Cập nhật nhịp đập hoạt động thực tế (Heartbeat) của nhân viên đang mở giao diện làm việc
+if ($userId && $userStatus === 'ONLINE') {
+    $userModel->updateLastActive($userId);
+}
+
 // Hỗ trợ cập nhật khách hàng đã xem (Customer Seen)
 if (($_GET['action'] ?? '') === 'customer_seen') {
     $cid = trim($_GET['customer_id'] ?? '');

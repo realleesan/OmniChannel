@@ -261,12 +261,20 @@ class Conversation {
         $userModel = new User();
         $assignedUser = $conv['assigned_user_id'] ? $userModel->findById($conv['assigned_user_id']) : null;
 
-        // Nếu chưa gán hoặc nhân viên phụ trách đã OFFLINE
+        // Nếu chưa gán hoặc nhân viên phụ trách đã OFFLINE (do Đăng xuất hoặc Hết ca)
         if (!$assignedUser || $assignedUser['status'] === 'OFFLINE') {
             $availableAgent = $userModel->findAgentForAssignment();
-            if ($availableAgent && (!$assignedUser || $availableAgent['id'] != $assignedUser['id'])) {
-                $this->assignToUser($conversationId, $availableAgent['id']);
-                return $availableAgent['id'];
+            if ($availableAgent) {
+                if (!$assignedUser || $availableAgent['id'] != $assignedUser['id']) {
+                    $this->assignToUser($conversationId, $availableAgent['id']);
+                    return $availableAgent['id'];
+                }
+            } else {
+                // Toàn bộ nhân viên đều đã OFFLINE/hết ca: Giải phóng khỏi nhân viên đã đăng xuất, chuyển về Chưa gán
+                if (!empty($conv['assigned_user_id'])) {
+                    $this->assignToUser($conversationId, null);
+                }
+                return null;
             }
         }
         return false;

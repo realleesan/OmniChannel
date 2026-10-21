@@ -8,9 +8,17 @@ require_once __DIR__ . '/../../config/constants.php';
 require_once __DIR__ . '/../../controllers/AuthController.php';
 require_once __DIR__ . '/../../controllers/ChatController.php';
 
+$authController = new AuthController();
+
+// Xử lý đăng xuất TRƯỚC TIÊN (Trước khi gửi bất kỳ thẻ HTML nào!)
+if (isset($_GET['logout'])) {
+    $authController->logout();
+    header('Location: ' . BASE_URL . '/views/auth/login.php');
+    exit;
+}
+
 requireLogin();
 
-$authController = new AuthController();
 $currentUser = $authController->getCurrentUser();
 if (!$currentUser) {
     header('Location: ' . BASE_URL . '/views/auth/login.php');
@@ -60,20 +68,12 @@ if (!$currentUser) {
                 <div class="user-avatar-circle"><?= mb_substr($currentUser['fullname'], 0, 1, 'UTF-8') ?></div>
             <?php endif; ?>
             <div class="user-meta-name">NV: <?= htmlspecialchars($currentUser['fullname']) ?></div>
-            <a href="?logout=1" class="btn-logout" title="Đăng xuất" onclick="return confirm('Bạn có chắc muốn đăng xuất và rời ca trực?');">
+            <a href="../auth/logout.php" class="btn-logout" title="Đăng xuất (Kết thúc ca trực)" onclick="return confirm('Bạn có chắc muốn đăng xuất và rời ca trực?');">
                 <i class="fa-solid fa-right-from-bracket"></i>
             </a>
         </div>
     </div>
 </header>
-
-<?php
-if (isset($_GET['logout'])) {
-    $authController->logout();
-    header('Location: ' . BASE_URL . '/views/auth/login.php');
-    exit;
-}
-?>
 
 <!-- ========================================================
      3-ZONE UNIFIED WORKSPACE CONTAINER

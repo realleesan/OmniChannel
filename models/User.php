@@ -70,8 +70,26 @@ class User {
 
     public function updateStatus($id, $status) {
         $status = in_array($status, ['ONLINE', 'OFFLINE']) ? $status : 'OFFLINE';
-        $stmt = $this->db->prepare("UPDATE users SET status = :status WHERE id = :id");
-        return $stmt->execute([':status' => $status, ':id' => $id]);
+        if ($status === 'ONLINE') {
+            $stmt = $this->db->prepare("UPDATE users SET status = 'ONLINE', last_active_at = NOW() WHERE id = :id");
+        } else {
+            $stmt = $this->db->prepare("UPDATE users SET status = 'OFFLINE', last_active_at = NULL WHERE id = :id");
+        }
+        $res = $stmt->execute([':id' => $id]);
+        $this->syncChatCounts();
+        return $res;
+    }
+
+    /**
+     * Cập nhật nhịp đập hoạt động thực tế (Heartbeat) của nhân viên đang làm việc
+     */
+    public function updateLastActive($id) {
+        try {
+            $stmt = $this->db->prepare("UPDATE users SET last_active_at = NOW() WHERE id = :id AND status = 'ONLINE'");
+            return $stmt->execute([':id' => $id]);
+        } catch (Exception $e) {
+            return false;
+        }
     }
 
     public function getOnlineAgents() {
@@ -85,11 +103,24 @@ class User {
 
     /**
      * Thuật toán Chia tải: Tìm nhân viên đang ONLINE có ít hội thoại nhất
+     * Tự động loại bỏ bất kỳ nhân viên nào đã ĐĂNG XUẤT hoặc TẮT CA (OFFLINE)
      */
     public function findAgentForAssignment() {
-        // Cập nhật lại số lượng chat thực tế trước khi gán
+        // 1. Tự động chuyển OFFLINE các nhân viên đã đóng trình duyệt hoặc mất kết nối quá 60s mà không bấm đăng xuất
+        try {
+            $this->db->exec("
+                UPDATE users 
+                SET status = 'OFFLINE' 
+                WHERE status = 'ONLINE' 
+                  AND last_active_at IS NOT NULL 
+                  AND last_active_at < (NOW() - INTERVAL 60 SECOND)
+            ");
+        } catch (Exception $e) {}
+
+        // 2. Cập nhật lại số lượng chat thực tế trước khi gán
         $this->syncChatCounts();
 
+        // 3. Chỉ chọn nhân viên đang thực sự ONLINE trong ca trực
         $stmt = $this->db->query("
             SELECT id, fullname, current_chat_count 
             FROM users 
