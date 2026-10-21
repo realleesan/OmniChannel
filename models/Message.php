@@ -31,13 +31,15 @@ class Message {
         $messageId = (int)$this->db->lastInsertId();
 
         // Cập nhật last_message và last_sender_type cho hội thoại
-        $convModel = new Conversation();
-        $newStatus = ($senderType === 'STAFF') ? 'CHATTING' : 'UNREPLIED';
-        $summaryContent = trim((string)$content);
-        if (empty($summaryContent) && !empty($attachmentUrl)) {
-            $summaryContent = '[Hình ảnh]';
-        }
-        $convModel->updateLastMessage($conversationId, $summaryContent, $senderType, $newStatus);
+        try {
+            $convModel = new Conversation();
+            $newStatus = ($senderType === 'STAFF') ? 'CHATTING' : 'UNREPLIED';
+            $summaryContent = trim((string)$content);
+            if (empty($summaryContent) && !empty($attachmentUrl)) {
+                $summaryContent = '[Hình ảnh]';
+            }
+            $convModel->updateLastMessage($conversationId, $summaryContent, $senderType, $newStatus);
+        } catch (Throwable $e) {}
 
         return $messageId;
     }

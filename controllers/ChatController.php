@@ -59,46 +59,50 @@ class ChatController {
      * Nhân viên gửi tin nhắn phản hồi
      */
     public function sendStaffMessage($conversationId, $userId, $content, $attachmentUrl = null) {
-        $conv = $this->convModel->getById($conversationId);
-        if (!$conv) {
-            return ['success' => false, 'message' => 'Hội thoại không tồn tại'];
-        }
+        try {
+            $conv = $this->convModel->getById($conversationId);
+            if (!$conv) {
+                return ['success' => false, 'message' => 'Hội thoại không tồn tại'];
+            }
 
-        // UC2.2: Khóa View-Only - Ngăn chặn cướp đơn nếu hội thoại thuộc nhân viên khác
-        if (!empty($conv['assigned_user_id']) && $conv['assigned_user_id'] != $userId) {
+            // UC2.2: Khóa View-Only - Ngăn chặn cướp đơn nếu hội thoại thuộc nhân viên khác
+            if (!empty($conv['assigned_user_id']) && $conv['assigned_user_id'] != $userId) {
+                return [
+                    'success' => false, 
+                    'message' => 'Chế độ Chỉ xem – Hội thoại đang do ' . $conv['assigned_fullname'] . ' phụ trách. Bạn không thể gửi tin nhắn.'
+                ];
+            }
+
+            // Nếu hội thoại chưa được gán cho ai, tự động nhận cho nhân viên hiện tại
+            if (empty($conv['assigned_user_id'])) {
+                $this->convModel->assignToUser($conversationId, $userId);
+            }
+
+            $messageId = $this->msgModel->create($conversationId, 'STAFF', $userId, $content, $attachmentUrl);
+
+            // Đẩy tin phản hồi của nhân viên sang Render Gateway để Widget Webchat nhận ngay
+            if ($conv['channel'] === 'WEBCHAT' && defined('RENDER_GATEWAY_URL') && !empty(RENDER_GATEWAY_URL)) {
+                $this->pushReplyToWebchatGateway($conv['external_sender_id'], $content, $attachmentUrl);
+            }
+
             return [
-                'success' => false, 
-                'message' => 'Chế độ Chỉ xem – Hội thoại đang do ' . $conv['assigned_fullname'] . ' phụ trách. Bạn không thể gửi tin nhắn.'
+                'success'    => true, 
+                'message_id' => $messageId,
+                'data'       => [
+                    'id'             => $messageId,
+                    'content'        => $content,
+                    'sender_type'    => 'STAFF',
+                    'sender_id'      => $userId,
+                    'staff_name'     => $_SESSION['fullname'] ?? 'Nhân viên tư vấn',
+                    'staff_avatar'   => $_SESSION['avatar'] ?? '',
+                    'attachment_url' => $attachmentUrl,
+                    'created_at'     => date('Y-m-d H:i:s'),
+                    'time_formatted' => date('H:i')
+                ]
             ];
+        } catch (Throwable $e) {
+            return ['success' => false, 'message' => 'Lỗi máy chủ khi gửi: ' . $e->getMessage()];
         }
-
-        // Nếu hội thoại chưa được gán cho ai, tự động nhận cho nhân viên hiện tại
-        if (empty($conv['assigned_user_id'])) {
-            $this->convModel->assignToUser($conversationId, $userId);
-        }
-
-        $messageId = $this->msgModel->create($conversationId, 'STAFF', $userId, $content, $attachmentUrl);
-
-        // Đẩy tin phản hồi của nhân viên sang Render Gateway để Widget Webchat nhận ngay
-        if ($conv['channel'] === 'WEBCHAT' && defined('RENDER_GATEWAY_URL') && !empty(RENDER_GATEWAY_URL)) {
-            $this->pushReplyToWebchatGateway($conv['external_sender_id'], $content, $attachmentUrl);
-        }
-
-        return [
-            'success'    => true, 
-            'message_id' => $messageId,
-            'data'       => [
-                'id'             => $messageId,
-                'content'        => $content,
-                'sender_type'    => 'STAFF',
-                'sender_id'      => $userId,
-                'staff_name'     => $_SESSION['fullname'] ?? 'Nhân viên tư vấn',
-                'staff_avatar'   => $_SESSION['avatar'] ?? '',
-                'attachment_url' => $attachmentUrl,
-                'created_at'     => date('Y-m-d H:i:s'),
-                'time_formatted' => date('H:i')
-            ]
-        ];
     }
 
     /**
@@ -134,61 +138,79 @@ class ChatController {
      * Tự động chia tải và tự động đổi ca khi nhân viên phụ trách rời ca
      */
     public function receiveCustomerMessage($channel, $externalSenderId, $senderName, $content, $attachmentUrl = null, $customerPhone = null) {
-        $conv = $this->convModel->findByExternalSender($channel, $externalSenderId);
-        $isNewConversation = false;
+        try {
+            $conv = $this->convModel->findByExternalSender($channel, $externalSenderId);
+            $isNewConversation = false;
 
-        if (!$conv) {
-            // Hội thoại mới -> Áp dụng thuật toán chia tải UC2.1
-            $isNewConversation = true;
-            $bestAgent = $this->userModel->findAgentForAssignment();
-            $assignedUserId = $bestAgent ? $bestAgent['id'] : null;
+            if (!$conv) {
+                // Hội thoại mới -> Áp dụng thuật toán chia tải UC2.1
+                $isNewConversation = true;
+                $bestAgent = $this->userModel->findAgentForAssignment();
+                $assignedUserId = $bestAgent ? $bestAgent['id'] : null;
 
-            $conversationId = $this->convModel->create(
-                $channel,
-                $externalSenderId,
-                $senderName,
-                $assignedUserId,
-                'UNREPLIED',
-                null
-            );
+                $conversationId = $this->convModel->create(
+                    $channel,
+                    $externalSenderId,
+                    $senderName,
+                    $assignedUserId,
+                    'UNREPLIED',
+                    null
+                );
 
-            // Khởi tạo hồ sơ khách hàng ban đầu
-            $this->profileModel->getByConversationId($conversationId);
-            if (!empty($customerPhone)) {
-                $this->profileModel->updateManual($conversationId, 'recent_purchases', 'SĐT: ' . $customerPhone);
-            }
-        } else {
-            $conversationId = $conv['id'];
+                // Khởi tạo hồ sơ khách hàng ban đầu
+                try {
+                    $this->profileModel->getByConversationId($conversationId);
+                    if (!empty($customerPhone)) {
+                        $this->profileModel->updateManual($conversationId, 'recent_purchases', 'SĐT: ' . $customerPhone);
+                    }
+                } catch (Throwable $e) {}
+            } else {
+                $conversationId = $conv['id'];
 
-            // Nếu tên khách thay đổi (ví dụ trước là "Khách Web..." nay có họ tên thật từ Pre-chat form)
-            if (!empty($senderName) && $conv['sender_name'] !== $senderName) {
-                $this->convModel->updateSenderName($conversationId, $senderName);
-                $this->profileModel->updateManual($conversationId, 'customer_name', $senderName);
-            }
-
-            // Cập nhật SĐT nếu có
-            if (!empty($customerPhone)) {
-                $currentProfile = $this->profileModel->getByConversationId($conversationId);
-                if (empty($currentProfile['recent_purchases']) || $currentProfile['recent_purchases'] === 'Chưa có thông tin' || $currentProfile['recent_purchases'] === 'Chưa có đơn hàng cũ') {
-                    $this->profileModel->updateManual($conversationId, 'recent_purchases', 'SĐT: ' . $customerPhone);
+                // Nếu tên khách thay đổi (ví dụ trước là "Khách Web..." nay có họ tên thật từ Pre-chat form)
+                if (!empty($senderName) && $conv['sender_name'] !== $senderName) {
+                    try {
+                        $this->convModel->updateSenderName($conversationId, $senderName);
+                        $this->profileModel->updateManual($conversationId, 'customer_name', $senderName);
+                    } catch (Throwable $e) {}
                 }
+
+                // Cập nhật SĐT nếu có
+                if (!empty($customerPhone)) {
+                    try {
+                        $currentProfile = $this->profileModel->getByConversationId($conversationId);
+                        if (empty($currentProfile['recent_purchases']) || $currentProfile['recent_purchases'] === 'Chưa có thông tin' || $currentProfile['recent_purchases'] === 'Chưa có đơn hàng cũ') {
+                            $this->profileModel->updateManual($conversationId, 'recent_purchases', 'SĐT: ' . $customerPhone);
+                        }
+                    } catch (Throwable $e) {}
+                }
+
+                // UC2.3: Kiểm tra chuyển giao đổi ca nếu nhân viên phụ trách đã OFFLINE
+                try {
+                    $transferredAgentId = $this->convModel->checkAndTransferShiftIfNeeded($conversationId);
+                } catch (Throwable $e) {}
             }
 
-            // UC2.3: Kiểm tra chuyển giao đổi ca nếu nhân viên phụ trách đã OFFLINE
-            $transferredAgentId = $this->convModel->checkAndTransferShiftIfNeeded($conversationId);
-        }
+            // Lưu tin nhắn của khách vào CSDL (chỉ tạo khi có nội dung thực tế hoặc có ảnh đính kèm)
+            $messageId = null;
+            if ((isset($content) && strlen(trim($content)) > 0) || !empty($attachmentUrl)) {
+                $messageId = $this->msgModel->create($conversationId, 'CUSTOMER', null, $content ?: '', $attachmentUrl);
+            }
 
-        // Lưu tin nhắn của khách vào CSDL (chỉ tạo khi có nội dung thực tế hoặc có ảnh đính kèm)
-        $messageId = null;
-        if ((isset($content) && strlen(trim($content)) > 0) || !empty($attachmentUrl)) {
-            $messageId = $this->msgModel->create($conversationId, 'CUSTOMER', null, $content ?: '', $attachmentUrl);
+            return [
+                'success'             => true,
+                'conversation_id'     => $conversationId,
+                'message_id'          => $messageId,
+                'is_new_conversation' => $isNewConversation
+            ];
+        } catch (Throwable $e) {
+            return [
+                'success'             => false,
+                'message'             => $e->getMessage(),
+                'conversation_id'     => null,
+                'message_id'          => null,
+                'is_new_conversation' => false
+            ];
         }
-
-        return [
-            'success'             => true,
-            'conversation_id'     => $conversationId,
-            'message_id'          => $messageId,
-            'is_new_conversation' => $isNewConversation
-        ];
     }
 }

@@ -58,6 +58,7 @@ CREATE TABLE conversations (
     assigned_user_id INT NULL,
     status ENUM('UNREPLIED', 'CHATTING', 'CLOSED') DEFAULT 'UNREPLIED',
     is_read TINYINT(1) DEFAULT 0,
+    customer_seen TINYINT(1) DEFAULT 0,
     tag ENUM('DANG_TU_VAN', 'DA_CHOT', 'CHO_CHUYEN_KHOAN', 'BOOM_HANG') NULL DEFAULT NULL,
     last_message TEXT NULL,
     last_sender_type ENUM('CUSTOMER', 'STAFF') DEFAULT 'CUSTOMER',

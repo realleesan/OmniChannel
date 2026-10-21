@@ -12,6 +12,18 @@ class Conversation {
 
     public function __construct() {
         $this->db = Database::getConnection();
+
+        // Tự động kiểm tra và bổ sung cột customer_seen nếu CSDL chưa có (Self-healing schema)
+        static $checkedConvSchema = false;
+        if (!$checkedConvSchema) {
+            $checkedConvSchema = true;
+            try {
+                $cols = $this->db->query("DESCRIBE conversations")->fetchAll(PDO::FETCH_COLUMN);
+                if (!in_array('customer_seen', $cols)) {
+                    @$this->db->exec("ALTER TABLE conversations ADD COLUMN customer_seen TINYINT(1) DEFAULT 0 AFTER is_read");
+                }
+            } catch (Throwable $e) {}
+        }
     }
 
     public function findByExternalSender($channel, $externalSenderId) {
@@ -188,18 +200,25 @@ class Conversation {
      * Cập nhật trạng thái khách hàng đã xem (Seen) qua Webchat/kênh kết nối
      */
     public function setCustomerSeen($id, $seen = 1) {
-        $stmt = $this->db->prepare("UPDATE conversations SET customer_seen = :seen WHERE id = :id");
-        return $stmt->execute([':seen' => $seen, ':id' => $id]);
+        try {
+            $stmt = $this->db->prepare("UPDATE conversations SET customer_seen = :seen WHERE id = :id");
+            return $stmt->execute([':seen' => $seen, ':id' => $id]);
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 
     public function setCustomerSeenByExternalId($externalSenderId, $seen = 1) {
-        $stmt = $this->db->prepare("UPDATE conversations SET customer_seen = :seen WHERE external_sender_id = :ext_id");
-        return $stmt->execute([':seen' => $seen, ':ext_id' => $externalSenderId]);
+        try {
+            $stmt = $this->db->prepare("UPDATE conversations SET customer_seen = :seen WHERE external_sender_id = :ext_id");
+            return $stmt->execute([':seen' => $seen, ':ext_id' => $externalSenderId]);
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 
     public function updateLastMessage($id, $content, $senderType = 'CUSTOMER', $status = null) {
         $now = date('Y-m-d H:i:s');
-        $sql = "UPDATE conversations SET last_message = :content, last_sender_type = :sender_type, last_message_at = :now";
         $params = [
             ':content'     => $content,
             ':sender_type' => $senderType,
@@ -207,22 +226,44 @@ class Conversation {
             ':id'          => $id
         ];
 
-        // Nếu nhân viên gửi thì đánh dấu nhân viên đã đọc, nhưng khách CHƯA xem (customer_seen = 0)
-        // Nếu khách gửi thì đánh dấu nhân viên chưa đọc (is_read = 0)
-        if ($senderType === 'STAFF') {
-            $sql .= ", is_read = 1, customer_seen = 0";
-        } else {
-            $sql .= ", is_read = 0, customer_seen = 1";
-        }
+        // Ưu tiên 1: Cập nhật có customer_seen
+        try {
+            $sql = "UPDATE conversations SET last_message = :content, last_sender_type = :sender_type, last_message_at = :now";
+            if ($senderType === 'STAFF') {
+                $sql .= ", is_read = 1, customer_seen = 0";
+            } else {
+                $sql .= ", is_read = 0, customer_seen = 1";
+            }
 
-        if ($status !== null) {
-            $sql .= ", status = :status";
-            $params[':status'] = $status;
-        }
+            if ($status !== null) {
+                $sql .= ", status = :status";
+                $params[':status'] = $status;
+            }
 
-        $sql .= " WHERE id = :id";
-        $stmt = $this->db->prepare($sql);
-        return $stmt->execute($params);
+            $sql .= " WHERE id = :id";
+            $stmt = $this->db->prepare($sql);
+            return $stmt->execute($params);
+        } catch (Throwable $e) {
+            // Fallback nếu bảng chưa có cột customer_seen
+            try {
+                $sqlFallback = "UPDATE conversations SET last_message = :content, last_sender_type = :sender_type, last_message_at = :now";
+                if ($senderType === 'STAFF') {
+                    $sqlFallback .= ", is_read = 1";
+                } else {
+                    $sqlFallback .= ", is_read = 0";
+                }
+
+                if ($status !== null) {
+                    $sqlFallback .= ", status = :status";
+                }
+
+                $sqlFallback .= " WHERE id = :id";
+                $stmtFallback = $this->db->prepare($sqlFallback);
+                return $stmtFallback->execute($params);
+            } catch (Throwable $e2) {
+                return false;
+            }
+        }
     }
 
     public function assignToUser($id, $userId) {
