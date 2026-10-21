@@ -24,30 +24,26 @@ if (session_status() === PHP_SESSION_ACTIVE) {
 }
 
 // Hỗ trợ gửi tin nhắn và đổi ca trực trực tiếp qua sync_polling để miễn nhiễm tuyệt đối với WAF chặn POST
-$reqAction = $_POST['action'] ?? $_GET['action'] ?? '';
-if ($reqAction === 'send_message') {
-    require_once __DIR__ . '/../controllers/ChatController.php';
-    $chatController = new ChatController();
-    $conversationId = (int)($_POST['conversation_id'] ?? $_GET['conversation_id'] ?? 0);
-    $content = trim($_POST['content'] ?? $_GET['content'] ?? '');
-    $attachmentUrl = trim($_POST['attachment_url'] ?? $_GET['attachment_url'] ?? '');
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $postAction = $_POST['action'] ?? '';
+    if ($postAction === 'send_message') {
+        require_once __DIR__ . '/../controllers/ChatController.php';
+        $chatController = new ChatController();
+        $conversationId = (int)($_POST['conversation_id'] ?? 0);
+        $content = trim($_POST['content'] ?? '');
+        $attachmentUrl = trim($_POST['attachment_url'] ?? '');
 
-    if (empty($content) && empty($attachmentUrl)) {
-        jsonResponse(false, [], 'Nội dung tin nhắn không được để trống', 200);
-    }
+        if (empty($content) && empty($attachmentUrl)) {
+            jsonResponse(false, [], 'Nội dung tin nhắn không được để trống', 200);
+        }
 
-    try {
         $res = $chatController->sendStaffMessage($conversationId, $userId, $content, $attachmentUrl ?: null);
         if ($res['success']) {
             jsonResponse(true, $res['data'], 'Gửi tin nhắn thành công');
         } else {
             jsonResponse(false, [], $res['message'], 200);
         }
-    } catch (Throwable $e) {
-        jsonResponse(false, [], 'Lỗi gửi tin nhắn: ' . $e->getMessage(), 200);
-    }
-} elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $postAction = $_POST['action'] ?? '';
+    } elseif ($postAction === 'toggle_shift') {
         require_once __DIR__ . '/../controllers/AuthController.php';
         $authController = new AuthController();
         $newStatus = trim($_POST['status'] ?? 'ONLINE');
@@ -177,31 +173,27 @@ if (($_GET['action'] ?? '') === 'customer_seen') {
     exit;
 }
 
-try {
-    // 2. Lấy danh sách hội thoại theo bộ lọc mới (chuẩn plan.md)
-    $conversations = $convModel->getFilteredList($userId, $tab, $unrepliedScope, $search, $labelId, $channel);
+// 2. Lấy danh sách hội thoại theo bộ lọc mới (chuẩn plan.md)
+$conversations = $convModel->getFilteredList($userId, $tab, $unrepliedScope, $search, $labelId, $channel);
 
-    // 3. Nếu đang mở 1 hội thoại cụ thể, lấy tin mới và kiểm tra quyền
-    $activeConversationData = null;
-    if ($activeConvId) {
+// 3. Nếu đang mở 1 hội thoại cụ thể, lấy tin mới và kiểm tra quyền
+$activeConversationData = null;
+if ($activeConvId) {
+    try {
         $conv = $convModel->getById($activeConvId);
         if ($conv) {
             $isMine = ($conv['assigned_user_id'] == $userId);
             $isViewOnly = (!empty($conv['assigned_user_id']) && !$isMine);
 
             // QUAN TRỌNG: Chỉ đánh dấu đã đọc nếu là hội thoại của chính mình hoặc hội thoại chưa được gán cho ai!
+            // Nếu là hội thoại của nhân viên khác, xem chỉ là View-only, KHÔNG làm mất trạng thái Chưa đọc của nhân viên phụ trách!
             if ($isMine || empty($conv['assigned_user_id'])) {
-                try { $convModel->markAsRead($activeConvId); } catch (Exception $e) {}
+                $convModel->markAsRead($activeConvId);
             }
 
-            $newMessages = [];
-            try { $newMessages = $msgModel->getLatestAfterId($activeConvId, $lastMsgId); } catch (Exception $e) {}
-
-            $profile = null;
-            try { $profile = $profileModel->getByConversationId($activeConvId); } catch (Exception $e) {}
-
-            $assignedLabels = [];
-            try { $assignedLabels = $labelModel->getLabelsForConversation($activeConvId); } catch (Exception $e) {}
+            $newMessages = $msgModel->getLatestAfterId($activeConvId, $lastMsgId);
+            $profile = $profileModel->getByConversationId($activeConvId);
+            $assignedLabels = $labelModel->getLabelsForConversation($activeConvId);
 
             $activeConversationData = [
                 'conversation'    => $conv,
@@ -212,26 +204,19 @@ try {
                 'assigned_labels' => $assignedLabels
             ];
         }
+    } catch (Throwable $e) {
+        error_log("sync_polling active conversation error: " . $e->getMessage());
     }
-
-    // 4. Lấy danh sách tất cả các nhãn phân loại (phục vụ dropdown Phân loại)
-    $allLabels = [];
-    try { $allLabels = $labelModel->getAll(); } catch (Exception $e) {}
-
-    echo json_encode([
-        'success'              => true,
-        'current_user_status'  => $userStatus,
-        'conversations'        => $conversations,
-        'all_labels'           => $allLabels,
-        'active_conversation'  => $activeConversationData,
-        'timestamp'            => time()
-    ], JSON_UNESCAPED_UNICODE);
-} catch (Throwable $e) {
-    echo json_encode([
-        'success'             => false,
-        'error'               => 'SERVER_ERROR',
-        'message'             => $e->getMessage(),
-        'file'                => basename($e->getFile()),
-        'line'                => $e->getLine()
-    ], JSON_UNESCAPED_UNICODE);
 }
+
+// 4. Lấy danh sách tất cả các nhãn phân loại (phục vụ dropdown Phân loại)
+$allLabels = $labelModel->getAll();
+
+echo json_encode([
+    'success'              => true,
+    'current_user_status'  => $userStatus,
+    'conversations'        => $conversations,
+    'all_labels'           => $allLabels,
+    'active_conversation'  => $activeConversationData,
+    'timestamp'            => time()
+], JSON_UNESCAPED_UNICODE);

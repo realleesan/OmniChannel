@@ -216,15 +216,11 @@ async function pollRenderGateway() {
         const data = await res.json();
         if (data.success && data.messages && data.messages.length > 0) {
             for (const msg of data.messages) {
-                try {
-                    await fetch('../../api/webhook_receive.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(msg)
-                    });
-                } catch (err) {
-                    console.warn('Webhook receive warning:', err);
-                }
+                await fetch('../../api/webhook_receive.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(msg)
+                });
             }
             fetchConversations(false);
             runSyncPolling();
@@ -986,31 +982,6 @@ async function sendMessage(attachmentUrl = null) {
                 }
             } catch (fbErr) {
                 console.error('Fallback sync_polling thất bại:', fbErr);
-            }
-        }
-
-        // Fail-safe tầng 3 (Miễn nhiễm 100% WAF): Gửi qua HTTP GET query param nếu POST bị OpenResty chặn 403
-        if (!data || (!data.success && (res?.status === 403 || text.includes('403 Forbidden') || text.includes('blocking you')))) {
-            try {
-                const getParams = new URLSearchParams({
-                    action: 'send_message',
-                    conversation_id: AppState.activeConvId,
-                    content: content,
-                    attachment_url: attachmentUrl || ''
-                });
-                res = await fetch(`../../api/message_action.php?${getParams.toString()}`);
-                text = await res.text();
-                try {
-                    data = JSON.parse(text);
-                } catch (pe) {
-                    const sIdx = text.indexOf('{');
-                    const eIdx = text.lastIndexOf('}');
-                    if (sIdx !== -1 && eIdx !== -1) {
-                        try { data = JSON.parse(text.substring(sIdx, eIdx + 1)); } catch (e) { }
-                    }
-                }
-            } catch (getErr) {
-                console.error('Fallback GET send_message thất bại:', getErr);
             }
         }
 
@@ -3988,20 +3959,17 @@ function renderSheetDataTable(rows) {
     const container = document.getElementById('sheetTableContainer');
     if (!container) return;
 
-    if (!rows || rows.length === 0) {
+    const cols = AppState.sheetColumns || [];
+
+    if (!cols || cols.length === 0 || !rows || rows.length === 0) {
         container.innerHTML = `
-            <div class="sheet-empty-state">
-                <i class="fa-solid fa-table-list"></i>
-                <div style="font-weight:700;font-size:14px;color:#475569;margin-bottom:4px;">Chưa có dữ liệu trong bảng tính này</div>
-                <div style="font-size:12px;color:#94A3B8;">Hãy bấm nút "Đồng bộ từ Sheet" ở góc dưới để nạp dữ liệu mới nhất.</div>
+            <div style="text-align:center;padding:60px 20px;color:#94A3B8;font-size:13px;">
+                <i class="fa-solid fa-table-cells" style="font-size:32px;margin-bottom:12px;display:block;opacity:0.35;"></i>
+                Chưa có dữ liệu bảng tính. Bấm "Cấu hình kết nối" và thực hiện đồng bộ.
             </div>
         `;
         return;
     }
-
-    const cols = AppState.sheetColumns && AppState.sheetColumns.length > 0
-        ? AppState.sheetColumns
-        : Object.keys(rows[0] || {});
 
     let html = `
         <table class="sheet-data-table">
@@ -4022,18 +3990,19 @@ function renderSheetDataTable(rows) {
                     const rawVal = row[col] !== undefined ? row[col] : '';
                     const val = String(rawVal).trim();
                     const isImg = isImageUrlString(val);
-
                     if (isImg) {
-                        const titleText = `${col}: ${row['Tên sản phẩm'] || row['Mã sản phẩm'] || col}`;
                         return `
                             <td style="text-align:center;">
-                                <img src="${escapeHtml(val)}" 
-                                     class="sheet-thumb-img" 
-                                     title="Bấm để xem ảnh phóng to (${escapeHtml(col)})" 
-                                     onclick="openLightboxFromSingleUrl('${escapeHtml(val)}', '${escapeHtml(titleText)}')"
-                                     style="cursor:pointer;width:42px;height:42px;object-fit:cover;border-radius:6px;border:1px solid #E2E8F0;box-shadow:0 1px 3px rgba(0,0,0,0.08);transition:all 0.15s ease;"
-                                     onmouseover="this.style.transform='scale(1.15)';this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'"
-                                     onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 1px 3px rgba(0,0,0,0.08)'">
+                                <img src="${escapeHtml(val)}" class="sheet-thumb-img" title="Bấm để phóng to ảnh" onclick="openLightboxFromSingleUrl('${escapeHtml(val)}', 'Ảnh: ${escapeHtml(row['Tên sản phẩm'] || row['Mã sản phẩm'] || col)}')" style="cursor:pointer;width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid #CBD5E1;box-shadow:0 1px 3px rgba(0,0,0,0.08);transition:transform 0.15s ease;" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
+                            </td>
+                        `;
+                    }
+                    if (val.toLowerCase() === 'cellimage' || val === '[cellimage]') {
+                        return `
+                            <td style="text-align:center;">
+                                <span class="cell-image-badge" title="Bấm để xem trạng thái ảnh" onclick="handleClickCellImage('${escapeHtml(col)}', '${escapeHtml(row['Tên sản phẩm'] || row['Mã sản phẩm'] || col)}')" style="cursor:pointer;display:inline-flex;align-items:center;gap:5px;background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;padding:4px 9px;border-radius:6px;font-size:11px;font-weight:700;transition:all 0.15s ease;" onmouseover="this.style.background='#D1FAE5'" onmouseout="this.style.background='#ECFDF5'">
+                                    <i class="fa-regular fa-image"></i> Hình ảnh
+                                </span>
                             </td>
                         `;
                     }
@@ -4057,6 +4026,17 @@ function isImageUrlString(str) {
     if (!s.startsWith('http://') && !s.startsWith('https://')) return false;
     if (s.includes('googleusercontent.com') || s.includes('drive.google.com') || s.includes('docs.google.com/spreadsheets')) return true;
     return /\.(png|jpe?g|webp|gif|svg|bmp)(\?.*)?$/i.test(s);
+}
+
+function handleClickCellImage(colName, itemName) {
+    const sheetUrl = AppState.sheetConfig?.sheet_url || '';
+    if (sheetUrl) {
+        if (confirm(`Cột [${colName}] (${itemName}):\nÔ này chứa ảnh nhúng nội bộ của Google Sheet.\n\nBấm "OK" để mở trực tiếp Google Sheet xem ảnh gốc.`)) {
+            window.open(sheetUrl, '_blank');
+        }
+    } else {
+        alert(`Cột [${colName}] (${itemName}):\nÔ này chứa ảnh nhúng nội bộ của Google Sheet.\n\nĐể hệ thống hiển thị trực tiếp ảnh sản phẩm:\n1. Mở Tiện ích mở rộng > Apps Script trên Google Sheet\n2. Cập nhật mã Apps Script mới nhất\n3. Bấm "Đồng bộ từ Sheet" trên hệ thống.`);
+    }
 }
 
 function copyAppsScriptCode() {

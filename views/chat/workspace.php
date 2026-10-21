@@ -444,7 +444,7 @@ if (!$currentUser) {
      Tab 2: Bảng dữ liệu Sheet (CHẾ ĐỘ CHỈ XEM 100%)
      ======================================================== -->
 <div class="modal-overlay" id="modalGoogleSheet" style="display:none;">
-    <div class="modal-content modal-content-wide" style="max-width:860px;width:92%;max-height:88vh;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;box-shadow:0 20px 40px rgba(0,0,0,0.25);">
+    <div class="modal-content modal-content-wide" style="max-width:920px;width:95%;max-height:88vh;height:88vh;display:flex;flex-direction:column;overflow:hidden;">
         <div class="modal-header" style="flex-shrink:0;">
             <div style="display:flex;align-items:center;gap:10px;">
                 <div style="background:#ECFDF5;color:#10B981;width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;">
@@ -481,7 +481,7 @@ if (!$currentUser) {
             <?php endif; ?>
         </div>
 
-        <div class="modal-body" style="flex:1;overflow-y:auto;padding:18px 20px;max-height:calc(88vh - 130px);scrollbar-width:thin;">
+        <div class="modal-body" style="padding:18px 20px;flex:1;overflow-y:auto;min-height:0;">
             <!-- TAB 1: CẤU HÌNH LIÊN KẾT (CHỈ ADMIN SỬA ĐƯỢC) -->
             <div id="paneGSheetConfig" class="modal-tab-pane">
                 <?php if (strtolower($currentUser['username']) !== 'admin'): ?>

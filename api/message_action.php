@@ -27,36 +27,32 @@ $authController = new AuthController();
 
 switch ($action) {
     case 'get_conversation':
-        $conversationId = (int)($_GET['id'] ?? 0);
         try {
+            $conversationId = (int)($_GET['id'] ?? 0);
             $data = $chatController->getConversationDetail($conversationId, $userId);
             if (!$data) {
-                jsonResponse(false, [], 'Không tìm thấy hội thoại', 200);
+                jsonResponse(false, [], 'Không tìm thấy hội thoại', 404);
             }
             jsonResponse(true, $data);
         } catch (Throwable $e) {
-            jsonResponse(false, [], 'Lỗi tải hội thoại: ' . $e->getMessage(), 200);
+            jsonResponse(false, ['error' => $e->getMessage()], 'Lỗi tải hội thoại: ' . $e->getMessage(), 200);
         }
         break;
 
     case 'send_message':
-        $conversationId = (int)($_POST['conversation_id'] ?? $_GET['conversation_id'] ?? 0);
-        $content = trim($_POST['content'] ?? $_GET['content'] ?? '');
-        $attachmentUrl = trim($_POST['attachment_url'] ?? $_GET['attachment_url'] ?? '');
+        $conversationId = (int)($_POST['conversation_id'] ?? 0);
+        $content = trim($_POST['content'] ?? '');
+        $attachmentUrl = trim($_POST['attachment_url'] ?? '');
 
         if (empty($content) && empty($attachmentUrl)) {
             jsonResponse(false, [], 'Nội dung tin nhắn không được để trống');
         }
 
-        try {
-            $res = $chatController->sendStaffMessage($conversationId, $userId, $content, $attachmentUrl ?: null);
-            if ($res['success']) {
-                jsonResponse(true, $res['data'], 'Gửi tin nhắn thành công');
-            } else {
-                jsonResponse(false, [], $res['message'], 200);
-            }
-        } catch (Throwable $e) {
-            jsonResponse(false, [], 'Lỗi gửi tin nhắn: ' . $e->getMessage(), 200);
+        $res = $chatController->sendStaffMessage($conversationId, $userId, $content, $attachmentUrl ?: null);
+        if ($res['success']) {
+            jsonResponse(true, $res['data'], 'Gửi tin nhắn thành công');
+        } else {
+            jsonResponse(false, [], $res['message'], 200);
         }
         break;
 

@@ -11,87 +11,122 @@ class CustomerProfile {
 
     public function __construct() {
         $this->db = Database::getConnection();
+        $this->ensureColumns();
+    }
 
-        // Tự động kiểm tra và bổ sung các trường CRM thực tế nếu chưa có (Self-healing schema)
-        static $checkedCrmSchema = false;
-        if (!$checkedCrmSchema) {
-            $checkedCrmSchema = true;
-            try {
-                $cols = $this->db->query("DESCRIBE customer_profiles")->fetchAll(PDO::FETCH_COLUMN);
-                $needed = [
-                    'real_name'            => "VARCHAR(150) NULL AFTER customer_name",
-                    'phone'                => "VARCHAR(50) NULL AFTER real_name",
-                    'address'              => "VARCHAR(255) NULL AFTER phone",
-                    'customer_needs'       => "TEXT NULL AFTER address",
-                    'conversation_summary' => "TEXT NULL AFTER customer_needs",
-                    'from_date'            => "DATE NULL AFTER conversation_summary",
-                    'to_date'              => "DATE NULL AFTER from_date",
-                    'scan_version'         => "INT DEFAULT 1",
-                    'is_boom_risk'         => "TINYINT(1) DEFAULT 0",
-                    'preferred_size'       => "VARCHAR(50) DEFAULT 'Chưa xác định'",
-                    'recent_purchases'     => "TEXT NULL"
-                ];
-                foreach ($needed as $col => $def) {
-                    if (!in_array($col, $cols)) {
-                        @$this->db->exec("ALTER TABLE customer_profiles ADD COLUMN $col $def");
-                    }
+    private function ensureColumns() {
+        static $checked = false;
+        if ($checked) return;
+        $checked = true;
+        try {
+            $cols = $this->db->query("DESCRIBE customer_profiles")->fetchAll(PDO::FETCH_COLUMN);
+            $needed = [
+                'real_name'            => "VARCHAR(150) NULL",
+                'phone'                => "VARCHAR(50) NULL",
+                'address'              => "VARCHAR(255) NULL",
+                'customer_needs'       => "TEXT NULL",
+                'conversation_summary' => "TEXT NULL",
+                'from_date'            => "DATE NULL",
+                'to_date'              => "DATE NULL"
+            ];
+            foreach ($needed as $col => $def) {
+                if (!in_array($col, $cols)) {
+                    @$this->db->exec("ALTER TABLE customer_profiles ADD COLUMN $col $def");
                 }
-            } catch (Exception $e) {}
-        }
+            }
+        } catch (Throwable $e) {}
     }
 
     public function getByConversationId($conversationId) {
-        $stmt = $this->db->prepare("SELECT * FROM customer_profiles WHERE conversation_id = :conversation_id LIMIT 1");
-        $stmt->execute([':conversation_id' => $conversationId]);
-        $profile = $stmt->fetch();
-
-        if (!$profile) {
-            // Khởi tạo hồ sơ mặc định nếu chưa có
-            $convStmt = $this->db->prepare("SELECT sender_name FROM conversations WHERE id = :id");
-            $convStmt->execute([':id' => $conversationId]);
-            $conv = $convStmt->fetch();
-            $customerName = $conv['sender_name'] ?? 'Khách Hàng';
-
-            try {
-                $insertStmt = $this->db->prepare("
-                    INSERT INTO customer_profiles (conversation_id, customer_name, real_name, phone, address, customer_needs, conversation_summary, from_date, to_date, last_scanned_at)
-                    VALUES (:cid, :cname, NULL, NULL, NULL, NULL, NULL, CURDATE(), CURDATE(), NOW())
-                ");
-                $insertStmt->execute([':cid' => $conversationId, ':cname' => $customerName]);
-            } catch (Exception $e) {
-                // Fallback nếu bảng chưa có các cột nâng cao
-                try {
-                    $insertStmt = $this->db->prepare("INSERT INTO customer_profiles (conversation_id, customer_name) VALUES (:cid, :cname)");
-                    $insertStmt->execute([':cid' => $conversationId, ':cname' => $customerName]);
-                } catch (Exception $e2) {}
-            }
+        try {
+            $stmt = $this->db->prepare("SELECT * FROM customer_profiles WHERE conversation_id = :conversation_id LIMIT 1");
             $stmt->execute([':conversation_id' => $conversationId]);
             $profile = $stmt->fetch();
+
             if (!$profile) {
-                return [
+                // Khởi tạo hồ sơ mặc định nếu chưa có
+                $convStmt = $this->db->prepare("SELECT sender_name FROM conversations WHERE id = :id");
+                $convStmt->execute([':id' => $conversationId]);
+                $conv = $convStmt->fetch();
+                $customerName = $conv['sender_name'] ?? 'Khách Hàng';
+
+                try {
+                    $insertStmt = $this->db->prepare("
+                        INSERT INTO customer_profiles (conversation_id, customer_name, real_name, phone, address, customer_needs, conversation_summary, from_date, to_date, last_scanned_at)
+                        VALUES (:cid, :cname, NULL, NULL, NULL, NULL, NULL, CURDATE(), CURDATE(), NOW())
+                    ");
+                    $insertStmt->execute([':cid' => $conversationId, ':cname' => $customerName]);
+                } catch (Throwable $e) {
+                    @$this->db->prepare("INSERT INTO customer_profiles (conversation_id, customer_name) VALUES (:cid, :cname)")
+                        ->execute([':cid' => $conversationId, ':cname' => $customerName]);
+                }
+
+                $stmt = $this->db->prepare("SELECT * FROM customer_profiles WHERE conversation_id = :conversation_id LIMIT 1");
+                $stmt->execute([':conversation_id' => $conversationId]);
+                $profile = $stmt->fetch();
+            }
+
+            if (!$profile) {
+                $profile = [
+                    'id'                   => 0,
                     'conversation_id'      => $conversationId,
-                    'customer_name'        => $customerName,
+                    'customer_name'        => 'Khách Hàng',
+                    'real_name'            => '',
+                    'phone'                => '',
+                    'address'              => '',
+                    'customer_needs'       => '',
+                    'conversation_summary' => '',
+                    'preferred_size'       => 'Chưa xác định',
+                    'is_boom_risk'         => 0,
                     'from_date_formatted'  => date('d/m/Y'),
                     'to_date_formatted'    => date('d/m/Y'),
                     'last_scanned_formatted' => date('H:i - d/m/Y')
                 ];
+                return $profile;
             }
+
+            // Lấy ngày bắt đầu nhắn tin đầu tiên và ngày nhắn tin gần nhất từ messages
+            $fromDate = date('Y-m-d');
+            $toDate = date('Y-m-d');
+            try {
+                $dateStmt = $this->db->prepare("
+                    SELECT DATE(MIN(created_at)) as min_date, DATE(MAX(created_at)) as max_date 
+                    FROM messages 
+                    WHERE conversation_id = :cid
+                ");
+                $dateStmt->execute([':cid' => $conversationId]);
+                $dateRange = $dateStmt->fetch();
+                $fromDate = !empty($profile['from_date']) ? $profile['from_date'] : ($dateRange['min_date'] ?? date('Y-m-d'));
+                $toDate = !empty($profile['to_date']) ? $profile['to_date'] : ($dateRange['max_date'] ?? date('Y-m-d'));
+            } catch (Throwable $e) {}
+
+            $profile['from_date_formatted'] = date('d/m/Y', strtotime($fromDate));
+            $profile['to_date_formatted'] = date('d/m/Y', strtotime($toDate));
+
+            $scannedTime = !empty($profile['last_scanned_at']) ? strtotime($profile['last_scanned_at']) : time();
+            $profile['last_scanned_formatted'] = date('H:i - d/m/Y', $scannedTime);
+            return $profile;
+        } catch (Throwable $e) {
+            return [
+                'id'                   => 0,
+                'conversation_id'      => $conversationId,
+                'customer_name'        => 'Khách Hàng',
+                'real_name'            => '',
+                'phone'                => '',
+                'address'              => '',
+                'customer_needs'       => '',
+                'conversation_summary' => '',
+                'preferred_size'       => 'Chưa xác định',
+                'is_boom_risk'         => 0,
+                'from_date_formatted'  => date('d/m/Y'),
+                'to_date_formatted'    => date('d/m/Y'),
+                'last_scanned_formatted' => date('H:i - d/m/Y')
+            ];
         }
+    }
 
-        // Lấy ngày bắt đầu nhắn tin đầu tiên và ngày nhắn tin gần nhất từ messages
-        $dateStmt = $this->db->prepare("
-            SELECT DATE(MIN(created_at)) as min_date, DATE(MAX(created_at)) as max_date 
-            FROM messages 
-            WHERE conversation_id = :cid
-        ");
-        $dateStmt->execute([':cid' => $conversationId]);
-        $dateRange = $dateStmt->fetch();
-
-        $fromDate = !empty($profile['from_date']) ? $profile['from_date'] : ($dateRange['min_date'] ?? date('Y-m-d'));
-        $toDate = !empty($profile['to_date']) ? $profile['to_date'] : ($dateRange['max_date'] ?? date('Y-m-d'));
-
-        $profile['from_date_formatted'] = date('d/m/Y', $fromDate ? strtotime($fromDate) : time());
-        $profile['to_date_formatted'] = date('d/m/Y', $toDate ? strtotime($toDate) : time());
+        $profile['from_date_formatted'] = date('d/m/Y', strtotime($fromDate));
+        $profile['to_date_formatted'] = date('d/m/Y', strtotime($toDate));
 
         $scannedTime = !empty($profile['last_scanned_at']) ? strtotime($profile['last_scanned_at']) : time();
         $profile['last_scanned_formatted'] = date('H:i - d/m/Y', $scannedTime);
