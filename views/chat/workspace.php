@@ -266,9 +266,33 @@ if (!$currentUser) {
         </div>
 
         <!-- Khung nhập liệu tin nhắn (Ẩn khi bị khóa View-Only) -->
-        <div class="chat-input-container" id="chatInputArea" style="display:none;">
-            <!-- Autocomplete Popup khi gõ phím tắt / -->
-            <div class="template-shortcut-preview" id="shortcutPreviewBar">
+        <div class="chat-input-container" id="chatInputArea" style="display:none;position:relative;">
+            <!-- Autocomplete Suggestion Popup khi gõ phím tắt / (Phase 4) -->
+            <div class="template-suggest-popup" id="templateSuggestPopup" style="display:none;">
+                <div class="suggest-popup-header">
+                    <div class="suggest-header-title">
+                        <i class="fa-solid fa-bolt" style="color:var(--primary);"></i>
+                        <span>Mẫu Trả Lời Nhanh</span>
+                        <span class="suggest-hint-kbd">↑↓ phím mũi tên &bull; Enter chọn</span>
+                    </div>
+                    <button type="button" class="btn-close-suggest" onclick="closeShortcutSuggestPopup()">&times;</button>
+                </div>
+
+                <!-- Danh sách gợi ý template -->
+                <div class="suggest-items-list" id="suggestTemplatesList"></div>
+
+                <!-- Phân vùng chọn dòng Google Sheet khi template có biến [id] / [sản phẩm]... -->
+                <div class="suggest-sheet-picker" id="suggestSheetPicker" style="display:none;">
+                    <div class="suggest-sheet-picker-header">
+                        <span><i class="fa-solid fa-file-excel" style="color:#10B981;"></i> Chọn sản phẩm từ Google Sheet để điền dữ liệu:</span>
+                        <button type="button" class="btn-cancel-picker" onclick="hideSheetRowPicker()">Quay lại danh sách</button>
+                    </div>
+                    <div class="suggest-sheet-rows-list" id="suggestSheetRowsList"></div>
+                </div>
+            </div>
+
+            <!-- Thanh preview phím tắt / trực tiếp khi đang gõ -->
+            <div class="template-shortcut-preview" id="shortcutPreviewBar" style="display:none;">
                 <span id="shortcutPreviewText"><i class="fa-solid fa-bolt"></i> Gợi ý: Gõ <strong>/</strong> để chọn mẫu câu trả lời nhanh</span>
                 <button type="button" class="btn-apply-shortcut" onclick="applyShortcutDirectly()">
                     <span>Điền mẫu</span> <i class="fa-solid fa-arrow-turn-down"></i>
@@ -285,8 +309,8 @@ if (!$currentUser) {
                         <i class="fa-solid fa-paperclip"></i>
                     </button>
 
-                    <!-- UC3.2: Popup Thêm mẫu tin nhắn nhanh -->
-                    <button type="button" class="icon-action-btn" title="Tạo thêm mẫu tin nhắn nhanh" onclick="openTemplateModal()">
+                    <!-- UC3.2: Popup Quản lý & Tạo mẫu tin nhắn nhanh -->
+                    <button type="button" class="icon-action-btn" title="Quản lý mẫu tin nhắn nhanh" onclick="openManageTemplatesModal()">
                         <i class="fa-solid fa-bolt"></i>
                     </button>
 
@@ -628,40 +652,102 @@ if (!$currentUser) {
 </div>
 
 <!-- ========================================================
-     MODAL POPUP THÊM MẪU TIN NHẮN (UC3.2)
+     MODAL POPUP QUẢN LÝ TEMPLATE (PHASE 3)
+     Danh sách mẫu tin, Inline Editing Sửa/Lưu/Hủy, Xóa, Nút Thêm
      ======================================================== -->
-<div class="modal-overlay" id="templateModal">
-    <div class="modal-content">
+<div class="modal-overlay" id="modalManageTemplates" style="display:none;">
+    <div class="modal-content" style="max-width: 680px; width: 95%;">
         <div class="modal-header">
-            <h3 class="modal-title">Tạo Mẫu Tin Nhắn Nhanh Mới</h3>
-            <button type="button" class="modal-close-btn" onclick="closeTemplateModal()">&times;</button>
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="background:#EEF2FF;color:var(--primary);width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;">
+                    <i class="fa-solid fa-bolt"></i>
+                </div>
+                <div>
+                    <h3 class="modal-title" style="margin:0;font-size:16px;">Quản Lý Mẫu Tin Nhắn Nhanh</h3>
+                    <div style="font-size:11.5px;color:#64748B;">Danh sách mẫu tin và phím tắt trả lời khách hàng</div>
+                </div>
+            </div>
+            <button type="button" class="modal-close-btn" onclick="closeManageTemplatesModal()">&times;</button>
         </div>
-        <div class="modal-body">
-            <div class="form-group">
-                <label class="form-label">Phím tắt (bắt đầu bằng /)</label>
-                <input type="text" id="tplShortcut" class="form-input" placeholder="Ví dụ: /size, /stk, /sale">
+        <div class="modal-body" style="padding:16px 20px;">
+            <div style="margin-bottom:12px;">
+                <input type="text" id="searchManageTemplateInput" class="form-input" placeholder="Tìm kiếm mẫu tin theo phím tắt hoặc tiêu đề..." oninput="handleSearchManageTemplates(this.value)">
             </div>
-
-            <div class="form-group">
-                <label class="form-label">Tiêu đề gợi nhớ</label>
-                <input type="text" id="tplTitle" class="form-input" placeholder="Ví dụ: Bảng chọn size đầm">
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Nội dung mẫu tin</label>
-                <textarea id="tplContent" class="form-textarea" rows="4" placeholder="Nhập nội dung... Bấm các nút biến bên dưới để chèn tự động"></textarea>
-            </div>
-
-            <div class="variable-insert-bar">
-                <span>Chèn biến động:</span>
-                <button type="button" class="chip-var-btn" onclick="insertVariable('[ten_sp]')">+ Tên SP</button>
-                <button type="button" class="chip-var-btn" onclick="insertVariable('[ma_sp]')">+ Mã SP</button>
-                <button type="button" class="chip-var-btn" onclick="insertVariable('[gia]')">+ Giá</button>
+            <div id="templateManageListContainer" class="template-manage-list">
+                <!-- Danh sách template render động -->
             </div>
         </div>
-        <div class="modal-footer">
-            <button type="button" class="tab-btn" onclick="closeTemplateModal()">Hủy</button>
-            <button type="button" class="btn-send-message" onclick="saveNewTemplate()">Lưu Mẫu Tin</button>
+        <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;">
+            <button type="button" class="tab-btn" onclick="closeManageTemplatesModal()">Đóng</button>
+            <button type="button" class="btn-send-message" onclick="openCreateTemplateFromManage()">
+                <i class="fa-solid fa-plus"></i> Thêm mẫu tin nhắn mới
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================================
+     MODAL POPUP TẠO MẪU TIN NHẮN MỚI (KÈM KÉO THẢ BIẾN GOOGLE SHEET)
+     ======================================================== -->
+<div class="modal-overlay" id="modalCreateTemplate" style="display:none;">
+    <div class="modal-content" style="max-width: 580px; width: 95%;">
+        <div class="modal-header">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="background:#EEF2FF;color:var(--primary);width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;">
+                    <i class="fa-solid fa-circle-plus"></i>
+                </div>
+                <div>
+                    <h3 class="modal-title" style="margin:0;font-size:16px;">Tạo Mẫu Tin Nhắn Mới</h3>
+                    <div style="font-size:11.5px;color:#64748B;">Hỗ trợ kéo thả biến động từ Google Sheet</div>
+                </div>
+            </div>
+            <button type="button" class="modal-close-btn" onclick="closeCreateTemplateModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding:18px 20px;">
+            <div class="form-group">
+                <label class="form-label">Tiêu đề gợi nhớ <span style="color:#EF4444;">*</span></label>
+                <input type="text" id="newTplTitle" class="form-input" placeholder="Ví dụ: Báo giá sản phẩm theo ID">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Viết tắt / Phím tắt (Bắt đầu bằng /) <span style="color:#EF4444;">*</span></label>
+                <input type="text" id="newTplShortcut" class="form-input" placeholder="Ví dụ: /sp [id] hoặc /id=[id] hoặc [id]" 
+                       oninput="handleValidateNewShortcut(this.value)"
+                       ondragover="handleVarDragOver(event, this)"
+                       ondragleave="handleVarDragLeave(this)"
+                       ondrop="handleVarDrop(event, 'newTplShortcut')">
+                <div class="shortcut-invalid-text" id="newShortcutInvalidMsg" style="display:none;">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span id="newShortcutInvalidText">Phím tắt đã tồn tại trong hệ thống!</span>
+                </div>
+                <div style="font-size:11.5px;color:#64748B;margin-top:2px;">Có thể kéo thả biến mã/ID vào đây để định danh phím tắt khi chat.</div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Nội dung mẫu tin <span style="color:#EF4444;">*</span></label>
+                <textarea id="newTplContent" class="form-textarea" rows="4" 
+                          placeholder="Ví dụ: Sản phẩm [sản phẩm] mã [id] có giá [giá] ạ... Kéo thả hoặc click các biến bên dưới để chèn tự động."
+                          ondragover="handleVarDragOver(event, this)"
+                          ondragleave="handleVarDragLeave(this)"
+                          ondrop="handleVarDrop(event, 'newTplContent')"></textarea>
+            </div>
+
+            <!-- Khu vực chèn biến động từ Google Sheet -->
+            <div class="form-group">
+                <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">
+                    <span><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--primary);"></i> Chèn biến động từ Google Sheet:</span>
+                    <span style="font-size:11px;font-weight:600;color:#94A3B8;">Kéo thả hoặc click để chèn</span>
+                </label>
+                <div class="draggable-vars-container" id="tplCreateVarChipsContainer">
+                    <!-- Nạp động danh sách biến từ AppState.sheetColumns -->
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;">
+            <button type="button" class="tab-btn" onclick="closeCreateTemplateModal()">Hủy</button>
+            <button type="button" class="btn-send-message" id="btnSubmitNewTemplate" onclick="saveNewTemplateRecord()">
+                <i class="fa-solid fa-floppy-disk"></i> Lưu Mẫu Tin
+            </button>
         </div>
     </div>
 </div>

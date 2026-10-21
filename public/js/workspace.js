@@ -31,7 +31,8 @@ const AppState = {
     sheetColumns: [],
     sheetRows: [],
     sheetHasChanges: false,
-    sheetLastSyncedAt: null
+    sheetLastSyncedAt: null,
+    templates: []
 };
 
 const CHANNEL_CONFIG = {
@@ -96,7 +97,10 @@ function initWorkspace() {
     // 3. Khởi tạo & nạp dữ liệu Google Sheets
     initGoogleSheets();
 
-    // 4. Đóng các Dropdown khi click ra bên ngoài
+    // 4. Tải danh sách mẫu tin nhắn nhanh (Templates)
+    loadTemplatesList();
+
+    // 5. Đóng các Dropdown khi click ra bên ngoài
     document.addEventListener('click', (e) => {
         closeAllDropdowns(e);
     });
@@ -118,6 +122,9 @@ function closeAllDropdowns(e) {
     if (!e.target.closest('.profile-section-widget')) {
         const p = document.getElementById('assignLabelPopover');
         if (p) p.style.display = 'none';
+    }
+    if (!e.target.closest('#chatInputArea')) {
+        closeShortcutSuggestPopup();
     }
 }
 
@@ -1022,43 +1029,491 @@ async function sendMessage(attachmentUrl = null) {
     }
 }
 
+// ========================================================
+// HỆ THỐNG GỢI Ý & GIẢI PHÓNG BIẾN ĐỘNG TEMPLATE / (PHASE 4)
+// ========================================================
+
+let suggestSelectedIndex = -1;
+let activeSuggestTemplates = [];
+let pendingTemplateForSheetPicker = null;
+let shortcutDebounceTimer = null;
+
 function handleChatKeyDown(e) {
+    const suggestPopup = document.getElementById('templateSuggestPopup');
+    const isSuggestOpen = (suggestPopup && suggestPopup.style.display !== 'none');
+    const sheetPicker = document.getElementById('suggestSheetPicker');
+    const isPickerOpen = (sheetPicker && sheetPicker.style.display !== 'none');
+    const input = document.getElementById('chatInput');
+    const val = input.value;
+
+    // 1. Phím Escape: Đóng mọi popup gợi ý
+    if (e.key === 'Escape') {
+        closeShortcutSuggestPopup();
+        return;
+    }
+
+    // 2. Điều hướng phím mũi tên khi Popup gợi ý đang mở
+    if (isSuggestOpen) {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (isPickerOpen) {
+                navigateSheetPicker(1);
+            } else {
+                navigateSuggestList(1);
+            }
+            return;
+        }
+
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (isPickerOpen) {
+                navigateSheetPicker(-1);
+            } else {
+                navigateSuggestList(-1);
+            }
+            return;
+        }
+
+        // Phím Enter hoặc Tab: Chọn mục đang trỏ
+        if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey) {
+            if (isPickerOpen) {
+                e.preventDefault();
+                selectActiveSheetPickerRow();
+                return;
+            } else if (suggestSelectedIndex >= 0 && activeSuggestTemplates[suggestSelectedIndex]) {
+                e.preventDefault();
+                selectSuggestTemplate(activeSuggestTemplates[suggestSelectedIndex]);
+                return;
+            }
+        }
+    }
+
+    // 3. Phím Enter khi người dùng tự gõ nhanh "/sp 3" hoặc "/id=3" hoặc "/chao"
     if (e.key === 'Enter' && !e.shiftKey) {
+        const trimmed = val.trim();
+        if (trimmed.startsWith('/')) {
+            // Thử giải phóng trực tiếp phím tắt
+            const resolved = tryResolveShortcutSync(trimmed);
+            if (resolved) {
+                e.preventDefault();
+                input.value = resolved;
+                closeShortcutSuggestPopup();
+                showToast('⚡ Đã điền mẫu tin nhắn thành công!', 'info');
+                return;
+            }
+        }
+
+        // Gửi tin nhắn thông thường
         e.preventDefault();
         sendMessage();
     }
 }
 
-/**
- * Nhận diện phím tắt mẫu tin nhắn /
- */
-let shortcutTimeout = null;
 function handleShortcutDetect(e) {
     const val = e.target.value;
     const previewBar = document.getElementById('shortcutPreviewBar');
 
-    if (val.trim().startsWith('/')) {
-        previewBar.style.display = 'flex';
-        clearTimeout(shortcutTimeout);
-        shortcutTimeout = setTimeout(() => {
-            fetchResolvedShortcut(val.trim());
-        }, 200);
-    } else {
-        previewBar.style.display = 'none';
+    if (!val.startsWith('/')) {
+        closeShortcutSuggestPopup();
+        if (previewBar) previewBar.style.display = 'none';
+        return;
     }
+
+    clearTimeout(shortcutDebounceTimer);
+    shortcutDebounceTimer = setTimeout(() => {
+        processShortcutInput(val);
+    }, 100);
+}
+
+function processShortcutInput(val) {
+    const clean = val.trim();
+    const previewBar = document.getElementById('shortcutPreviewBar');
+    const popup = document.getElementById('templateSuggestPopup');
+
+    if (!clean.startsWith('/')) {
+        closeShortcutSuggestPopup();
+        if (previewBar) previewBar.style.display = 'none';
+        return;
+    }
+
+    // Kiểm tra xem có giải phóng trực tiếp được không (ví dụ: "/sp 3" với tham số)
+    const directResolved = tryResolveShortcutSync(clean);
+    if (directResolved) {
+        window.CURRENT_RESOLVED_TEMPLATE = directResolved;
+        if (previewBar) {
+            previewBar.style.display = 'flex';
+            document.getElementById('shortcutPreviewText').innerHTML =
+                `<i class="fa-solid fa-bolt" style="color:#10B981;"></i> <strong>Đã nhận diện:</strong> ${escapeHtml(directResolved.substring(0, 75))}...`;
+        }
+    } else {
+        if (previewBar) previewBar.style.display = 'none';
+    }
+
+    // Lọc danh sách mẫu tin phù hợp từ AppState.templates
+    const query = clean.substring(1).toLowerCase().trim(); // bỏ dấu /
+    const all = AppState.templates || [];
+
+    if (query === '') {
+        activeSuggestTemplates = all;
+    } else {
+        // Tách từ khóa đầu tiên trước khoảng trắng
+        const baseQuery = query.split(/\s+/)[0];
+        activeSuggestTemplates = all.filter(t => {
+            const short = (t.shortcut || '').toLowerCase().replace(/^\/+/, '');
+            const title = (t.title || '').toLowerCase();
+            return short.includes(baseQuery) || title.includes(baseQuery);
+        });
+    }
+
+    if (activeSuggestTemplates.length > 0) {
+        suggestSelectedIndex = 0;
+        renderSuggestTemplatesList(activeSuggestTemplates);
+        if (popup) popup.style.display = 'flex';
+        hideSheetRowPicker();
+    } else {
+        closeShortcutSuggestPopup();
+        if (clean.length > 1) {
+            fetchResolvedShortcut(clean);
+        }
+    }
+}
+
+function renderSuggestTemplatesList(templates) {
+    const container = document.getElementById('suggestTemplatesList');
+    if (!container) return;
+
+    let html = '';
+    templates.forEach((t, idx) => {
+        const isSelected = (idx === suggestSelectedIndex);
+        const hasVars = /\[([^\]]+)\]/.test(t.content || '') || /\[([^\]]+)\]/.test(t.shortcut || '');
+        const varMatches = (t.content || '').match(/\[([^\]]+)\]/g) || [];
+        const uniqueVars = [...new Set(varMatches)];
+
+        html += `
+            <div class="suggest-item ${isSelected ? 'is-selected' : ''}" 
+                 id="suggestItem_${idx}" 
+                 onclick="selectSuggestTemplateByIndex(${idx})">
+                <div class="suggest-item-top">
+                    <span class="suggest-item-shortcut">${escapeHtml(t.shortcut)}</span>
+                    <span class="suggest-item-title">${escapeHtml(t.title || 'Mẫu tin')}</span>
+                    ${hasVars ? `<span class="suggest-item-vars-tag"><i class="fa-solid fa-wand-magic-sparkles"></i> Biến: ${uniqueVars.slice(0, 3).join(', ')}</span>` : ''}
+                </div>
+                <div class="suggest-item-snippet">${escapeHtml(t.content || '')}</div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+function navigateSuggestList(direction) {
+    if (!activeSuggestTemplates || activeSuggestTemplates.length === 0) return;
+
+    suggestSelectedIndex += direction;
+    if (suggestSelectedIndex < 0) {
+        suggestSelectedIndex = activeSuggestTemplates.length - 1;
+    } else if (suggestSelectedIndex >= activeSuggestTemplates.length) {
+        suggestSelectedIndex = 0;
+    }
+
+    document.querySelectorAll('#suggestTemplatesList .suggest-item').forEach((el, idx) => {
+        el.classList.toggle('is-selected', idx === suggestSelectedIndex);
+    });
+
+    const activeEl = document.getElementById(`suggestItem_${suggestSelectedIndex}`);
+    if (activeEl) {
+        activeEl.scrollIntoView({ block: 'nearest' });
+    }
+}
+
+function selectSuggestTemplateByIndex(idx) {
+    if (activeSuggestTemplates && activeSuggestTemplates[idx]) {
+        selectSuggestTemplate(activeSuggestTemplates[idx]);
+    }
+}
+
+function selectSuggestTemplate(tpl) {
+    if (!tpl) return;
+
+    const hasVars = /\[([^\]]+)\]/.test(tpl.content || '');
+
+    // Nếu mẫu tin nhắn có chứa biến động [...] và hệ thống có nạp dữ liệu Google Sheet
+    if (hasVars && AppState.sheetRows && AppState.sheetRows.length > 0) {
+        pendingTemplateForSheetPicker = tpl;
+        showSheetRowPicker(AppState.sheetRows);
+        return;
+    }
+
+    // Nếu không có biến hoặc chưa có sheet: điền trực tiếp nội dung mẫu tin
+    const input = document.getElementById('chatInput');
+    if (input) {
+        input.value = tpl.content;
+        input.focus();
+        // Đặt con trỏ ở cuối văn bản
+        input.selectionStart = input.selectionEnd = input.value.length;
+    }
+    closeShortcutSuggestPopup();
+}
+
+let sheetPickerSelectedIndex = 0;
+
+function showSheetRowPicker(rows) {
+    const picker = document.getElementById('suggestSheetPicker');
+    const listContainer = document.getElementById('suggestSheetRowsList');
+    const templatesList = document.getElementById('suggestTemplatesList');
+
+    if (!picker || !listContainer) return;
+
+    if (templatesList) templatesList.style.display = 'none';
+    picker.style.display = 'block';
+
+    const cols = AppState.sheetColumns || [];
+    sheetPickerSelectedIndex = 0;
+    let html = '';
+
+    rows.slice(0, 30).forEach((row, idx) => {
+        // Tìm cột ảnh nếu có
+        let imgUrl = null;
+        for (const col of cols) {
+            const val = String(row[col] || '');
+            if (isImageUrlString(val)) {
+                imgUrl = val;
+                break;
+            }
+        }
+
+        // Tìm nhãn chính (id / sản phẩm / tên / title)
+        const rowId = row['id'] || row['ID'] || row['mã'] || row['Mã'] || row['stt'] || (idx + 1);
+        const nameVal = row['sản phẩm'] || row['Sản phẩm'] || row['tên'] || row['name'] || row[cols[1]] || '';
+        const priceVal = row['giá'] || row['Giá'] || row['price'] || '';
+
+        html += `
+            <div class="suggest-sheet-row-card ${idx === 0 ? 'is-selected' : ''}" 
+                 id="pickerRow_${idx}" 
+                 onclick="applyTemplateWithSheetRowByIndex(${idx})">
+                <div class="suggest-sheet-row-main">
+                    ${imgUrl ? `<img src="${escapeHtml(imgUrl)}" class="suggest-sheet-row-thumb" alt="Ảnh">` : ''}
+                    <span class="suggest-sheet-row-badge">#${escapeHtml(String(rowId))}</span>
+                    <span class="suggest-sheet-row-text">${escapeHtml(String(nameVal))}</span>
+                </div>
+                ${priceVal ? `<div class="suggest-sheet-row-meta"><strong style="color:#059669;">${escapeHtml(String(priceVal))}</strong></div>` : ''}
+            </div>
+        `;
+    });
+
+    listContainer.innerHTML = html;
+}
+
+function navigateSheetPicker(direction) {
+    const rows = (AppState.sheetRows || []).slice(0, 30);
+    if (rows.length === 0) return;
+
+    sheetPickerSelectedIndex += direction;
+    if (sheetPickerSelectedIndex < 0) {
+        sheetPickerSelectedIndex = rows.length - 1;
+    } else if (sheetPickerSelectedIndex >= rows.length) {
+        sheetPickerSelectedIndex = 0;
+    }
+
+    document.querySelectorAll('#suggestSheetRowsList .suggest-sheet-row-card').forEach((el, idx) => {
+        el.classList.toggle('is-selected', idx === sheetPickerSelectedIndex);
+    });
+
+    const activeEl = document.getElementById(`pickerRow_${sheetPickerSelectedIndex}`);
+    if (activeEl) {
+        activeEl.scrollIntoView({ block: 'nearest' });
+    }
+}
+
+function selectActiveSheetPickerRow() {
+    applyTemplateWithSheetRowByIndex(sheetPickerSelectedIndex);
+}
+
+function hideSheetRowPicker() {
+    const picker = document.getElementById('suggestSheetPicker');
+    const templatesList = document.getElementById('suggestTemplatesList');
+    if (picker) picker.style.display = 'none';
+    if (templatesList) templatesList.style.display = 'block';
+    pendingTemplateForSheetPicker = null;
+    sheetPickerSelectedIndex = 0;
+}
+
+function applyTemplateWithSheetRowByIndex(idx) {
+    if (AppState.sheetRows && AppState.sheetRows[idx] && pendingTemplateForSheetPicker) {
+        applyTemplateWithSheetRow(pendingTemplateForSheetPicker, AppState.sheetRows[idx]);
+    }
+}
+
+function applyTemplateWithSheetRow(tpl, row) {
+    if (!tpl || !row) return;
+
+    let compiled = tpl.content || '';
+    // Thay thế toàn bộ các biến [tên_cột]
+    Object.keys(row).forEach(col => {
+        const val = row[col] !== undefined ? String(row[col]) : '';
+        const re = new RegExp('\\[' + escapeRegExp(col.trim()) + '\\]', 'gi');
+        compiled = compiled.replace(re, val);
+    });
+
+    const input = document.getElementById('chatInput');
+    if (input) {
+        input.value = compiled;
+        input.focus();
+        input.selectionStart = input.selectionEnd = input.value.length;
+    }
+
+    closeShortcutSuggestPopup();
+    showToast('⚡ Đã điền dữ liệu Google Sheet vào tin nhắn!', 'success');
+}
+
+/**
+ * Giải phóng đồng bộ phím tắt tức thì (0ms) từ bộ nhớ Client
+ */
+function tryResolveShortcutSync(inputVal) {
+    const raw = (inputVal || '').trim();
+    if (!raw.startsWith('/')) return null;
+
+    const all = AppState.templates || [];
+    if (all.length === 0) return null;
+
+    // Tách "/sp 3" -> parts = ["/sp", "3"]
+    const parts = raw.split(/\s+/);
+    const baseCmd = parts[0];
+    const param = parts.length > 1 ? parts.slice(1).join(' ').trim() : null;
+
+    let matchedTpl = null;
+    let extractedParam = param;
+
+    for (const t of all) {
+        const tClean = '/' + (t.shortcut || '').trim().replace(/^\/+/, '');
+
+        // 1. Khớp chính xác hoàn toàn (ví dụ: gõ "/chao" khớp template "/chao")
+        if (tClean.toLowerCase() === raw.toLowerCase()) {
+            matchedTpl = t;
+            extractedParam = null;
+            break;
+        }
+
+        // 2. Template có dạng "/sp [id]" hoặc "/sp [ma]"
+        const varMatch = tClean.match(/^(\/[^\s\[]+)\s*\[([^\]]+)\]$/i);
+        if (varMatch) {
+            const cmd = varMatch[1];
+            if (cmd.toLowerCase() === baseCmd.toLowerCase() && param) {
+                matchedTpl = t;
+                extractedParam = param;
+                break;
+            }
+        }
+
+        // 3. Template có dạng "/id=[id]"
+        const eqMatch = tClean.match(/^(\/[^=\[]+=)\s*\[([^\]]+)\]$/i);
+        if (eqMatch) {
+            const prefix = eqMatch[1];
+            if (raw.toLowerCase().startsWith(prefix.toLowerCase())) {
+                matchedTpl = t;
+                extractedParam = raw.substring(prefix.length).trim();
+                break;
+            }
+        }
+
+        // 4. Template shortcut thuần "/sp", người dùng gõ "/sp 3"
+        if (tClean.toLowerCase() === baseCmd.toLowerCase() && param) {
+            matchedTpl = t;
+            extractedParam = param;
+            break;
+        }
+
+        // 5. Template shortcut chỉ ghi mỗi tên biến "[id]" hoặc "/[id]"
+        if (/^\/?\[([^\]]+)\]$/i.test(tClean)) {
+            matchedTpl = t;
+            extractedParam = raw.replace(/^\/+/, '').trim();
+            break;
+        }
+    }
+
+    if (!matchedTpl) return null;
+
+    // Nếu template không có biến hoặc không có tham số trích xuất
+    const hasVars = /\[([^\]]+)\]/.test(matchedTpl.content || '');
+    if (!hasVars || !extractedParam) {
+        return matchedTpl.content;
+    }
+
+    // Tìm dòng dữ liệu tương ứng trong AppState.sheetRows
+    const rows = AppState.sheetRows || [];
+    let matchedRow = null;
+
+    for (const r of rows) {
+        let isMatch = false;
+        // Ưu tiên so khớp cột id / mã / stt
+        for (const [k, v] of Object.entries(r)) {
+            const lk = k.toLowerCase().trim();
+            if (lk === 'id' || lk === 'mã' || lk === 'ma' || lk === 'stt' || lk === 'code') {
+                if (String(v).trim().toLowerCase() === extractedParam.toLowerCase()) {
+                    isMatch = true;
+                    break;
+                }
+            }
+        }
+        // Nếu không có cột id, tìm so khớp giá trị bất kỳ trong hàng
+        if (!isMatch) {
+            for (const v of Object.values(r)) {
+                if (String(v).trim().toLowerCase() === extractedParam.toLowerCase()) {
+                    isMatch = true;
+                    break;
+                }
+            }
+        }
+
+        if (isMatch) {
+            matchedRow = r;
+            break;
+        }
+    }
+
+    if (matchedRow) {
+        let compiled = matchedTpl.content;
+        Object.keys(matchedRow).forEach(col => {
+            const val = matchedRow[col] !== undefined ? String(matchedRow[col]) : '';
+            const re = new RegExp('\\[' + escapeRegExp(col.trim()) + '\\]', 'gi');
+            compiled = compiled.replace(re, val);
+        });
+        return compiled;
+    }
+
+    return matchedTpl.content;
+}
+
+function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function closeShortcutSuggestPopup() {
+    const popup = document.getElementById('templateSuggestPopup');
+    if (popup) popup.style.display = 'none';
+    hideSheetRowPicker();
+    suggestSelectedIndex = -1;
+    activeSuggestTemplates = [];
 }
 
 async function fetchResolvedShortcut(shortcut) {
     try {
         const res = await fetch(`../../api/template_action.php?action=resolve_shortcut&shortcut=${encodeURIComponent(shortcut)}`);
         const data = await res.json();
+        const previewBar = document.getElementById('shortcutPreviewBar');
         if (data.success && data.data) {
             window.CURRENT_RESOLVED_TEMPLATE = data.data.compiled_content;
-            document.getElementById('shortcutPreviewText').innerHTML =
-                `<i class="fa-solid fa-bolt"></i> Mẫu: <strong>${escapeHtml(data.data.template.title)}</strong> (<em>${escapeHtml(shortcut)}</em>)`;
+            if (previewBar) {
+                previewBar.style.display = 'flex';
+                document.getElementById('shortcutPreviewText').innerHTML =
+                    `<i class="fa-solid fa-bolt" style="color:#10B981;"></i> Mẫu: <strong>${escapeHtml(data.data.template.title)}</strong>: ${escapeHtml(data.data.compiled_content.substring(0, 70))}...`;
+            }
         } else {
-            document.getElementById('shortcutPreviewText').innerHTML =
-                `<i class="fa-solid fa-circle-question"></i> Đang tìm mẫu tin cho <strong>${escapeHtml(shortcut)}</strong>...`;
+            if (previewBar) {
+                previewBar.style.display = 'flex';
+                document.getElementById('shortcutPreviewText').innerHTML =
+                    `<i class="fa-solid fa-circle-question"></i> Đang tìm mẫu tin cho <strong>${escapeHtml(shortcut)}</strong>...`;
+            }
         }
     } catch (err) {
         console.warn('Lỗi kiểm tra shortcut:', err);
@@ -1067,9 +1522,12 @@ async function fetchResolvedShortcut(shortcut) {
 
 function applyShortcutDirectly() {
     if (window.CURRENT_RESOLVED_TEMPLATE) {
-        document.getElementById('chatInput').value = window.CURRENT_RESOLVED_TEMPLATE;
+        const input = document.getElementById('chatInput');
+        input.value = window.CURRENT_RESOLVED_TEMPLATE;
         document.getElementById('shortcutPreviewBar').style.display = 'none';
-        document.getElementById('chatInput').focus();
+        closeShortcutSuggestPopup();
+        input.focus();
+        input.selectionStart = input.selectionEnd = input.value.length;
     }
 }
 
@@ -2212,57 +2670,457 @@ async function toggleConversationLabel(labelId) {
 }
 
 // ========================================================
-// MẪU TIN NHẮN (CANNED RESPONSES)
+// QUẢN LÝ MẪU TIN NHẮN (CANNED RESPONSES & DYNAMIC TEMPLATES - PHASE 3)
 // ========================================================
 
+let isOpenedFromManageTemplateModal = false;
+let editingTemplateId = null;
+
+// Hỗ trợ hàm cũ để tương thích ngược
 function openTemplateModal() {
-    document.getElementById('templateModal').style.display = 'flex';
+    openManageTemplatesModal();
 }
 
 function closeTemplateModal() {
-    document.getElementById('templateModal').style.display = 'none';
+    closeManageTemplatesModal();
 }
 
-function insertVariable(varName) {
-    const textarea = document.getElementById('tplContent');
-    textarea.value += ' ' + varName + ' ';
-    textarea.focus();
+async function openManageTemplatesModal() {
+    document.getElementById('labelDropdownMenu')?.classList.remove('show');
+    editingTemplateId = null;
+    const modal = document.getElementById('modalManageTemplates');
+    if (modal) modal.style.display = 'flex';
+
+    await loadTemplatesList();
 }
 
-async function saveNewTemplate() {
-    const shortcut = document.getElementById('tplShortcut').value.trim();
-    const title = document.getElementById('tplTitle').value.trim();
-    const content = document.getElementById('tplContent').value.trim();
+function closeManageTemplatesModal() {
+    const modal = document.getElementById('modalManageTemplates');
+    if (modal) modal.style.display = 'none';
+    editingTemplateId = null;
+}
+
+async function loadTemplatesList() {
+    const container = document.getElementById('templateManageListContainer');
+    if (!container) return;
+
+    try {
+        const res = await fetch('../../api/template_action.php?action=get_list');
+        const data = await res.json();
+        if (data && data.success && Array.isArray(data.templates)) {
+            AppState.templates = data.templates;
+            renderManageTemplatesList(AppState.templates);
+        }
+    } catch (e) {
+        console.error('Lỗi tải danh sách template:', e);
+    }
+}
+
+function renderManageTemplatesList(templates) {
+    const container = document.getElementById('templateManageListContainer');
+    if (!container) return;
+
+    const list = templates || AppState.templates || [];
+    if (list.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center;padding:40px 16px;color:#94A3B8;font-size:13px;">
+                <i class="fa-solid fa-bolt" style="font-size:26px;margin-bottom:8px;display:block;opacity:0.35;"></i>
+                Chưa có mẫu tin nhắn nhanh nào. Bấm nút bên dưới để tạo mới!
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    list.forEach(t => {
+        const isEditing = (editingTemplateId === t.id);
+        if (isEditing) {
+            html += `
+                <div class="template-manage-row is-editing" id="tplRow_${t.id}">
+                    <div style="width:100%;display:flex;flex-direction:column;gap:8px;">
+                        <div style="display:flex;gap:8px;">
+                            <div style="flex:1;">
+                                <label style="font-size:11px;font-weight:700;color:#475569;">Tiêu đề</label>
+                                <input type="text" id="editTplTitle_${t.id}" value="${escapeHtml(t.title || '')}" class="form-input" style="height:32px;font-size:12.5px;padding:4px 8px;">
+                            </div>
+                            <div style="width:160px;">
+                                <label style="font-size:11px;font-weight:700;color:#475569;">Phím tắt</label>
+                                <input type="text" id="editTplShortcut_${t.id}" value="${escapeHtml(t.shortcut)}" class="form-input" style="height:32px;font-size:12.5px;padding:4px 8px;font-family:monospace;"
+                                       oninput="handleValidateEditShortcut(this.value, ${t.id})">
+                            </div>
+                        </div>
+                        <div id="editShortcutError_${t.id}" class="shortcut-invalid-text" style="display:none;">
+                            <i class="fa-solid fa-triangle-exclamation"></i> <span>Phím tắt này đã được dùng!</span>
+                        </div>
+                        <div>
+                            <label style="font-size:11px;font-weight:700;color:#475569;">Nội dung mẫu tin</label>
+                            <textarea id="editTplContent_${t.id}" class="form-textarea" rows="3" style="font-size:12.5px;padding:6px 8px;">${escapeHtml(t.content)}</textarea>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:4px;">
+                            <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+                                <span style="font-size:11px;color:#94A3B8;">Biến Sheet:</span>
+                                ${(AppState.sheetColumns || ['id', 'sản phẩm', 'giá', 'số lượng']).map(col => `
+                                    <button type="button" class="chip-var-btn" style="padding:2px 6px;font-size:10.5px;" onclick="insertVarToEditModal(${t.id}, '[${escapeHtml(col)}]')">
+                                        + ${escapeHtml(col)}
+                                    </button>
+                                `).join('')}
+                            </div>
+                            <div style="display:flex;gap:6px;">
+                                <button type="button" class="btn-manage-action btn-manage-save" onclick="saveEditTemplate(${t.id})">
+                                    <i class="fa-solid fa-check"></i> Lưu
+                                </button>
+                                <button type="button" class="btn-manage-action btn-manage-cancel" onclick="cancelEditTemplate()">
+                                    <i class="fa-solid fa-xmark"></i> Hủy
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            html += `
+                <div class="template-manage-row" id="tplRow_${t.id}">
+                    <div class="template-manage-left">
+                        <div class="template-meta-top">
+                            <span class="template-shortcut-badge"><i class="fa-solid fa-bolt"></i> ${escapeHtml(t.shortcut)}</span>
+                            <span class="template-title-text">${escapeHtml(t.title || 'Mẫu tin')}</span>
+                        </div>
+                        <div class="template-content-snippet" title="${escapeHtml(t.content)}">${escapeHtml(t.content)}</div>
+                    </div>
+                    <div class="template-manage-actions">
+                        <button type="button" class="btn-manage-action btn-manage-edit" onclick="startEditTemplate(${t.id})">
+                            <i class="fa-solid fa-pen"></i> Sửa
+                        </button>
+                        <button type="button" class="btn-manage-action btn-manage-delete" onclick="deleteTemplateItem(${t.id}, '${escapeHtml(t.title || t.shortcut)}')">
+                            <i class="fa-solid fa-trash"></i> Xóa
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+    });
+
+    container.innerHTML = html;
+}
+
+function handleSearchManageTemplates(keyword) {
+    const kw = (keyword || '').toLowerCase().trim();
+    if (!kw) {
+        renderManageTemplatesList(AppState.templates);
+        return;
+    }
+    const filtered = (AppState.templates || []).filter(t => {
+        return (t.shortcut && t.shortcut.toLowerCase().includes(kw)) ||
+               (t.title && t.title.toLowerCase().includes(kw)) ||
+               (t.content && t.content.toLowerCase().includes(kw));
+    });
+    renderManageTemplatesList(filtered);
+}
+
+function startEditTemplate(id) {
+    editingTemplateId = id;
+    renderManageTemplatesList();
+    const input = document.getElementById(`editTplTitle_${id}`);
+    if (input) {
+        input.focus();
+        input.select();
+    }
+}
+
+function cancelEditTemplate() {
+    editingTemplateId = null;
+    renderManageTemplatesList();
+}
+
+function insertVarToEditModal(id, varName) {
+    const textarea = document.getElementById(`editTplContent_${id}`);
+    if (textarea) {
+        insertTextAtCursor(textarea, ' ' + varName + ' ');
+        textarea.focus();
+    }
+}
+
+function handleValidateEditShortcut(val, id) {
+    const clean = '/' + val.replace(/^\/+/, '').trim();
+    const isDup = (AppState.templates || []).some(t => t.id !== id && t.shortcut.toLowerCase() === clean.toLowerCase());
+    const errEl = document.getElementById(`editShortcutError_${id}`);
+    const inputEl = document.getElementById(`editTplShortcut_${id}`);
+
+    if (errEl && inputEl) {
+        if (isDup) {
+            errEl.style.display = 'flex';
+            inputEl.classList.add('is-invalid');
+        } else {
+            errEl.style.display = 'none';
+            inputEl.classList.remove('is-invalid');
+        }
+    }
+}
+
+async function saveEditTemplate(id) {
+    const titleInput = document.getElementById(`editTplTitle_${id}`);
+    const shortcutInput = document.getElementById(`editTplShortcut_${id}`);
+    const contentInput = document.getElementById(`editTplContent_${id}`);
+
+    const title = titleInput ? titleInput.value.trim() : '';
+    let shortcut = shortcutInput ? shortcutInput.value.trim() : '';
+    const content = contentInput ? contentInput.value.trim() : '';
 
     if (!shortcut || !content) {
-        alert('Vui lòng nhập phím tắt và nội dung mẫu tin');
+        alert('Phím tắt và nội dung không được để trống');
+        return;
+    }
+
+    if (!shortcut.startsWith('/')) {
+        shortcut = '/' + shortcut;
+    }
+
+    // Kiểm tra trùng phím tắt ở client
+    const isDup = (AppState.templates || []).some(t => t.id !== id && t.shortcut.toLowerCase() === shortcut.toLowerCase());
+    if (isDup) {
+        alert(`Phím tắt "${shortcut}" đã được sử dụng bởi mẫu tin khác. Vui lòng chọn phím tắt khác!`);
+        return;
+    }
+
+    try {
+        const formData = new FormData();
+        formData.append('action', 'update');
+        formData.append('id', id);
+        formData.append('shortcut', shortcut);
+        formData.append('title', title);
+        formData.append('content', content);
+
+        const res = await fetch('../../api/template_action.php', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (data && data.success) {
+            editingTemplateId = null;
+            AppState.templates = data.templates || AppState.templates;
+            renderManageTemplatesList();
+            showToast('Cập nhật mẫu tin nhắn thành công!', 'success');
+        } else {
+            alert(data?.message || 'Lỗi cập nhật mẫu tin');
+        }
+    } catch (e) {
+        console.error('Lỗi lưu template:', e);
+        alert('Lỗi kết nối khi cập nhật mẫu tin nhắn');
+    }
+}
+
+async function deleteTemplateItem(id, title) {
+    if (!confirm(`Bạn có chắc chắn muốn xóa mẫu tin "${title}"?`)) {
+        return;
+    }
+
+    try {
+        const formData = new FormData();
+        formData.append('action', 'delete');
+        formData.append('id', id);
+
+        const res = await fetch('../../api/template_action.php', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (data && data.success) {
+            AppState.templates = data.templates || (AppState.templates || []).filter(t => t.id !== id);
+            renderManageTemplatesList();
+            showToast('Đã xóa mẫu tin nhắn!', 'info');
+        } else {
+            alert(data?.message || 'Lỗi xóa mẫu tin');
+        }
+    } catch (e) {
+        console.error('Lỗi xóa template:', e);
+        alert('Lỗi kết nối khi xóa mẫu tin');
+    }
+}
+
+// --------------------------------------------------------
+// MODAL TẠO MẪU TIN NHẮN MỚI
+// --------------------------------------------------------
+
+function openCreateTemplateFromManage() {
+    isOpenedFromManageTemplateModal = true;
+    closeManageTemplatesModal();
+
+    const modal = document.getElementById('modalCreateTemplate');
+    if (modal) modal.style.display = 'flex';
+
+    // Xóa trắng form
+    const titleEl = document.getElementById('newTplTitle');
+    const shortcutEl = document.getElementById('newTplShortcut');
+    const contentEl = document.getElementById('newTplContent');
+    const errMsg = document.getElementById('newShortcutInvalidMsg');
+
+    if (titleEl) titleEl.value = '';
+    if (shortcutEl) {
+        shortcutEl.value = '';
+        shortcutEl.classList.remove('is-invalid');
+    }
+    if (contentEl) contentEl.value = '';
+    if (errMsg) errMsg.style.display = 'none';
+
+    renderCreateTemplateVarChips();
+    if (titleEl) titleEl.focus();
+}
+
+function closeCreateTemplateModal() {
+    const modal = document.getElementById('modalCreateTemplate');
+    if (modal) modal.style.display = 'none';
+
+    if (isOpenedFromManageTemplateModal) {
+        isOpenedFromManageTemplateModal = false;
+        openManageTemplatesModal();
+    }
+}
+
+function renderCreateTemplateVarChips() {
+    const container = document.getElementById('tplCreateVarChipsContainer');
+    if (!container) return;
+
+    let cols = AppState.sheetColumns || [];
+    if (!cols || cols.length === 0) {
+        cols = ['id', 'sản phẩm', 'giá', 'số lượng'];
+    }
+
+    container.innerHTML = cols.map(col => {
+        const isImg = isImageColumnName(col);
+        return `
+            <div class="draggable-chip-var ${isImg ? 'chip-image' : ''}" 
+                 draggable="true" 
+                 ondragstart="handleVarDragStart(event, '[${escapeHtml(col)}]')"
+                 onclick="insertVarToCreateModal('[${escapeHtml(col)}]')"
+                 title="Bấm để chèn hoặc Kéo thả vào ô nội dung/viết tắt">
+                ${isImg ? '<i class="fa-regular fa-image"></i>' : '<i class="fa-solid fa-cube"></i>'}
+                + ${escapeHtml(col)}
+            </div>
+        `;
+    }).join('');
+}
+
+// --------------------------------------------------------
+// KÉO THẢ BIẾN ĐỘNG (HTML5 DRAG & DROP API)
+// --------------------------------------------------------
+
+function handleVarDragStart(event, varName) {
+    event.dataTransfer.setData('text/plain', varName);
+    event.dataTransfer.effectAllowed = 'copy';
+}
+
+function handleVarDragOver(event, targetElement) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    if (targetElement) {
+        targetElement.classList.add('input-drag-over');
+    }
+}
+
+function handleVarDragLeave(targetElement) {
+    if (targetElement) {
+        targetElement.classList.remove('input-drag-over');
+    }
+}
+
+function handleVarDrop(event, targetId) {
+    event.preventDefault();
+    const el = document.getElementById(targetId);
+    if (!el) return;
+    el.classList.remove('input-drag-over');
+
+    const varName = event.dataTransfer.getData('text/plain');
+    if (!varName) return;
+
+    insertTextAtCursor(el, ' ' + varName + ' ');
+    el.focus();
+
+    if (targetId === 'newTplShortcut') {
+        handleValidateNewShortcut(el.value);
+    }
+}
+
+function insertVarToCreateModal(varName) {
+    const contentEl = document.getElementById('newTplContent');
+    if (contentEl) {
+        insertTextAtCursor(contentEl, ' ' + varName + ' ');
+        contentEl.focus();
+    }
+}
+
+function insertTextAtCursor(inputEl, text) {
+    const start = inputEl.selectionStart || inputEl.value.length;
+    const end = inputEl.selectionEnd || inputEl.value.length;
+    const val = inputEl.value;
+
+    inputEl.value = val.substring(0, start) + text + val.substring(end);
+    const newPos = start + text.length;
+    inputEl.selectionStart = newPos;
+    inputEl.selectionEnd = newPos;
+}
+
+function handleValidateNewShortcut(val) {
+    if (!val) {
+        toggleShortcutError(false);
+        return;
+    }
+    const clean = '/' + val.replace(/^\/+/, '').trim();
+    const isDup = (AppState.templates || []).some(t => t.shortcut.toLowerCase() === clean.toLowerCase());
+    toggleShortcutError(isDup);
+}
+
+function toggleShortcutError(isError) {
+    const errBox = document.getElementById('newShortcutInvalidMsg');
+    const inputEl = document.getElementById('newTplShortcut');
+    const btnSubmit = document.getElementById('btnSubmitNewTemplate');
+
+    if (errBox) errBox.style.display = isError ? 'flex' : 'none';
+    if (inputEl) inputEl.classList.toggle('is-invalid', isError);
+    if (btnSubmit) btnSubmit.disabled = isError;
+}
+
+async function saveNewTemplateRecord() {
+    const titleEl = document.getElementById('newTplTitle');
+    const shortcutEl = document.getElementById('newTplShortcut');
+    const contentEl = document.getElementById('newTplContent');
+
+    const title = titleEl ? titleEl.value.trim() : '';
+    let shortcut = shortcutEl ? shortcutEl.value.trim() : '';
+    const content = contentEl ? contentEl.value.trim() : '';
+
+    if (!title || !shortcut || !content) {
+        alert('Vui lòng điền đầy đủ Tiêu đề, Phím tắt và Nội dung mẫu tin');
+        return;
+    }
+
+    if (!shortcut.startsWith('/')) {
+        shortcut = '/' + shortcut;
+    }
+
+    // Kiểm tra trùng lặp
+    const isDup = (AppState.templates || []).some(t => t.shortcut.toLowerCase() === shortcut.toLowerCase());
+    if (isDup) {
+        alert(`Phím tắt "${shortcut}" đã tồn tại trong hệ thống. Vui lòng chọn phím tắt khác!`);
+        toggleShortcutError(true);
         return;
     }
 
     try {
         const formData = new FormData();
         formData.append('action', 'create');
-        formData.append('shortcut', shortcut);
         formData.append('title', title);
+        formData.append('shortcut', shortcut);
         formData.append('content', content);
 
-        const res = await fetch('../../api/template_action.php', {
-            method: 'POST',
-            body: formData
-        });
+        const res = await fetch('../../api/template_action.php', { method: 'POST', body: formData });
         const data = await res.json();
 
-        if (data.success) {
-            alert('Tạo mẫu tin nhắn thành công!');
-            closeTemplateModal();
-            document.getElementById('tplShortcut').value = '';
-            document.getElementById('tplTitle').value = '';
-            document.getElementById('tplContent').value = '';
+        if (data && data.success) {
+            showToast('Tạo mẫu tin nhắn thành công!', 'success');
+            AppState.templates = data.templates || AppState.templates;
+            closeCreateTemplateModal();
         } else {
-            alert(data.message || 'Lỗi tạo mẫu tin');
+            alert(data?.message || 'Lỗi tạo mẫu tin');
         }
-    } catch (err) {
-        console.error('Lỗi lưu template:', err);
+    } catch (e) {
+        console.error('Lỗi tạo template:', e);
+        alert('Lỗi kết nối khi tạo mẫu tin nhắn');
     }
 }
 
