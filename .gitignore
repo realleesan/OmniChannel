@@ -12,3 +12,4 @@ Thumbs.db
 # Dependencies Node.js nếu có chạy test gateway
 node_modules/
 npm-debug.log
+scratch/

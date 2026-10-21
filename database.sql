@@ -80,12 +80,38 @@ CREATE TABLE messages (
 -- 5. Bảng mẫu tin nhắn nhanh (Templates hỗ trợ phím tắt và biến động)
 CREATE TABLE templates (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    shortcut VARCHAR(20) NOT NULL UNIQUE, -- Ví dụ: /1, /size, /stk
+    shortcut VARCHAR(50) NOT NULL UNIQUE, -- Ví dụ: /1, /size, /sp, [id]
     title VARCHAR(100) NOT NULL,
-    content TEXT NOT NULL, -- Chứa placeholder như [ten_sp], [ma_sp], [gia]
+    content TEXT NOT NULL, -- Chứa placeholder như [ten_sp], [ma_sp], [gia], [sản phẩm]
+    variables_json TEXT NULL, -- Danh sách biến JSON: ["sản phẩm", "id", "giá"]
     created_by_user_id INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 5.1. Bảng cấu hình kết nối Google Sheet
+CREATE TABLE IF NOT EXISTS google_sheet_configs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    sheet_url TEXT NULL,
+    script_url TEXT NOT NULL,
+    sheet_name VARCHAR(100) DEFAULT 'Sheet1',
+    columns_json TEXT NOT NULL,
+    checksum VARCHAR(64) DEFAULT NULL,
+    last_synced_at DATETIME DEFAULT NULL,
+    synced_by_user_id INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (synced_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 5.2. Bảng lưu trữ các dòng dữ liệu Google Sheet (Snapshot)
+CREATE TABLE IF NOT EXISTS google_sheet_rows (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    config_id INT NOT NULL,
+    row_index INT NOT NULL,
+    row_data_json LONGTEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (config_id) REFERENCES google_sheet_configs(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 6. Bảng thẻ hồ sơ khách hàng (Phục vụ Agent bóc tách và cảnh báo rủi ro)
