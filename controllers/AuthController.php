@@ -56,10 +56,14 @@ class AuthController {
 
     public function logout() {
         if (!empty($_SESSION['user_id'])) {
-            $this->userModel->updateStatus($_SESSION['user_id'], 'OFFLINE');
+            try {
+                $this->userModel->updateStatus($_SESSION['user_id'], 'OFFLINE');
+            } catch (Throwable $e) {}
         }
-        session_unset();
-        session_destroy();
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            @session_unset();
+            @session_destroy();
+        }
         return ['success' => true];
     }
 

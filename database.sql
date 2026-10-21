@@ -32,6 +32,7 @@ CREATE TABLE users (
     fullname VARCHAR(100) NOT NULL,
     avatar VARCHAR(255) DEFAULT 'default_avatar.png',
     status ENUM('ONLINE', 'OFFLINE') DEFAULT 'OFFLINE',
+    last_active_at TIMESTAMP NULL DEFAULT NULL,
     current_chat_count INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

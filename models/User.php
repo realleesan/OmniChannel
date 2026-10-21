@@ -32,6 +32,18 @@ class User {
 
     public function __construct() {
         $this->db = Database::getConnection();
+
+        // Tự động kiểm tra và bổ sung cột last_active_at nếu chưa có trên database hosting
+        static $checkedSchema = false;
+        if (!$checkedSchema) {
+            $checkedSchema = true;
+            try {
+                $check = $this->db->query("SHOW COLUMNS FROM users LIKE 'last_active_at'")->fetch();
+                if (!$check) {
+                    $this->db->exec("ALTER TABLE users ADD COLUMN last_active_at TIMESTAMP NULL DEFAULT NULL AFTER status");
+                }
+            } catch (Exception $e) {}
+        }
     }
 
     public function findById($id) {
@@ -70,13 +82,25 @@ class User {
 
     public function updateStatus($id, $status) {
         $status = in_array($status, ['ONLINE', 'OFFLINE']) ? $status : 'OFFLINE';
-        if ($status === 'ONLINE') {
-            $stmt = $this->db->prepare("UPDATE users SET status = 'ONLINE', last_active_at = NOW() WHERE id = :id");
-        } else {
-            $stmt = $this->db->prepare("UPDATE users SET status = 'OFFLINE', last_active_at = NULL WHERE id = :id");
+        try {
+            if ($status === 'ONLINE') {
+                $stmt = $this->db->prepare("UPDATE users SET status = 'ONLINE', last_active_at = NOW() WHERE id = :id");
+            } else {
+                $stmt = $this->db->prepare("UPDATE users SET status = 'OFFLINE', last_active_at = NULL WHERE id = :id");
+            }
+            $res = $stmt->execute([':id' => $id]);
+        } catch (Exception $e) {
+            // Fallback an toàn nếu chưa có cột last_active_at
+            try {
+                $stmt = $this->db->prepare("UPDATE users SET status = :status WHERE id = :id");
+                $res = $stmt->execute([':status' => $status, ':id' => $id]);
+            } catch (Exception $e2) {
+                $res = false;
+            }
         }
-        $res = $stmt->execute([':id' => $id]);
-        $this->syncChatCounts();
+        try {
+            $this->syncChatCounts();
+        } catch (Exception $e) {}
         return $res;
     }
 

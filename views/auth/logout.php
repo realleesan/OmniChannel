@@ -10,8 +10,17 @@
 require_once __DIR__ . '/../../config/constants.php';
 require_once __DIR__ . '/../../controllers/AuthController.php';
 
-$authController = new AuthController();
-$authController->logout();
+try {
+    $authController = new AuthController();
+    $authController->logout();
+} catch (Throwable $e) {
+    if (session_status() === PHP_SESSION_NONE) {
+        @session_start();
+    }
+    @session_unset();
+    @session_destroy();
+}
 
-header('Location: ' . BASE_URL . '/views/auth/login.php');
+$loginUrl = defined('BASE_URL') ? rtrim(BASE_URL, '/') . '/views/auth/login.php' : 'login.php';
+header('Location: ' . $loginUrl);
 exit;
