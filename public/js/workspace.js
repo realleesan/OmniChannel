@@ -3667,29 +3667,52 @@ function toggleSheetChangeAlert(hasChanges) {
     if (banner) banner.style.display = hasChanges ? 'flex' : 'none';
 }
 
-function encodeBase64Safe(str) {
-    try {
-        return btoa(unescape(encodeURIComponent(str || '')));
-    } catch (e) {
-        return btoa(str || '');
+function extractGasId(str) {
+    if (!str) return '';
+    str = str.trim();
+    const match = str.match(/\/macros\/s\/([a-zA-Z0-9_\-]+)/);
+    if (match && match[1]) {
+        return match[1];
     }
+    if (/^[a-zA-Z0-9_\-]{20,}$/.test(str)) {
+        return str;
+    }
+    return str;
+}
+
+function extractSpreadsheetId(str) {
+    if (!str) return '';
+    str = str.trim();
+    const match = str.match(/\/spreadsheets\/d\/([a-zA-Z0-9_\-]+)/);
+    if (match && match[1]) {
+        return match[1];
+    }
+    if (/^[a-zA-Z0-9_\-]{15,}$/.test(str)) {
+        return str;
+    }
+    return str;
 }
 
 async function saveGoogleSheetConfig() {
-    const sheetUrl = document.getElementById('gsheetUrlInput')?.value.trim() || '';
-    const scriptUrl = document.getElementById('gsheetScriptUrlInput')?.value.trim() || '';
+    const rawSheet = document.getElementById('gsheetUrlInput')?.value.trim() || '';
+    const rawScript = document.getElementById('gsheetScriptUrlInput')?.value.trim() || '';
     const sheetName = document.getElementById('gsheetNameInput')?.value.trim() || 'Kho Sản Phẩm';
 
-    if (!scriptUrl) {
-        alert('Vui lòng nhập URL Web App của Google Apps Script');
+    if (!rawScript) {
+        alert('Vui lòng nhập URL Web App hoặc Deployment ID của Google Apps Script');
         return;
     }
+
+    const gasId = extractGasId(rawScript);
+    const sheetId = extractSpreadsheetId(rawSheet);
 
     try {
         const formData = new FormData();
         formData.append('action', 'save_config');
-        formData.append('s_url_payload', encodeBase64Safe(scriptUrl));
-        formData.append('sh_url_payload', encodeBase64Safe(sheetUrl));
+        formData.append('gas_id', gasId);
+        if (sheetId) {
+            formData.append('sheet_id', sheetId);
+        }
         formData.append('sheet_name', sheetName);
 
         let res = await fetch('../../api/google_sheet_action.php', { method: 'POST', body: formData });
@@ -3712,7 +3735,7 @@ async function saveGoogleSheetConfig() {
             showToast('Lưu cấu hình Google Sheet thành công!', 'success');
             await loadGoogleSheetStatus(false);
         } else {
-            alert(data?.message || 'Lỗi lưu cấu hình');
+            alert(data?.message || 'Lỗi lưu cấu hình Google Sheet');
         }
     } catch (e) {
         console.error('Lỗi lưu Google Sheet config:', e);
@@ -3723,15 +3746,18 @@ async function saveGoogleSheetConfig() {
 async function syncGoogleSheetNow() {
     if (isSyncingGSheet) return;
 
-    const scriptUrl = document.getElementById('gsheetScriptUrlInput')?.value.trim() || (AppState.sheetConfig?.script_url || '');
-    const sheetUrl = document.getElementById('gsheetUrlInput')?.value.trim() || (AppState.sheetConfig?.sheet_url || '');
+    const rawScript = document.getElementById('gsheetScriptUrlInput')?.value.trim() || (AppState.sheetConfig?.script_url || '');
+    const rawSheet = document.getElementById('gsheetUrlInput')?.value.trim() || (AppState.sheetConfig?.sheet_url || '');
     const sheetName = document.getElementById('gsheetNameInput')?.value.trim() || (AppState.sheetConfig?.sheet_name || 'Kho Sản Phẩm');
 
-    if (!scriptUrl) {
-        alert('Vui lòng nhập URL Google Apps Script trước khi đồng bộ');
+    if (!rawScript) {
+        alert('Vui lòng nhập URL Google Apps Script hoặc Deployment ID trước khi đồng bộ');
         switchGSheetTab('config');
         return;
     }
+
+    const gasId = extractGasId(rawScript);
+    const sheetId = extractSpreadsheetId(rawSheet);
 
     isSyncingGSheet = true;
     const btnModalSync = document.getElementById('btnSyncGSheetModal');
@@ -3742,7 +3768,7 @@ async function syncGoogleSheetNow() {
 
     if (btnModalSync) {
         btnModalSync.disabled = true;
-        btnModalSync.innerHTML = '<i class="fa-solid fa-arrows-rotate fa-spin"></i> Đang đồng bộ...';
+        btnModalSync.innerHTML = '<i class="fa-solid fa-arrows-rotate fa-spin"></i> Đang tải từ Sheet...';
     }
     if (btnDataSync) {
         btnDataSync.disabled = true;
@@ -3750,11 +3776,32 @@ async function syncGoogleSheetNow() {
     }
 
     try {
+        // BƯỚC 1: Thử lấy dữ liệu trực tiếp từ Google Apps Script qua trình duyệt (Client-side Relay)
+        // Bỏ qua hoàn toàn giới hạn chặn mạng ngoại vi hoặc timeout của InfinityFree
+        const fullGasUrl = rawScript.startsWith('http')
+            ? rawScript
+            : `https://script.google.com/macros/s/${gasId}/exec`;
+
+        let gasData = null;
+        try {
+            const gasRes = await fetch(fullGasUrl, { method: 'GET', mode: 'cors' });
+            if (gasRes.ok) {
+                gasData = await gasRes.json();
+            }
+        } catch (fetchErr) {
+            console.warn('Direct browser fetch to Google Apps Script failed, will let server attempt cURL:', fetchErr);
+        }
+
+        // BƯỚC 2: Gửi dữ liệu về backend PHP để lưu trữ vào MySQL
         const formData = new FormData();
         formData.append('action', 'sync');
-        formData.append('s_url_payload', encodeBase64Safe(scriptUrl));
-        formData.append('sh_url_payload', encodeBase64Safe(sheetUrl));
+        formData.append('gas_id', gasId);
+        if (sheetId) formData.append('sheet_id', sheetId);
         formData.append('sheet_name', sheetName);
+
+        if (gasData && gasData.success) {
+            formData.append('client_data', JSON.stringify(gasData));
+        }
 
         let res = await fetch('../../api/google_sheet_action.php', { method: 'POST', body: formData });
         if (res.status === 403) {
@@ -3780,11 +3827,11 @@ async function syncGoogleSheetNow() {
             await loadGoogleSheetStatus(false);
             await loadGoogleSheetData(true);
         } else {
-            alert(data?.message || 'Đồng bộ thất bại, vui lòng kiểm tra lại URL Apps Script');
+            alert(data?.message || 'Đồng bộ thất bại, vui lòng kiểm tra lại quyền truy cập hoặc URL Apps Script');
         }
     } catch (e) {
         console.error('Lỗi đồng bộ Google Sheet:', e);
-        alert('Lỗi kết nối trong quá trình đồng bộ Google Sheet');
+        alert('Lỗi kết nối trong quá trình đồng bộ Google Sheet: ' + (e?.message || e));
     } finally {
         isSyncingGSheet = false;
         if (btnModalSync) {

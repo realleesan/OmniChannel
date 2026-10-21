@@ -111,6 +111,7 @@ try {
                 }
             }
 
+            while (ob_get_level() > 0) { @ob_end_clean(); }
             echo json_encode([
                 'success'      => true,
                 'is_admin'     => $isAdmin,
@@ -137,6 +138,7 @@ try {
             $config = $stmt->fetch();
 
             if (!$config) {
+                while (ob_get_level() > 0) { @ob_end_clean(); }
                 echo json_encode([
                     'success' => true,
                     'sheets'  => [],
@@ -205,6 +207,7 @@ try {
                 $parsedRows[] = $rowObj;
             }
 
+            while (ob_get_level() > 0) { @ob_end_clean(); }
             echo json_encode([
                 'success'        => true,
                 'sheets'         => $sheetsList,
@@ -227,27 +230,24 @@ try {
                 exit;
             }
 
-            $sheetUrl = trim($_POST['sheet_url'] ?? '');
-            if (empty($sheetUrl) && !empty($_POST['sh_url_payload'])) {
-                $sheetUrl = trim(base64_decode($_POST['sh_url_payload']));
-            }
-            if (empty($sheetUrl) && !empty($_POST['sheet_url_b64'])) {
-                $sheetUrl = trim(base64_decode($_POST['sheet_url_b64']));
-            }
+            $gasId = trim($_POST['gas_id'] ?? '');
+            $sheetId = trim($_POST['sheet_id'] ?? '');
 
             $scriptUrl = trim($_POST['script_url'] ?? '');
-            if (empty($scriptUrl) && !empty($_POST['s_url_payload'])) {
-                $scriptUrl = trim(base64_decode($_POST['s_url_payload']));
+            if (!empty($gasId)) {
+                $scriptUrl = (strpos($gasId, 'http') === 0) ? $gasId : "https://script.google.com/macros/s/{$gasId}/exec";
             }
-            if (empty($scriptUrl) && !empty($_POST['script_url_b64'])) {
-                $scriptUrl = trim(base64_decode($_POST['script_url_b64']));
+
+            $sheetUrl = trim($_POST['sheet_url'] ?? '');
+            if (!empty($sheetId)) {
+                $sheetUrl = (strpos($sheetId, 'http') === 0) ? $sheetId : "https://docs.google.com/spreadsheets/d/{$sheetId}/edit";
             }
 
             $sheetName = trim($_POST['sheet_name'] ?? 'Sheet1');
 
             if (empty($scriptUrl)) {
                 while (ob_get_level() > 0) { @ob_end_clean(); }
-                echo json_encode(['success' => false, 'message' => 'Vui lòng nhập URL Google Apps Script Web App'], JSON_UNESCAPED_UNICODE);
+                echo json_encode(['success' => false, 'message' => 'Vui lòng nhập URL hoặc ID của Google Apps Script Web App'], JSON_UNESCAPED_UNICODE);
                 exit;
             }
 
@@ -296,56 +296,61 @@ try {
             $stmt = $db->query("SELECT * FROM google_sheet_configs ORDER BY id DESC LIMIT 1");
             $config = $stmt->fetch();
 
+            $gasId = trim($_POST['gas_id'] ?? '');
+            $sheetId = trim($_POST['sheet_id'] ?? '');
+
             $scriptUrl = trim($_POST['script_url'] ?? '');
-            if (empty($scriptUrl) && !empty($_POST['s_url_payload'])) {
-                $scriptUrl = trim(base64_decode($_POST['s_url_payload']));
-            }
-            if (empty($scriptUrl) && !empty($_POST['script_url_b64'])) {
-                $scriptUrl = trim(base64_decode($_POST['script_url_b64']));
-            }
-            if (empty($scriptUrl) && !empty($config['script_url'])) {
+            if (!empty($gasId)) {
+                $scriptUrl = (strpos($gasId, 'http') === 0) ? $gasId : "https://script.google.com/macros/s/{$gasId}/exec";
+            } elseif (empty($scriptUrl) && !empty($config['script_url'])) {
                 $scriptUrl = $config['script_url'];
             }
 
             $sheetUrl = trim($_POST['sheet_url'] ?? '');
-            if (empty($sheetUrl) && !empty($_POST['sh_url_payload'])) {
-                $sheetUrl = trim(base64_decode($_POST['sh_url_payload']));
-            }
-            if (empty($sheetUrl) && !empty($_POST['sheet_url_b64'])) {
-                $sheetUrl = trim(base64_decode($_POST['sheet_url_b64']));
-            }
-            if (empty($sheetUrl) && !empty($config['sheet_url'])) {
+            if (!empty($sheetId)) {
+                $sheetUrl = (strpos($sheetId, 'http') === 0) ? $sheetId : "https://docs.google.com/spreadsheets/d/{$sheetId}/edit";
+            } elseif (empty($sheetUrl) && !empty($config['sheet_url'])) {
                 $sheetUrl = $config['sheet_url'];
             }
 
-            if (empty($scriptUrl)) {
-                while (ob_get_level() > 0) { @ob_end_clean(); }
-                echo json_encode(['success' => false, 'message' => 'Chưa có URL Google Apps Script để đồng bộ'], JSON_UNESCAPED_UNICODE);
-                exit;
+            $clientDataRaw = $_POST['client_data'] ?? null;
+            $gasData = null;
+            if (!empty($clientDataRaw)) {
+                $gasData = is_array($clientDataRaw) ? $clientDataRaw : json_decode($clientDataRaw, true);
             }
 
-            // Gọi sang Google Apps Script với Follow Location (302 redirect)
-            $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, $scriptUrl);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-            curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-            curl_setopt($ch, CURLOPT_USERAGENT, 'OmniChannel-Sync-Agent/2.0');
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlError = curl_error($ch);
-            curl_close($ch);
+            if (!$gasData) {
+                if (empty($scriptUrl)) {
+                    while (ob_get_level() > 0) { @ob_end_clean(); }
+                    echo json_encode(['success' => false, 'message' => 'Chưa có URL Google Apps Script để đồng bộ'], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
 
-            if ($curlError) {
-                echo json_encode(['success' => false, 'message' => 'Lỗi kết nối tới Google Apps Script: ' . $curlError], JSON_UNESCAPED_UNICODE);
-                exit;
+                // Gọi sang Google Apps Script với Follow Location (302 redirect)
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, $scriptUrl);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+                curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_USERAGENT, 'OmniChannel-Sync-Agent/2.0');
+                $response = curl_exec($ch);
+                $curlError = curl_error($ch);
+                curl_close($ch);
+
+                if ($curlError) {
+                    while (ob_get_level() > 0) { @ob_end_clean(); }
+                    echo json_encode(['success' => false, 'message' => 'Lỗi kết nối tới Google Apps Script: ' . $curlError], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
+
+                $gasData = json_decode($response, true);
             }
 
-            $gasData = json_decode($response, true);
             if (!$gasData || !isset($gasData['success']) || !$gasData['success']) {
                 $msg = $gasData['message'] ?? 'Phản hồi từ Google Apps Script không hợp lệ';
+                while (ob_get_level() > 0) { @ob_end_clean(); }
                 echo json_encode(['success' => false, 'message' => $msg], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -377,6 +382,7 @@ try {
             }
 
             if (empty($normalizedSheets) || empty($normalizedSheets[0]['headers'])) {
+                while (ob_get_level() > 0) { @ob_end_clean(); }
                 echo json_encode(['success' => false, 'message' => 'Không tìm thấy cột dữ liệu hợp lệ trong các trang tính'], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -461,6 +467,7 @@ try {
 
             $db->commit();
 
+            while (ob_get_level() > 0) { @ob_end_clean(); }
             echo json_encode([
                 'success'        => true,
                 'message'        => "Đồng bộ thành công {$totalAllRows} dòng từ " . count($normalizedSheets) . " trang tính",
@@ -475,6 +482,7 @@ try {
             break;
 
         default:
+            while (ob_get_level() > 0) { @ob_end_clean(); }
             echo json_encode(['success' => false, 'message' => 'Hành động không hợp lệ'], JSON_UNESCAPED_UNICODE);
             break;
     }
@@ -483,6 +491,7 @@ try {
     if (isset($db) && $db->inTransaction()) {
         $db->rollBack();
     }
+    while (ob_get_level() > 0) { @ob_end_clean(); }
     echo json_encode([
         'success' => false,
         'message' => 'Lỗi xử lý máy chủ: ' . $e->getMessage()
