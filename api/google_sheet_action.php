@@ -8,6 +8,60 @@ ob_start();
 header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../config/database.php';
 
+$action = $_POST['action'] ?? $_GET['action'] ?? 'get_status';
+
+// --------------------------------------------------------
+// PROXY IMAGE ENDPOINT (Không cần session chặn thẻ <img>)
+// Giải quyết triệt để lỗi ERR_BLOCKED_BY_RESPONSE.NotSameSite do Google chặn nhúng ảnh chéo domain
+// --------------------------------------------------------
+if ($action === 'proxy_image') {
+    while (ob_get_level() > 0) { @ob_end_clean(); }
+    $imgUrl = $_GET['url'] ?? '';
+    if (empty($imgUrl) || !filter_var($imgUrl, FILTER_VALIDATE_URL)) {
+        header('HTTP/1.1 400 Bad Request');
+        exit('Invalid image URL');
+    }
+
+    // Chỉ cho phép proxy các ảnh từ Google Sheets hoặc Googleusercontent
+    $allowedHosts = ['docs.google.com', 'googleusercontent.com'];
+    $parsedHost = parse_url($imgUrl, PHP_URL_HOST);
+    $isAllowed = false;
+    foreach ($allowedHosts as $host) {
+        if ($parsedHost === $host || str_ends_with($parsedHost, '.' . $host)) {
+            $isAllowed = true;
+            break;
+        }
+    }
+
+    if (!$isAllowed) {
+        header('HTTP/1.1 403 Forbidden');
+        exit('Host not allowed');
+    }
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $imgUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    $imageData = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    curl_close($ch);
+
+    if ($httpCode === 200 && !empty($imageData)) {
+        header('Content-Type: ' . ($contentType ?: 'image/jpeg'));
+        header('Cache-Control: public, max-age=86400'); // Cache 1 ngày
+        header('Access-Control-Allow-Origin: *');
+        echo $imageData;
+    } else {
+        header('HTTP/1.1 404 Not Found');
+    }
+    exit;
+}
+
 $userId = $_SESSION['user_id'] ?? null;
 if (!$userId) {
     while (ob_get_level() > 0) { @ob_end_clean(); }
@@ -22,7 +76,6 @@ $currentUser = [
 ];
 
 $isAdmin = (strtolower($currentUser['username']) === 'admin');
-$action = $_POST['action'] ?? $_GET['action'] ?? 'get_status';
 if ($action === 'save_settings' || $action === 'save_config') {
     $action = 'save_config';
 }
