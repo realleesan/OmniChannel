@@ -49,7 +49,7 @@ class Template {
         return (bool)$stmt->fetch();
     }
 
-    public function create($shortcut, $title, $content, $userId, $variablesJson = null) {
+    public function create($shortcut, $title, $content, $userId, $variablesJson = null, $sheetName = null) {
         $shortcut = '/' . ltrim(trim($shortcut), '/');
         
         if ($this->checkShortcutExists($shortcut)) {
@@ -57,19 +57,20 @@ class Template {
         }
 
         $stmt = $this->db->prepare("
-            INSERT INTO templates (shortcut, title, content, variables_json, created_by_user_id, created_at)
-            VALUES (:shortcut, :title, :content, :variables_json, :created_by_user_id, NOW())
+            INSERT INTO templates (shortcut, title, content, variables_json, sheet_name, created_by_user_id, created_at)
+            VALUES (:shortcut, :title, :content, :variables_json, :sheet_name, :created_by_user_id, NOW())
         ");
         return $stmt->execute([
             ':shortcut'            => $shortcut,
             ':title'               => trim($title),
             ':content'             => trim($content),
             ':variables_json'      => $variablesJson,
+            ':sheet_name'          => !empty($sheetName) ? trim($sheetName) : null,
             ':created_by_user_id'  => $userId
         ]);
     }
 
-    public function update($id, $shortcut, $title, $content, $variablesJson = null) {
+    public function update($id, $shortcut, $title, $content, $variablesJson = null, $sheetName = null) {
         $shortcut = '/' . ltrim(trim($shortcut), '/');
 
         if ($this->checkShortcutExists($shortcut, $id)) {
@@ -78,7 +79,7 @@ class Template {
 
         $stmt = $this->db->prepare("
             UPDATE templates 
-            SET shortcut = :shortcut, title = :title, content = :content, variables_json = :variables_json
+            SET shortcut = :shortcut, title = :title, content = :content, variables_json = :variables_json, sheet_name = :sheet_name
             WHERE id = :id
         ");
         return $stmt->execute([
@@ -86,6 +87,7 @@ class Template {
             ':title'          => trim($title),
             ':content'        => trim($content),
             ':variables_json' => $variablesJson,
+            ':sheet_name'     => !empty($sheetName) ? trim($sheetName) : null,
             ':id'             => (int)$id
         ]);
     }

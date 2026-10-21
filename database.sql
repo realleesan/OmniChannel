@@ -84,6 +84,7 @@ CREATE TABLE templates (
     title VARCHAR(100) NOT NULL,
     content TEXT NOT NULL, -- Chứa placeholder như [ten_sp], [ma_sp], [gia], [sản phẩm]
     variables_json TEXT NULL, -- Danh sách biến JSON: ["sản phẩm", "id", "giá"]
+    sheet_name VARCHAR(100) NULL DEFAULT NULL, -- Tên trang tính Google Sheet liên kết (NULL nếu dùng chung hoặc mẫu tĩnh)
     created_by_user_id INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -96,6 +97,7 @@ CREATE TABLE IF NOT EXISTS google_sheet_configs (
     script_url TEXT NOT NULL,
     sheet_name VARCHAR(100) DEFAULT 'Sheet1',
     columns_json TEXT NOT NULL,
+    sheets_json LONGTEXT NULL, -- JSON danh sách toàn bộ các trang tính: [{name, columns, count}]
     checksum VARCHAR(64) DEFAULT NULL,
     last_synced_at DATETIME DEFAULT NULL,
     synced_by_user_id INT NULL,
@@ -108,9 +110,11 @@ CREATE TABLE IF NOT EXISTS google_sheet_configs (
 CREATE TABLE IF NOT EXISTS google_sheet_rows (
     id INT AUTO_INCREMENT PRIMARY KEY,
     config_id INT NOT NULL,
+    sheet_name VARCHAR(100) DEFAULT 'Sheet1', -- Tên trang tính của dòng dữ liệu
     row_index INT NOT NULL,
     row_data_json LONGTEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_config_sheet (config_id, sheet_name),
     FOREIGN KEY (config_id) REFERENCES google_sheet_configs(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

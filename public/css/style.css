@@ -3533,4 +3533,86 @@ body {
     border: 1px solid #E2E8F0;
 }
 
+/* ========================================================
+   THANH TAB CHUYỂN ĐỔI TRANG TÍNH (MULTI-SHEET TABS)
+   ======================================================== */
+.sheet-tabs-nav-bar {
+    background: #F1F5F9;
+    border-bottom: 1px solid #CBD5E1;
+    padding: 8px 16px 0 16px;
+    display: flex;
+    align-items: center;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.sheet-tabs-list {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    min-width: 100%;
+}
+
+.sheet-tab-pill {
+    background: #E2E8F0;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 7px 14px;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    border: 1px solid #CBD5E1;
+    border-bottom: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+
+.sheet-tab-pill:hover {
+    background: #FFFFFF;
+    color: #0F172A;
+}
+
+.sheet-tab-pill.active {
+    background: #FFFFFF;
+    color: #059669;
+    border-color: #10B981 #10B981 #FFFFFF #10B981;
+    position: relative;
+    top: 1px;
+    box-shadow: 0 -2px 6px rgba(0,0,0,0.05);
+}
+
+.sheet-tab-pill-badge {
+    background: #F1F5F9;
+    color: #64748B;
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 10px;
+}
+
+.sheet-tab-pill.active .sheet-tab-pill-badge {
+    background: #ECFDF5;
+    color: #059669;
+}
+
+/* Badge trang tính trong danh sách Quản lý Template */
+.template-sheet-badge {
+    font-size: 11px;
+    font-weight: 700;
+    color: #059669;
+    background: #ECFDF5;
+    border: 1px solid #A7F3D0;
+    padding: 2px 7px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+
 

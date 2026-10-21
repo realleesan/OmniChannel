@@ -30,6 +30,9 @@ const AppState = {
     sheetConfig: null,
     sheetColumns: [],
     sheetRows: [],
+    sheetSheetsList: [],
+    activeSheetTab: '',
+    sheetsCache: {},
     sheetHasChanges: false,
     sheetLastSyncedAt: null,
     templates: []
@@ -1232,16 +1235,53 @@ function selectSuggestTemplateByIndex(idx) {
     }
 }
 
-function selectSuggestTemplate(tpl) {
+let currentPickerRows = [];
+
+async function selectSuggestTemplate(tpl) {
     if (!tpl) return;
 
     const hasVars = /\[([^\]]+)\]/.test(tpl.content || '');
 
-    // Nếu mẫu tin nhắn có chứa biến động [...] và hệ thống có nạp dữ liệu Google Sheet
-    if (hasVars && AppState.sheetRows && AppState.sheetRows.length > 0) {
-        pendingTemplateForSheetPicker = tpl;
-        showSheetRowPicker(AppState.sheetRows);
-        return;
+    // Nếu mẫu tin nhắn có chứa biến động [...]
+    if (hasVars) {
+        let targetRows = null;
+        let targetCols = AppState.sheetColumns || [];
+
+        // Nếu template gắn với một sheet cụ thể
+        if (tpl.sheet_name) {
+            if (AppState.sheetsCache && AppState.sheetsCache[tpl.sheet_name] && AppState.sheetsCache[tpl.sheet_name].length > 0) {
+                targetRows = AppState.sheetsCache[tpl.sheet_name];
+            } else {
+                try {
+                    const res = await fetch(`../../api/google_sheet_action.php?action=get_data&sheet_name=${encodeURIComponent(tpl.sheet_name)}`);
+                    const d = await res.json();
+                    if (d && d.success && Array.isArray(d.rows)) {
+                        if (!AppState.sheetsCache) AppState.sheetsCache = {};
+                        AppState.sheetsCache[tpl.sheet_name] = d.rows;
+                        targetRows = d.rows;
+                    }
+                } catch (err) {
+                    console.warn('Lỗi tải dữ liệu sheet cho template:', err);
+                }
+            }
+
+            const foundSheet = (AppState.sheetSheetsList || []).find(s => s.name === tpl.sheet_name);
+            if (foundSheet && Array.isArray(foundSheet.columns) && foundSheet.columns.length > 0) {
+                targetCols = foundSheet.columns;
+            }
+        }
+
+        // Fallback sang sheet đang mở nếu không gắn riêng hoặc không tìm thấy
+        if (!targetRows || targetRows.length === 0) {
+            targetRows = AppState.sheetRows;
+            targetCols = AppState.sheetColumns;
+        }
+
+        if (targetRows && targetRows.length > 0) {
+            pendingTemplateForSheetPicker = tpl;
+            showSheetRowPicker(targetRows, targetCols, tpl.sheet_name);
+            return;
+        }
     }
 
     // Nếu không có biến hoặc chưa có sheet: điền trực tiếp nội dung mẫu tin
@@ -1257,24 +1297,34 @@ function selectSuggestTemplate(tpl) {
 
 let sheetPickerSelectedIndex = 0;
 
-function showSheetRowPicker(rows) {
+function showSheetRowPicker(rows, cols, sheetName) {
     const picker = document.getElementById('suggestSheetPicker');
     const listContainer = document.getElementById('suggestSheetRowsList');
     const templatesList = document.getElementById('suggestTemplatesList');
+    const headerTitle = picker ? picker.querySelector('.suggest-sheet-picker-header span') : null;
 
     if (!picker || !listContainer) return;
 
     if (templatesList) templatesList.style.display = 'none';
     picker.style.display = 'block';
 
-    const cols = AppState.sheetColumns || [];
+    currentPickerRows = rows || [];
+    const displayCols = (cols && cols.length > 0) ? cols : (AppState.sheetColumns || []);
     sheetPickerSelectedIndex = 0;
-    let html = '';
 
-    rows.slice(0, 30).forEach((row, idx) => {
+    if (headerTitle) {
+        if (sheetName) {
+            headerTitle.innerHTML = `<i class="fa-solid fa-file-excel" style="color:#10B981;"></i> Chọn từ <strong>${escapeHtml(sheetName)}</strong> để điền dữ liệu:`;
+        } else {
+            headerTitle.innerHTML = `<i class="fa-solid fa-file-excel" style="color:#10B981;"></i> Chọn sản phẩm từ Google Sheet để điền dữ liệu:`;
+        }
+    }
+
+    let html = '';
+    currentPickerRows.slice(0, 30).forEach((row, idx) => {
         // Tìm cột ảnh nếu có
         let imgUrl = null;
-        for (const col of cols) {
+        for (const col of displayCols) {
             const val = String(row[col] || '');
             if (isImageUrlString(val)) {
                 imgUrl = val;
@@ -1284,7 +1334,7 @@ function showSheetRowPicker(rows) {
 
         // Tìm nhãn chính (id / sản phẩm / tên / title)
         const rowId = row['id'] || row['ID'] || row['mã'] || row['Mã'] || row['stt'] || (idx + 1);
-        const nameVal = row['sản phẩm'] || row['Sản phẩm'] || row['tên'] || row['name'] || row[cols[1]] || '';
+        const nameVal = row['sản phẩm'] || row['Sản phẩm'] || row['tên'] || row['name'] || row[displayCols[1]] || '';
         const priceVal = row['giá'] || row['Giá'] || row['price'] || '';
 
         html += `
@@ -1305,7 +1355,7 @@ function showSheetRowPicker(rows) {
 }
 
 function navigateSheetPicker(direction) {
-    const rows = (AppState.sheetRows || []).slice(0, 30);
+    const rows = (currentPickerRows || []).slice(0, 30);
     if (rows.length === 0) return;
 
     sheetPickerSelectedIndex += direction;
@@ -1336,11 +1386,12 @@ function hideSheetRowPicker() {
     if (templatesList) templatesList.style.display = 'block';
     pendingTemplateForSheetPicker = null;
     sheetPickerSelectedIndex = 0;
+    currentPickerRows = [];
 }
 
 function applyTemplateWithSheetRowByIndex(idx) {
-    if (AppState.sheetRows && AppState.sheetRows[idx] && pendingTemplateForSheetPicker) {
-        applyTemplateWithSheetRow(pendingTemplateForSheetPicker, AppState.sheetRows[idx]);
+    if (currentPickerRows && currentPickerRows[idx] && pendingTemplateForSheetPicker) {
+        applyTemplateWithSheetRow(pendingTemplateForSheetPicker, currentPickerRows[idx]);
     }
 }
 
@@ -1439,8 +1490,11 @@ function tryResolveShortcutSync(inputVal) {
         return matchedTpl.content;
     }
 
-    // Tìm dòng dữ liệu tương ứng trong AppState.sheetRows
-    const rows = AppState.sheetRows || [];
+    // Tìm dòng dữ liệu tương ứng: ưu tiên trang tính được gắn trong template
+    let rows = AppState.sheetRows || [];
+    if (matchedTpl.sheet_name && AppState.sheetsCache && AppState.sheetsCache[matchedTpl.sheet_name]) {
+        rows = AppState.sheetsCache[matchedTpl.sheet_name];
+    }
     let matchedRow = null;
 
     for (const r of rows) {
@@ -2676,6 +2730,27 @@ async function toggleConversationLabel(labelId) {
 let isOpenedFromManageTemplateModal = false;
 let editingTemplateId = null;
 
+function getColumnsForSheet(sheetName) {
+    if (sheetName && AppState.sheetSheetsList) {
+        const found = AppState.sheetSheetsList.find(s => s.name === sheetName);
+        if (found && Array.isArray(found.columns) && found.columns.length > 0) {
+            return found.columns;
+        }
+    }
+    return AppState.sheetColumns || ['id', 'sản phẩm', 'giá', 'số lượng'];
+}
+
+function handleEditTplSheetChange(id, sheetName) {
+    const chipsContainer = document.getElementById(`editTplVarChips_${id}`);
+    if (!chipsContainer) return;
+    const cols = getColumnsForSheet(sheetName);
+    chipsContainer.innerHTML = cols.map(col => `
+        <button type="button" class="chip-var-btn" style="padding:2px 6px;font-size:10.5px;" onclick="insertVarToEditModal(${id}, '[${escapeHtml(col)}]')">
+            + ${escapeHtml(col)}
+        </button>
+    `).join('');
+}
+
 // Hỗ trợ hàm cũ để tương thích ngược
 function openTemplateModal() {
     openManageTemplatesModal();
@@ -2735,6 +2810,7 @@ function renderManageTemplatesList(templates) {
     list.forEach(t => {
         const isEditing = (editingTemplateId === t.id);
         if (isEditing) {
+            const editCols = getColumnsForSheet(t.sheet_name);
             html += `
                 <div class="template-manage-row is-editing" id="tplRow_${t.id}">
                     <div style="width:100%;display:flex;flex-direction:column;gap:8px;">
@@ -2749,6 +2825,17 @@ function renderManageTemplatesList(templates) {
                                        oninput="handleValidateEditShortcut(this.value, ${t.id})">
                             </div>
                         </div>
+                        <div>
+                            <label style="font-size:11px;font-weight:700;color:#475569;">Trang tính Google Sheet áp dụng</label>
+                            <select id="editTplSheetName_${t.id}" class="form-input" style="height:32px;font-size:12px;padding:4px 8px;" onchange="handleEditTplSheetChange(${t.id}, this.value)">
+                                <option value="">-- Mẫu tin chung (Không gắn bảng cụ thể) --</option>
+                                ${(AppState.sheetSheetsList || []).map(s => `
+                                    <option value="${escapeHtml(s.name)}" ${(t.sheet_name === s.name) ? 'selected' : ''}>
+                                        ${escapeHtml(s.name)} (${s.count || 0} dòng, ${(s.columns || []).length} cột)
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
                         <div id="editShortcutError_${t.id}" class="shortcut-invalid-text" style="display:none;">
                             <i class="fa-solid fa-triangle-exclamation"></i> <span>Phím tắt này đã được dùng!</span>
                         </div>
@@ -2759,11 +2846,13 @@ function renderManageTemplatesList(templates) {
                         <div style="display:flex;justify-content:space-between;align-items:center;padding-top:4px;">
                             <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
                                 <span style="font-size:11px;color:#94A3B8;">Biến Sheet:</span>
-                                ${(AppState.sheetColumns || ['id', 'sản phẩm', 'giá', 'số lượng']).map(col => `
-                                    <button type="button" class="chip-var-btn" style="padding:2px 6px;font-size:10.5px;" onclick="insertVarToEditModal(${t.id}, '[${escapeHtml(col)}]')">
-                                        + ${escapeHtml(col)}
-                                    </button>
-                                `).join('')}
+                                <div id="editTplVarChips_${t.id}" style="display:inline-flex;gap:4px;flex-wrap:wrap;">
+                                    ${editCols.map(col => `
+                                        <button type="button" class="chip-var-btn" style="padding:2px 6px;font-size:10.5px;" onclick="insertVarToEditModal(${t.id}, '[${escapeHtml(col)}]')">
+                                            + ${escapeHtml(col)}
+                                        </button>
+                                    `).join('')}
+                                </div>
                             </div>
                             <div style="display:flex;gap:6px;">
                                 <button type="button" class="btn-manage-action btn-manage-save" onclick="saveEditTemplate(${t.id})">
@@ -2784,6 +2873,7 @@ function renderManageTemplatesList(templates) {
                         <div class="template-meta-top">
                             <span class="template-shortcut-badge"><i class="fa-solid fa-bolt"></i> ${escapeHtml(t.shortcut)}</span>
                             <span class="template-title-text">${escapeHtml(t.title || 'Mẫu tin')}</span>
+                            ${t.sheet_name ? `<span class="template-sheet-badge" title="Gắn với trang tính: ${escapeHtml(t.sheet_name)}"><i class="fa-solid fa-table"></i> ${escapeHtml(t.sheet_name)}</span>` : ''}
                         </div>
                         <div class="template-content-snippet" title="${escapeHtml(t.content)}">${escapeHtml(t.content)}</div>
                     </div>
@@ -2861,10 +2951,12 @@ async function saveEditTemplate(id) {
     const titleInput = document.getElementById(`editTplTitle_${id}`);
     const shortcutInput = document.getElementById(`editTplShortcut_${id}`);
     const contentInput = document.getElementById(`editTplContent_${id}`);
+    const sheetSelect = document.getElementById(`editTplSheetName_${id}`);
 
     const title = titleInput ? titleInput.value.trim() : '';
     let shortcut = shortcutInput ? shortcutInput.value.trim() : '';
     const content = contentInput ? contentInput.value.trim() : '';
+    const sheetName = sheetSelect ? sheetSelect.value.trim() : '';
 
     if (!shortcut || !content) {
         alert('Phím tắt và nội dung không được để trống');
@@ -2889,6 +2981,7 @@ async function saveEditTemplate(id) {
         formData.append('shortcut', shortcut);
         formData.append('title', title);
         formData.append('content', content);
+        formData.append('sheet_name', sheetName);
 
         const res = await fetch('../../api/template_action.php', { method: 'POST', body: formData });
         const data = await res.json();
@@ -2958,7 +3051,20 @@ function openCreateTemplateFromManage() {
     if (contentEl) contentEl.value = '';
     if (errMsg) errMsg.style.display = 'none';
 
-    renderCreateTemplateVarChips();
+    // Nạp danh sách các trang tính vào dropdown #newTplSheetName
+    const sheetSelect = document.getElementById('newTplSheetName');
+    if (sheetSelect) {
+        let optionsHtml = '<option value="">-- Mẫu tin chung (Không gắn bảng cụ thể) --</option>';
+        const sheets = AppState.sheetSheetsList || [];
+        sheets.forEach(s => {
+            const isSelected = (AppState.activeSheetTab && s.name === AppState.activeSheetTab) ? 'selected' : '';
+            optionsHtml += `<option value="${escapeHtml(s.name)}" ${isSelected}>${escapeHtml(s.name)} (${s.count || 0} dòng, ${(s.columns || []).length} cột)</option>`;
+        });
+        sheetSelect.innerHTML = optionsHtml;
+    }
+
+    const initialSheet = (sheetSelect ? sheetSelect.value : '') || AppState.activeSheetTab || '';
+    renderCreateTemplateVarChips(initialSheet);
     if (titleEl) titleEl.focus();
 }
 
@@ -2972,13 +3078,29 @@ function closeCreateTemplateModal() {
     }
 }
 
-function renderCreateTemplateVarChips() {
+function handleSelectCreateTplSheet(sheetName) {
+    renderCreateTemplateVarChips(sheetName);
+}
+
+function renderCreateTemplateVarChips(selectedSheetName = '') {
     const container = document.getElementById('tplCreateVarChipsContainer');
+    const hintEl = document.getElementById('selectedSheetColsHint');
     if (!container) return;
 
-    let cols = AppState.sheetColumns || [];
-    if (!cols || cols.length === 0) {
-        cols = ['id', 'sản phẩm', 'giá', 'số lượng'];
+    let targetSheet = selectedSheetName;
+    if (!targetSheet) {
+        const sel = document.getElementById('newTplSheetName');
+        if (sel) targetSheet = sel.value;
+    }
+
+    const cols = getColumnsForSheet(targetSheet);
+
+    if (hintEl) {
+        if (targetSheet) {
+            hintEl.innerHTML = `<i class="fa-solid fa-table"></i> ${cols.length} biến từ [<strong>${escapeHtml(targetSheet)}</strong>]`;
+        } else {
+            hintEl.innerText = 'Tự động nạp biến mặc định';
+        }
     }
 
     container.innerHTML = cols.map(col => {
@@ -3079,10 +3201,12 @@ async function saveNewTemplateRecord() {
     const titleEl = document.getElementById('newTplTitle');
     const shortcutEl = document.getElementById('newTplShortcut');
     const contentEl = document.getElementById('newTplContent');
+    const sheetSelect = document.getElementById('newTplSheetName');
 
     const title = titleEl ? titleEl.value.trim() : '';
     let shortcut = shortcutEl ? shortcutEl.value.trim() : '';
     const content = contentEl ? contentEl.value.trim() : '';
+    const sheetName = sheetSelect ? sheetSelect.value.trim() : '';
 
     if (!title || !shortcut || !content) {
         alert('Vui lòng điền đầy đủ Tiêu đề, Phím tắt và Nội dung mẫu tin');
@@ -3107,6 +3231,7 @@ async function saveNewTemplateRecord() {
         formData.append('title', title);
         formData.append('shortcut', shortcut);
         formData.append('content', content);
+        formData.append('sheet_name', sheetName);
 
         const res = await fetch('../../api/template_action.php', { method: 'POST', body: formData });
         const data = await res.json();
@@ -3291,62 +3416,92 @@ function closeLightboxGallery() {
 // ========================================================
 
 const DEFAULT_APPS_SCRIPT_CODE = `/**
- * OMNICHANNEL DATA GATEWAY - GOOGLE APPS SCRIPT
- * Trích xuất Headers, Dữ liệu dòng, Hình ảnh trong ô tính & Mã Checksum thay đổi
+ * OMNICHANNEL DATA GATEWAY - GOOGLE APPS SCRIPT (MULTI-SHEET SUPPORT)
+ * Tự động quét toàn bộ các trang tính (Sheets), bóc tách Headers, Dữ liệu dòng & Hình ảnh trong ô tính
  */
 function doGet(e) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getActiveSheet();
-    var range = sheet.getDataRange();
-    var values = range.getValues();
-    var formulas = range.getFormulas();
+    var allSheets = ss.getSheets();
     
-    if (!values || values.length === 0) {
-      return responseJson({ success: false, message: "Bảng tính không có dữ liệu" });
+    if (!allSheets || allSheets.length === 0) {
+      return responseJson({ success: false, message: "Không tìm thấy trang tính nào trong file" });
     }
     
-    // Header ở dòng đầu tiên
-    var rawHeaders = values[0];
-    var headers = [];
-    for (var h = 0; h < rawHeaders.length; h++) {
-      var colName = String(rawHeaders[h]).trim();
-      if (colName !== "") headers.push(colName);
-    }
+    var sheetsData = [];
+    var combinedDataForChecksum = "";
     
-    // Quét từng dòng dữ liệu
-    var rows = [];
-    for (var i = 1; i < values.length; i++) {
-      var rowObj = {};
-      var isEmptyRow = true;
-      for (var j = 0; j < headers.length; j++) {
-        var cellVal = values[i][j];
-        var formula = formulas[i] ? formulas[i][j] : "";
-        
-        var extractedVal = extractImageUrl(cellVal, formula);
-        if (extractedVal !== undefined && extractedVal !== null && String(extractedVal).trim() !== "") {
-          isEmptyRow = false;
+    for (var s = 0; s < allSheets.length; s++) {
+      var sheet = allSheets[s];
+      var sheetName = sheet.getName();
+      var range = sheet.getDataRange();
+      var values = range.getValues();
+      var formulas = range.getFormulas();
+      
+      if (!values || values.length === 0 || values[0].length === 0) {
+        continue;
+      }
+      
+      // Header ở dòng đầu tiên của từng sheet
+      var rawHeaders = values[0];
+      var headers = [];
+      for (var h = 0; h < rawHeaders.length; h++) {
+        var colName = String(rawHeaders[h]).trim();
+        if (colName !== "") headers.push(colName);
+      }
+      
+      if (headers.length === 0) continue;
+      
+      // Quét từng dòng dữ liệu của sheet
+      var rows = [];
+      for (var i = 1; i < values.length; i++) {
+        var rowObj = {};
+        var isEmptyRow = true;
+        for (var j = 0; j < headers.length; j++) {
+          var cellVal = values[i][j];
+          var formula = formulas[i] ? formulas[i][j] : "";
+          
+          var extractedVal = extractImageUrl(cellVal, formula);
+          if (extractedVal !== undefined && extractedVal !== null && String(extractedVal).trim() !== "") {
+            isEmptyRow = false;
+          }
+          rowObj[headers[j]] = extractedVal;
         }
-        rowObj[headers[j]] = extractedVal;
+        if (!isEmptyRow) {
+          rows.push(rowObj);
+        }
       }
-      if (!isEmptyRow) {
-        rows.push(rowObj);
-      }
+      
+      var sheetChecksum = Utilities.base64Encode(
+        Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, JSON.stringify(rows))
+      );
+      
+      combinedDataForChecksum += sheetName + ":" + sheetChecksum + "|";
+      
+      sheetsData.push({
+        sheet_name: sheetName,
+        headers: headers,
+        total_rows: rows.length,
+        checksum: sheetChecksum,
+        data: rows
+      });
     }
     
-    // Tạo mã Checksum MD5 từ dữ liệu để phát hiện có thay đổi
-    var dataString = JSON.stringify(rows);
-    var checksum = Utilities.base64Encode(
-      Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, dataString)
+    var overallChecksum = Utilities.base64Encode(
+      Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, combinedDataForChecksum)
     );
+    
+    var primarySheet = sheetsData[0] || { sheet_name: "Sheet1", headers: [], total_rows: 0, data: [] };
     
     return responseJson({
       success: true,
-      sheet_name: sheet.getName(),
-      headers: headers,
-      total_rows: rows.length,
-      checksum: checksum,
-      data: rows,
+      total_sheets: sheetsData.length,
+      sheets: sheetsData,
+      sheet_name: primarySheet.sheet_name,
+      headers: primarySheet.headers,
+      total_rows: primarySheet.total_rows,
+      data: primarySheet.data,
+      checksum: overallChecksum,
       updated_at: new Date().toISOString()
     });
     
@@ -3439,6 +3594,7 @@ async function loadGoogleSheetStatus(checkRemote = false) {
         if (data && data.success) {
             AppState.sheetConfig = data.config;
             AppState.sheetColumns = data.config?.columns || [];
+            AppState.sheetSheetsList = data.config?.sheets || [];
             AppState.sheetHasChanges = data.has_changes || false;
 
             // Cập nhật ô nhập trong Tab Cấu hình
@@ -3586,6 +3742,7 @@ async function syncGoogleSheetNow() {
             showToast(`✅ Đồng bộ thành công ${data.total_rows} dòng dữ liệu từ Google Sheet!`, 'success');
             toggleSheetChangeAlert(false);
 
+            AppState.sheetsCache = {};
             await loadGoogleSheetStatus(false);
             await loadGoogleSheetData(true);
         } else {
@@ -3607,11 +3764,18 @@ async function syncGoogleSheetNow() {
     }
 }
 
-async function loadGoogleSheetData(forceRefresh = false) {
+async function loadGoogleSheetData(forceRefresh = false, targetSheet = null) {
     const container = document.getElementById('sheetTableContainer');
     if (!container) return;
 
-    if (!forceRefresh && AppState.sheetRows && AppState.sheetRows.length > 0) {
+    if (targetSheet) {
+        AppState.activeSheetTab = targetSheet;
+    }
+
+    // Nếu có trong cache và không ép buộc làm mới
+    if (!forceRefresh && AppState.activeSheetTab && AppState.sheetsCache[AppState.activeSheetTab]) {
+        AppState.sheetRows = AppState.sheetsCache[AppState.activeSheetTab];
+        renderSheetTabsNavBar();
         renderSheetDataTable(AppState.sheetRows);
         return;
     }
@@ -3624,15 +3788,28 @@ async function loadGoogleSheetData(forceRefresh = false) {
     `;
 
     try {
-        const res = await fetch('../../api/google_sheet_action.php?action=get_data');
+        let url = '../../api/google_sheet_action.php?action=get_data';
+        if (AppState.activeSheetTab) {
+            url += `&sheet_name=${encodeURIComponent(AppState.activeSheetTab)}`;
+        }
+
+        const res = await fetch(url);
         const data = await res.json();
 
         if (data && data.success) {
+            AppState.sheetSheetsList = data.sheets || [];
+            AppState.activeSheetTab = data.active_sheet || '';
             AppState.sheetColumns = data.columns || [];
             AppState.sheetRows = data.rows || [];
-            const badge = document.getElementById('sheetDataCountBadge');
-            if (badge) badge.innerText = data.total || 0;
 
+            if (AppState.activeSheetTab) {
+                AppState.sheetsCache[AppState.activeSheetTab] = data.rows || [];
+            }
+
+            const badge = document.getElementById('sheetDataCountBadge');
+            if (badge) badge.innerText = data.total_all !== undefined ? data.total_all : (data.total || 0);
+
+            renderSheetTabsNavBar();
             renderSheetDataTable(AppState.sheetRows);
         } else {
             container.innerHTML = `
@@ -3651,6 +3828,37 @@ async function loadGoogleSheetData(forceRefresh = false) {
             </div>
         `;
     }
+}
+
+function renderSheetTabsNavBar() {
+    const navBar = document.getElementById('sheetTabsNavBar');
+    const container = document.getElementById('sheetTabsListContainer');
+    if (!navBar || !container) return;
+
+    const list = AppState.sheetSheetsList || [];
+    if (list.length <= 1) {
+        navBar.style.display = 'none';
+        return;
+    }
+
+    navBar.style.display = 'flex';
+    container.innerHTML = list.map(s => {
+        const isActive = (s.name === AppState.activeSheetTab);
+        return `
+            <div class="sheet-tab-pill ${isActive ? 'active' : ''}" 
+                 onclick="switchSheetDataTableTab('${escapeHtml(s.name)}')">
+                <i class="fa-solid fa-table"></i>
+                <span>${escapeHtml(s.name)}</span>
+                <span class="sheet-tab-pill-badge">${s.count || 0}</span>
+            </div>
+        `;
+    }).join('');
+}
+
+function switchSheetDataTableTab(sheetName) {
+    if (AppState.activeSheetTab === sheetName) return;
+    AppState.activeSheetTab = sheetName;
+    loadGoogleSheetData(false, sheetName);
 }
 
 function renderSheetDataTable(rows) {

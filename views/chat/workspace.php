@@ -539,6 +539,13 @@ if (!$currentUser) {
 
             <!-- TAB 2: BẢNG DỮ LIỆU SHEET (CHẾ ĐỘ CHỈ XEM 100%) -->
             <div id="paneGSheetData" class="modal-tab-pane" style="display:none;">
+                <!-- Thanh chuyển đổi danh sách các trang tính (Multi-sheet Tabs) -->
+                <div class="sheet-tabs-nav-bar" id="sheetTabsNavBar" style="display:none;">
+                    <div class="sheet-tabs-list" id="sheetTabsListContainer">
+                        <!-- Render các tab: [ 📄 Quần Áo (20) ] [ 📄 Giày Dép (15) ] ... -->
+                    </div>
+                </div>
+
                 <div class="sheet-data-toolbar">
                     <div class="sheet-search-wrapper">
                         <i class="fa-solid fa-magnifying-glass"></i>
@@ -704,6 +711,16 @@ if (!$currentUser) {
             <button type="button" class="modal-close-btn" onclick="closeCreateTemplateModal()">&times;</button>
         </div>
         <div class="modal-body" style="padding:18px 20px;">
+            <div class="form-group">
+                <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">
+                    <span><i class="fa-solid fa-file-excel" style="color:#10B981;"></i> Trang tính Google Sheet áp dụng:</span>
+                    <span style="font-size:11px;font-weight:600;color:#64748B;" id="selectedSheetColsHint">Tự động nạp biến theo bảng</span>
+                </label>
+                <select id="newTplSheetName" class="form-input" onchange="handleSelectCreateTplSheet(this.value)">
+                    <option value="">-- Mẫu tin chung (Không gắn bảng cụ thể) --</option>
+                </select>
+            </div>
+
             <div class="form-group">
                 <label class="form-label">Tiêu đề gợi nhớ <span style="color:#EF4444;">*</span></label>
                 <input type="text" id="newTplTitle" class="form-input" placeholder="Ví dụ: Báo giá sản phẩm theo ID">

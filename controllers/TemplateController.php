@@ -22,7 +22,7 @@ class TemplateController {
         return $this->templateModel->checkShortcutExists($shortcut, $excludeId);
     }
 
-    public function create($shortcut, $title, $content, $userId, $variablesJson = null) {
+    public function create($shortcut, $title, $content, $userId, $variablesJson = null, $sheetName = null) {
         $shortcut = trim($shortcut);
         $title = trim($title);
         $content = trim($content);
@@ -32,14 +32,14 @@ class TemplateController {
         }
 
         try {
-            $this->templateModel->create($shortcut, $title, $content, $userId, $variablesJson);
+            $this->templateModel->create($shortcut, $title, $content, $userId, $variablesJson, $sheetName);
             return ['success' => true, 'message' => 'Tạo mẫu tin nhắn thành công'];
         } catch (Exception $e) {
             return ['success' => false, 'message' => $e->getMessage()];
         }
     }
 
-    public function update($id, $shortcut, $title, $content, $variablesJson = null) {
+    public function update($id, $shortcut, $title, $content, $variablesJson = null, $sheetName = null) {
         $id = (int)$id;
         $shortcut = trim($shortcut);
         $title = trim($title);
@@ -50,7 +50,7 @@ class TemplateController {
         }
 
         try {
-            $this->templateModel->update($id, $shortcut, $title, $content, $variablesJson);
+            $this->templateModel->update($id, $shortcut, $title, $content, $variablesJson, $sheetName);
             return ['success' => true, 'message' => 'Cập nhật mẫu tin nhắn thành công'];
         } catch (Exception $e) {
             return ['success' => false, 'message' => $e->getMessage()];
@@ -139,8 +139,14 @@ class TemplateController {
         if (empty($rowData) && !empty($paramVal)) {
             try {
                 $db = Database::getConnection();
-                $stmt = $db->prepare("SELECT row_data_json FROM google_sheet_rows ORDER BY id DESC LIMIT 1000");
-                $stmt->execute();
+                $targetSheetName = trim($tpl['sheet_name'] ?? '');
+                if (!empty($targetSheetName)) {
+                    $stmt = $db->prepare("SELECT row_data_json FROM google_sheet_rows WHERE sheet_name = :sname ORDER BY id DESC LIMIT 1000");
+                    $stmt->execute([':sname' => $targetSheetName]);
+                } else {
+                    $stmt = $db->prepare("SELECT row_data_json FROM google_sheet_rows ORDER BY id DESC LIMIT 1000");
+                    $stmt->execute();
+                }
                 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
                 foreach ($rows as $r) {

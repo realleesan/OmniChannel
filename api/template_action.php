@@ -35,8 +35,9 @@ switch ($action) {
         $title = trim($_POST['title'] ?? '');
         $content = trim($_POST['content'] ?? '');
         $variablesJson = $_POST['variables_json'] ?? null;
+        $sheetName = trim($_POST['sheet_name'] ?? '');
 
-        $res = $templateController->create($shortcut, $title, $content, $userId, $variablesJson);
+        $res = $templateController->create($shortcut, $title, $content, $userId, $variablesJson, $sheetName);
         if ($res['success']) {
             $all = $templateController->getList();
             echo json_encode(['success' => true, 'message' => $res['message'], 'templates' => $all], JSON_UNESCAPED_UNICODE);
@@ -51,8 +52,9 @@ switch ($action) {
         $title = trim($_POST['title'] ?? '');
         $content = trim($_POST['content'] ?? '');
         $variablesJson = $_POST['variables_json'] ?? null;
+        $sheetName = trim($_POST['sheet_name'] ?? '');
 
-        $res = $templateController->update($id, $shortcut, $title, $content, $variablesJson);
+        $res = $templateController->update($id, $shortcut, $title, $content, $variablesJson, $sheetName);
         if ($res['success']) {
             $all = $templateController->getList();
             echo json_encode(['success' => true, 'message' => $res['message'], 'templates' => $all], JSON_UNESCAPED_UNICODE);
