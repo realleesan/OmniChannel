@@ -65,6 +65,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $res = $labelModel->delete($id);
         echo json_encode($res);
         exit;
+    } elseif ($postAction === 'save_config' || $postAction === 'sync' || $postAction === 'gsheet_sync' || $postAction === 'gsheet_save_config') {
+        require __DIR__ . '/google_sheet_action.php';
+        exit;
     }
 }
 

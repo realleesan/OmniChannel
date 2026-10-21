@@ -3667,6 +3667,14 @@ function toggleSheetChangeAlert(hasChanges) {
     if (banner) banner.style.display = hasChanges ? 'flex' : 'none';
 }
 
+function encodeBase64Safe(str) {
+    try {
+        return btoa(unescape(encodeURIComponent(str || '')));
+    } catch (e) {
+        return btoa(str || '');
+    }
+}
+
 async function saveGoogleSheetConfig() {
     const sheetUrl = document.getElementById('gsheetUrlInput')?.value.trim() || '';
     const scriptUrl = document.getElementById('gsheetScriptUrlInput')?.value.trim() || '';
@@ -3680,12 +3688,25 @@ async function saveGoogleSheetConfig() {
     try {
         const formData = new FormData();
         formData.append('action', 'save_config');
-        formData.append('sheet_url', sheetUrl);
-        formData.append('script_url', scriptUrl);
+        formData.append('s_url_payload', encodeBase64Safe(scriptUrl));
+        formData.append('sh_url_payload', encodeBase64Safe(sheetUrl));
         formData.append('sheet_name', sheetName);
 
-        const res = await fetch('../../api/google_sheet_action.php', { method: 'POST', body: formData });
-        const data = await res.json();
+        let res = await fetch('../../api/google_sheet_action.php', { method: 'POST', body: formData });
+        if (res.status === 403) {
+            res = await fetch('../../api/sync_polling.php', { method: 'POST', body: formData });
+        }
+        const text = await res.text();
+        let data = null;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            const sIdx = text.indexOf('{');
+            const eIdx = text.lastIndexOf('}');
+            if (sIdx !== -1 && eIdx !== -1) {
+                data = JSON.parse(text.substring(sIdx, eIdx + 1));
+            }
+        }
 
         if (data && data.success) {
             showToast('Lưu cấu hình Google Sheet thành công!', 'success');
@@ -3731,12 +3752,25 @@ async function syncGoogleSheetNow() {
     try {
         const formData = new FormData();
         formData.append('action', 'sync');
-        formData.append('script_url', scriptUrl);
-        formData.append('sheet_url', sheetUrl);
+        formData.append('s_url_payload', encodeBase64Safe(scriptUrl));
+        formData.append('sh_url_payload', encodeBase64Safe(sheetUrl));
         formData.append('sheet_name', sheetName);
 
-        const res = await fetch('../../api/google_sheet_action.php', { method: 'POST', body: formData });
-        const data = await res.json();
+        let res = await fetch('../../api/google_sheet_action.php', { method: 'POST', body: formData });
+        if (res.status === 403) {
+            res = await fetch('../../api/sync_polling.php', { method: 'POST', body: formData });
+        }
+        const text = await res.text();
+        let data = null;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            const sIdx = text.indexOf('{');
+            const eIdx = text.lastIndexOf('}');
+            if (sIdx !== -1 && eIdx !== -1) {
+                data = JSON.parse(text.substring(sIdx, eIdx + 1));
+            }
+        }
 
         if (data && data.success) {
             showToast(`✅ Đồng bộ thành công ${data.total_rows} dòng dữ liệu từ Google Sheet!`, 'success');

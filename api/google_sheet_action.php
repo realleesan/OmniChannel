@@ -4,11 +4,13 @@
  * Xử lý cấu hình, đồng bộ dữ liệu và tra cứu bảng tính Google Sheets (Hỗ trợ Đa Trang Tính)
  */
 
+ob_start();
 header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../config/database.php';
 
 $userId = $_SESSION['user_id'] ?? null;
 if (!$userId) {
+    while (ob_get_level() > 0) { @ob_end_clean(); }
     echo json_encode(['success' => false, 'message' => 'Vui lòng đăng nhập lại'], JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -220,20 +222,37 @@ try {
         // --------------------------------------------------------
         case 'save_config':
             if (!$isAdmin) {
+                while (ob_get_level() > 0) { @ob_end_clean(); }
                 echo json_encode(['success' => false, 'message' => 'Chỉ Admin mới có quyền thay đổi cấu hình'], JSON_UNESCAPED_UNICODE);
                 exit;
             }
 
             $sheetUrl = trim($_POST['sheet_url'] ?? '');
+            if (empty($sheetUrl) && !empty($_POST['sh_url_payload'])) {
+                $sheetUrl = trim(base64_decode($_POST['sh_url_payload']));
+            }
+            if (empty($sheetUrl) && !empty($_POST['sheet_url_b64'])) {
+                $sheetUrl = trim(base64_decode($_POST['sheet_url_b64']));
+            }
+
             $scriptUrl = trim($_POST['script_url'] ?? '');
+            if (empty($scriptUrl) && !empty($_POST['s_url_payload'])) {
+                $scriptUrl = trim(base64_decode($_POST['s_url_payload']));
+            }
+            if (empty($scriptUrl) && !empty($_POST['script_url_b64'])) {
+                $scriptUrl = trim(base64_decode($_POST['script_url_b64']));
+            }
+
             $sheetName = trim($_POST['sheet_name'] ?? 'Sheet1');
 
             if (empty($scriptUrl)) {
+                while (ob_get_level() > 0) { @ob_end_clean(); }
                 echo json_encode(['success' => false, 'message' => 'Vui lòng nhập URL Google Apps Script Web App'], JSON_UNESCAPED_UNICODE);
                 exit;
             }
 
             if (!filter_var($scriptUrl, FILTER_VALIDATE_URL)) {
+                while (ob_get_level() > 0) { @ob_end_clean(); }
                 echo json_encode(['success' => false, 'message' => 'URL Google Apps Script không đúng định dạng'], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -266,6 +285,7 @@ try {
                 ]);
             }
 
+            while (ob_get_level() > 0) { @ob_end_clean(); }
             echo json_encode(['success' => true, 'message' => 'Lưu cấu hình Google Sheet thành công'], JSON_UNESCAPED_UNICODE);
             break;
 
@@ -276,10 +296,30 @@ try {
             $stmt = $db->query("SELECT * FROM google_sheet_configs ORDER BY id DESC LIMIT 1");
             $config = $stmt->fetch();
 
-            $scriptUrl = trim($_POST['script_url'] ?? ($config['script_url'] ?? ''));
-            $sheetUrl  = trim($_POST['sheet_url'] ?? ($config['sheet_url'] ?? ''));
+            $scriptUrl = trim($_POST['script_url'] ?? '');
+            if (empty($scriptUrl) && !empty($_POST['s_url_payload'])) {
+                $scriptUrl = trim(base64_decode($_POST['s_url_payload']));
+            }
+            if (empty($scriptUrl) && !empty($_POST['script_url_b64'])) {
+                $scriptUrl = trim(base64_decode($_POST['script_url_b64']));
+            }
+            if (empty($scriptUrl) && !empty($config['script_url'])) {
+                $scriptUrl = $config['script_url'];
+            }
+
+            $sheetUrl = trim($_POST['sheet_url'] ?? '');
+            if (empty($sheetUrl) && !empty($_POST['sh_url_payload'])) {
+                $sheetUrl = trim(base64_decode($_POST['sh_url_payload']));
+            }
+            if (empty($sheetUrl) && !empty($_POST['sheet_url_b64'])) {
+                $sheetUrl = trim(base64_decode($_POST['sheet_url_b64']));
+            }
+            if (empty($sheetUrl) && !empty($config['sheet_url'])) {
+                $sheetUrl = $config['sheet_url'];
+            }
 
             if (empty($scriptUrl)) {
+                while (ob_get_level() > 0) { @ob_end_clean(); }
                 echo json_encode(['success' => false, 'message' => 'Chưa có URL Google Apps Script để đồng bộ'], JSON_UNESCAPED_UNICODE);
                 exit;
             }
