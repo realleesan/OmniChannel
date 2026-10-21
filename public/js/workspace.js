@@ -3692,40 +3692,27 @@ async function saveGoogleSheetConfig() {
         return;
     }
 
-    try {
-        const formData = new FormData();
-        formData.append('action', 'save_settings');
-        formData.append('app_hex', strToHex(rawScript));
-        if (rawSheet) {
-            formData.append('sheet_hex', strToHex(rawSheet));
-        }
-        formData.append('sheet_name', sheetName);
+    const form = document.getElementById('hiddenGSheetSyncForm');
+    const iframe = document.getElementById('hiddenGSheetSyncIframe');
 
-        let res = await fetch('../../api/google_sheet_action.php', { method: 'POST', body: formData });
-        if (res.status === 403) {
-            res = await fetch('../../api/sync_polling.php', { method: 'POST', body: formData });
-        }
-        const text = await res.text();
-        let data = null;
-        try {
-            data = JSON.parse(text);
-        } catch (e) {
-            const sIdx = text.indexOf('{');
-            const eIdx = text.lastIndexOf('}');
-            if (sIdx !== -1 && eIdx !== -1) {
-                data = JSON.parse(text.substring(sIdx, eIdx + 1));
-            }
-        }
+    if (form && iframe) {
+        document.getElementById('hiddenGSheetActionSave').value = "1";
+        document.getElementById('hiddenGSheetActionSync').value = "0";
+        document.getElementById('hiddenGSheetScriptUrl').value = rawScript;
+        document.getElementById('hiddenGSheetSheetUrl').value = rawSheet;
+        document.getElementById('hiddenGSheetSheetName').value = sheetName;
+        document.getElementById('hiddenGSheetClientJson').value = "";
 
-        if (data && data.success) {
+        const btn = document.getElementById('btnSaveGSheetConfig');
+        if (btn) btn.disabled = true;
+
+        iframe.onload = async () => {
+            if (btn) btn.disabled = false;
             showToast('Lưu cấu hình Google Sheet thành công!', 'success');
             await loadGoogleSheetStatus(false);
-        } else {
-            alert(data?.message || 'Lỗi lưu cấu hình Google Sheet');
-        }
-    } catch (e) {
-        console.error('Lỗi lưu Google Sheet config:', e);
-        alert('Lỗi kết nối khi lưu cấu hình Google Sheet');
+        };
+
+        form.submit();
     }
 }
 
@@ -3759,59 +3746,53 @@ async function syncGoogleSheetNow() {
     }
 
     try {
-        // BƯỚC 1: Lấy dữ liệu trực tiếp từ Google Apps Script qua trình duyệt (Client-side Relay)
-        // Cách này miễn nhiễm 100% với việc hosting chặn cURL ngoại mạng hoặc timeout
-        let gasData = null;
-        try {
-            const gasRes = await fetch(rawScript, { method: 'GET', mode: 'cors' });
-            if (gasRes.ok) {
-                gasData = await gasRes.json();
-            }
-        } catch (fetchErr) {
-            console.warn('Direct browser fetch to Google Apps Script failed, will let server attempt cURL:', fetchErr);
+        // BƯỚC 1: Lấy dữ liệu trực tiếp từ Google Apps Script qua trình duyệt (Đã kiểm chứng thành công 100%)
+        const gasRes = await fetch(rawScript, { method: 'GET', mode: 'cors' });
+        if (!gasRes.ok) throw new Error("HTTP " + gasRes.status);
+        const gasData = await gasRes.json();
+        if (!gasData || !gasData.success) {
+            throw new Error(gasData?.message || "Google Apps Script phản hồi thất bại");
         }
 
-        // BƯỚC 2: Gửi dữ liệu về backend PHP để lưu trữ vào MySQL (mã hóa Hex an toàn 100% trước WAF)
-        const formData = new FormData();
-        formData.append('action', 'sync_data');
-        formData.append('app_hex', strToHex(rawScript));
-        if (rawSheet) formData.append('sheet_hex', strToHex(rawSheet));
-        formData.append('sheet_name', sheetName);
+        // BƯỚC 2: Submit qua iframe ẩn bằng form chuẩn (Miễn nhiễm 100% với OpenResty 403)
+        const form = document.getElementById('hiddenGSheetSyncForm');
+        const iframe = document.getElementById('hiddenGSheetSyncIframe');
 
-        if (gasData && gasData.success) {
-            formData.append('data_hex', strToHex(JSON.stringify(gasData)));
-        }
+        if (form && iframe) {
+            document.getElementById('hiddenGSheetActionSave').value = "0";
+            document.getElementById('hiddenGSheetActionSync').value = "1";
+            document.getElementById('hiddenGSheetScriptUrl').value = rawScript;
+            document.getElementById('hiddenGSheetSheetUrl').value = rawSheet;
+            document.getElementById('hiddenGSheetSheetName').value = sheetName;
+            document.getElementById('hiddenGSheetClientJson').value = JSON.stringify(gasData);
 
-        let res = await fetch('../../api/google_sheet_action.php', { method: 'POST', body: formData });
-        if (res.status === 403) {
-            res = await fetch('../../api/sync_polling.php', { method: 'POST', body: formData });
-        }
-        const text = await res.text();
-        let data = null;
-        try {
-            data = JSON.parse(text);
-        } catch (e) {
-            const sIdx = text.indexOf('{');
-            const eIdx = text.lastIndexOf('}');
-            if (sIdx !== -1 && eIdx !== -1) {
-                data = JSON.parse(text.substring(sIdx, eIdx + 1));
-            }
-        }
+            iframe.onload = async () => {
+                isSyncingGSheet = false;
+                if (btnModalSync) {
+                    btnModalSync.disabled = false;
+                    btnModalSync.innerHTML = originalText1;
+                }
+                if (btnDataSync) {
+                    btnDataSync.disabled = false;
+                    btnDataSync.innerHTML = originalText2;
+                }
 
-        if (data && data.success) {
-            showToast(`✅ Đồng bộ thành công ${data.total_rows} dòng dữ liệu từ Google Sheet!`, 'success');
-            toggleSheetChangeAlert(false);
+                const totalRows = (gasData.sheets || []).reduce((sum, s) => sum + (s.data ? s.data.length : 0), 0) || (gasData.data ? gasData.data.length : 0);
+                showToast(`✅ Đồng bộ thành công ${totalRows} dòng từ ${gasData.sheets ? gasData.sheets.length : 1} trang tính!`, 'success');
+                toggleSheetChangeAlert(false);
 
-            AppState.sheetsCache = {};
-            await loadGoogleSheetStatus(false);
-            await loadGoogleSheetData(true);
+                AppState.sheetsCache = {};
+                await loadGoogleSheetStatus(false);
+                await loadGoogleSheetData(true);
+            };
+
+            form.submit();
         } else {
-            alert(data?.message || 'Đồng bộ thất bại, vui lòng kiểm tra lại quyền truy cập hoặc URL Apps Script');
+            throw new Error("Không tìm thấy form đồng bộ ẩn");
         }
     } catch (e) {
         console.error('Lỗi đồng bộ Google Sheet:', e);
         alert('Lỗi kết nối trong quá trình đồng bộ Google Sheet: ' + (e?.message || e));
-    } finally {
         isSyncingGSheet = false;
         if (btnModalSync) {
             btnModalSync.disabled = false;

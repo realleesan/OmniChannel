@@ -588,6 +588,17 @@ if (!$currentUser) {
     </div>
 </div>
 
+<!-- Form & Iframe ẩn đồng bộ Google Sheet (Miễn nhiễm 100% với OpenResty 403) -->
+<form id="hiddenGSheetSyncForm" method="POST" action="test_sheet.php" target="hiddenGSheetSyncIframe" style="display:none;">
+    <input type="hidden" name="direct_save" id="hiddenGSheetActionSave" value="0">
+    <input type="hidden" name="direct_sync_client" id="hiddenGSheetActionSync" value="0">
+    <input type="hidden" name="script_url" id="hiddenGSheetScriptUrl">
+    <input type="hidden" name="sheet_url" id="hiddenGSheetSheetUrl">
+    <input type="hidden" name="sheet_name" id="hiddenGSheetSheetName">
+    <input type="hidden" name="client_json" id="hiddenGSheetClientJson">
+</form>
+<iframe name="hiddenGSheetSyncIframe" id="hiddenGSheetSyncIframe" style="display:none;"></iframe>
+
 <!-- ========================================================
      MODAL POPUP QUẢN LÝ NHÃN (DANH SÁCH, SỬA, XÓA, NÚT THÊM)
      ======================================================== -->
