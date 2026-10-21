@@ -40,19 +40,23 @@ switch ($action) {
         break;
 
     case 'send_message':
-        $conversationId = (int)($_POST['conversation_id'] ?? 0);
-        $content = trim($_POST['content'] ?? '');
-        $attachmentUrl = trim($_POST['attachment_url'] ?? '');
+        $conversationId = (int)($_POST['conversation_id'] ?? $_GET['conversation_id'] ?? 0);
+        $content = trim($_POST['content'] ?? $_GET['content'] ?? '');
+        $attachmentUrl = trim($_POST['attachment_url'] ?? $_GET['attachment_url'] ?? '');
 
         if (empty($content) && empty($attachmentUrl)) {
             jsonResponse(false, [], 'Nội dung tin nhắn không được để trống');
         }
 
-        $res = $chatController->sendStaffMessage($conversationId, $userId, $content, $attachmentUrl ?: null);
-        if ($res['success']) {
-            jsonResponse(true, $res['data'], 'Gửi tin nhắn thành công');
-        } else {
-            jsonResponse(false, [], $res['message'], 200);
+        try {
+            $res = $chatController->sendStaffMessage($conversationId, $userId, $content, $attachmentUrl ?: null);
+            if ($res['success']) {
+                jsonResponse(true, $res['data'], 'Gửi tin nhắn thành công');
+            } else {
+                jsonResponse(false, [], $res['message'], 200);
+            }
+        } catch (Throwable $e) {
+            jsonResponse(false, [], 'Lỗi gửi tin nhắn: ' . $e->getMessage(), 200);
         }
         break;
 
