@@ -2328,6 +2328,10 @@ body {
     border-radius: var(--radius-lg);
     width: 100%;
     max-width: 500px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     box-shadow: var(--shadow-lg);
     border: 1px solid var(--border);
     animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -2344,6 +2348,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-shrink: 0;
 }
 
 .modal-title {
@@ -2370,6 +2375,9 @@ body {
     display: flex;
     flex-direction: column;
     gap: 14px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
 }
 
 .form-group {
@@ -2437,6 +2445,7 @@ body {
     background: #F8FAFC;
     border-bottom-left-radius: var(--radius-lg);
     border-bottom-right-radius: var(--radius-lg);
+    flex-shrink: 0;
 }
 
 /* ========================================================
@@ -2753,6 +2762,7 @@ body {
     background: #F8FAFC;
     padding: 0 20px;
     gap: 8px;
+    flex-shrink: 0;
 }
 
 .modal-subtab-btn {
@@ -2935,22 +2945,22 @@ body {
 }
 
 .col-pill-chip {
-    background: #ECFDF5;
-    color: #065F46;
-    border: 1px solid #A7F3D0;
-    border-radius: 12px;
-    padding: 2px 8px;
-    font-size: 11px;
-    font-weight: 700;
+    background: #F1F5F9;
+    color: #334155;
+    border: 1px solid #CBD5E1;
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 11.5px;
+    font-weight: 600;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    cursor: default;
+    transition: all 0.15s ease;
 }
 
-.col-pill-chip.col-image {
-    background: #EFF6FF;
-    color: #1E40AF;
-    border-color: #BFDBFE;
+.col-pill-chip:hover {
+    background: #E2E8F0;
+    border-color: #94A3B8;
 }
 
 .sheet-data-toolbar {
@@ -3537,32 +3547,38 @@ body {
    THANH TAB CHUYỂN ĐỔI TRANG TÍNH (MULTI-SHEET TABS)
    ======================================================== */
 .sheet-tabs-nav-bar {
-    background: #F1F5F9;
-    border-bottom: 1px solid #CBD5E1;
-    padding: 8px 16px 0 16px;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    padding: 6px 8px;
     display: flex;
     align-items: center;
     overflow-x: auto;
-    scrollbar-width: thin;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    margin-bottom: 12px;
+}
+
+.sheet-tabs-nav-bar::-webkit-scrollbar {
+    display: none;
 }
 
 .sheet-tabs-list {
     display: flex;
-    align-items: flex-end;
-    gap: 4px;
-    min-width: 100%;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap;
 }
 
 .sheet-tab-pill {
-    background: #E2E8F0;
+    background: #FFFFFF;
     color: #475569;
     font-size: 12px;
-    font-weight: 700;
-    padding: 7px 14px;
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 6px;
     border: 1px solid #CBD5E1;
-    border-bottom: none;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
@@ -3573,31 +3589,19 @@ body {
 }
 
 .sheet-tab-pill:hover {
-    background: #FFFFFF;
+    background: #F1F5F9;
     color: #0F172A;
 }
 
 .sheet-tab-pill.active {
-    background: #FFFFFF;
-    color: #059669;
-    border-color: #10B981 #10B981 #FFFFFF #10B981;
-    position: relative;
-    top: 1px;
-    box-shadow: 0 -2px 6px rgba(0,0,0,0.05);
+    background: #10B981;
+    color: #FFFFFF;
+    border-color: #10B981;
+    box-shadow: 0 1px 3px rgba(16, 185, 129, 0.25);
 }
 
-.sheet-tab-pill-badge {
-    background: #F1F5F9;
-    color: #64748B;
-    font-size: 10.5px;
-    font-weight: 700;
-    padding: 1px 6px;
-    border-radius: 10px;
-}
-
-.sheet-tab-pill.active .sheet-tab-pill-badge {
-    background: #ECFDF5;
-    color: #059669;
+.sheet-tab-pill.active i {
+    color: #FFFFFF;
 }
 
 /* Badge trang tính trong danh sách Quản lý Template */

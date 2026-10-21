@@ -3694,25 +3694,18 @@ function renderDetectedColsChips(sheets, fallbackColumns) {
             const cols = s.columns || [];
             return `
                 <div class="sheet-vars-card" style="margin-bottom:12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:12px 14px;">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                    <div style="display:flex;align-items:center;margin-bottom:8px;">
                         <span style="font-weight:700;font-size:13px;color:#0F172A;display:flex;align-items:center;gap:6px;">
                             <i class="fa-solid fa-table" style="color:#10B981;"></i>
                             Bảng tính: <strong style="color:#0284C7;">${escapeHtml(s.name)}</strong>
                         </span>
-                        <span style="font-size:11px;background:#E2E8F0;color:#475569;padding:2px 8px;border-radius:10px;font-weight:600;">
-                            ${cols.length} biến · ${s.count || 0} dòng
-                        </span>
                     </div>
                     <div class="status-cols-chips" style="display:flex;flex-wrap:wrap;gap:6px;">
-                        ${cols.map(col => {
-                            const isImg = isImageColumnName(col);
-                            return `
-                                <span class="col-pill-chip ${isImg ? 'col-image' : ''}" title="${isImg ? 'Cột hình ảnh' : 'Cột văn bản'} (${escapeHtml(s.name)})">
-                                    ${isImg ? '<i class="fa-regular fa-image"></i>' : '<i class="fa-solid fa-cube"></i>'}
-                                    [${escapeHtml(col)}]
-                                </span>
-                            `;
-                        }).join('')}
+                        ${cols.map(col => `
+                            <span class="col-pill-chip" title="Biến: [${escapeHtml(col)}]">
+                                [${escapeHtml(col)}]
+                            </span>
+                        `).join('')}
                     </div>
                 </div>
             `;
@@ -3720,15 +3713,11 @@ function renderDetectedColsChips(sheets, fallbackColumns) {
         return;
     }
 
-    container.innerHTML = (fallbackColumns || []).map(col => {
-        const isImage = isImageColumnName(col);
-        return `
-            <span class="col-pill-chip ${isImage ? 'col-image' : ''}" title="${isImage ? 'Cột hình ảnh' : 'Cột văn bản'}">
-                ${isImage ? '<i class="fa-regular fa-image"></i>' : '<i class="fa-solid fa-cube"></i>'}
-                [${escapeHtml(col)}]
-            </span>
-        `;
-    }).join('');
+    container.innerHTML = (fallbackColumns || []).map(col => `
+        <span class="col-pill-chip" title="Biến: [${escapeHtml(col)}]">
+            [${escapeHtml(col)}]
+        </span>
+    `).join('');
 }
 
 function isImageColumnName(colName) {
@@ -3971,7 +3960,6 @@ function renderSheetTabsNavBar() {
                  onclick="switchSheetDataTableTab('${escapeHtml(s.name)}')">
                 <i class="fa-solid fa-table"></i>
                 <span>${escapeHtml(s.name)}</span>
-                <span class="sheet-tab-pill-badge">${s.count || 0}</span>
             </div>
         `;
     }).join('');
@@ -4004,7 +3992,6 @@ function renderSheetDataTable(rows) {
         <table class="sheet-data-table">
             <thead>
                 <tr>
-                    <th style="width:45px;text-align:center;">#</th>
                     ${cols.map(c => `<th>${escapeHtml(c)}</th>`).join('')}
                 </tr>
             </thead>
@@ -4014,7 +4001,6 @@ function renderSheetDataTable(rows) {
     rows.forEach((row, idx) => {
         html += `
             <tr>
-                <td style="text-align:center;color:#94A3B8;font-weight:600;font-size:11px;">${idx + 1}</td>
                 ${cols.map(col => {
                     const rawVal = row[col] !== undefined ? row[col] : '';
                     const val = String(rawVal).trim();

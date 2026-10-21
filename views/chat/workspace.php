@@ -464,7 +464,7 @@ if (!$currentUser) {
                 <i class="fa-solid fa-sliders"></i> Cấu hình kết nối
             </button>
             <button type="button" class="modal-subtab-btn" id="btnTabGSheetData" onclick="switchGSheetTab('data')">
-                <i class="fa-solid fa-table"></i> Bảng dữ liệu <span class="badge-tab-count" id="sheetDataCountBadge">0</span>
+                <i class="fa-solid fa-table"></i> Bảng dữ liệu
             </button>
         </div>
 
@@ -504,10 +504,8 @@ if (!$currentUser) {
 
                 <!-- Trạng thái kết nối hiện tại & Danh sách biến theo từng bảng tính -->
                 <div class="gsheet-status-box" id="gsheetStatusBox" style="display:none;margin-top:16px;">
-                    <div class="status-box-row" style="margin-bottom:12px;">
+                    <div class="status-box-row" style="margin-bottom:10px;">
                         <span>Lần đồng bộ cuối: <strong id="gsheetLastSyncTime">--:--</strong></span>
-                        <span>Tổng số dòng: <strong id="gsheetTotalRowsCount">0</strong></span>
-                        <span>Số cột nhận diện: <strong id="gsheetColsCount">0</strong></span>
                     </div>
                     <div style="font-size:11px;font-weight:700;color:#64748B;margin-bottom:8px;text-transform:uppercase;">Danh sách biến cột phân theo từng bảng tính:</div>
                     <div id="gsheetDetectedColsList">
