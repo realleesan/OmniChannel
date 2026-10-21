@@ -4048,7 +4048,7 @@ function isImageUrlString(str) {
     const s = str.trim();
     if (s.startsWith('data:image/')) return true;
     if (!s.startsWith('http://') && !s.startsWith('https://')) return false;
-    if (s.includes('googleusercontent.com') || s.includes('drive.google.com') || s.includes('docs.google.com/spreadsheets')) return true;
+    if (s.includes('googleusercontent.com') || s.includes('drive.google.com') || s.includes('docs.google.com/spreadsheets') || s.includes('docs.google.com/sheets-images') || s.includes('sheets-images-rt')) return true;
     return /\.(png|jpe?g|webp|gif|svg|bmp)(\?.*)?$/i.test(s);
 }
 
