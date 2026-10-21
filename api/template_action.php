@@ -4,7 +4,9 @@
  * Xử lý truy xuất mẫu tin nhắn và phím tắt thay thế biến động
  */
 
-header('Content-Type: application/json; charset=utf-8');
+if (!headers_sent()) {
+    header('Content-Type: application/json; charset=utf-8');
+}
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../controllers/TemplateController.php';
 
@@ -14,28 +16,35 @@ if (!$userId) {
     exit;
 }
 
-$action = $_POST['action'] ?? $_GET['action'] ?? '';
+$rawInput = file_get_contents('php://input');
+$jsonData = json_decode($rawInput, true) ?: [];
+
+$action = $jsonData['action'] ?? $_POST['action'] ?? $_GET['action'] ?? '';
 $templateController = new TemplateController();
 
 switch ($action) {
     case 'get_list':
+    case 'get_templates':
+    case 'get_template_list':
         $templates = $templateController->getList();
         echo json_encode(['success' => true, 'templates' => $templates], JSON_UNESCAPED_UNICODE);
         break;
 
     case 'check_shortcut':
-        $shortcut = trim($_GET['shortcut'] ?? $_POST['shortcut'] ?? '');
-        $excludeId = $_GET['exclude_id'] ?? $_POST['exclude_id'] ?? null;
+        $shortcut = trim($jsonData['shortcut'] ?? $_GET['shortcut'] ?? $_POST['shortcut'] ?? '');
+        $excludeId = $jsonData['exclude_id'] ?? $_GET['exclude_id'] ?? $_POST['exclude_id'] ?? null;
         $exists = $templateController->checkShortcut($shortcut, $excludeId);
         echo json_encode(['success' => true, 'exists' => $exists], JSON_UNESCAPED_UNICODE);
         break;
 
     case 'create':
-        $shortcut = trim($_POST['shortcut'] ?? '');
-        $title = trim($_POST['title'] ?? '');
-        $content = trim($_POST['content'] ?? '');
-        $variablesJson = $_POST['variables_json'] ?? null;
-        $sheetName = trim($_POST['sheet_name'] ?? '');
+    case 'create_template':
+    case 'template_create':
+        $shortcut = trim($jsonData['shortcut'] ?? $_POST['shortcut'] ?? '');
+        $title = trim($jsonData['title'] ?? $_POST['title'] ?? '');
+        $content = trim($jsonData['content'] ?? $_POST['content'] ?? '');
+        $variablesJson = $jsonData['variables_json'] ?? $_POST['variables_json'] ?? null;
+        $sheetName = trim($jsonData['sheet_name'] ?? $_POST['sheet_name'] ?? '');
 
         $res = $templateController->create($shortcut, $title, $content, $userId, $variablesJson, $sheetName);
         if ($res['success']) {
@@ -47,12 +56,14 @@ switch ($action) {
         break;
 
     case 'update':
-        $id = (int)($_POST['id'] ?? 0);
-        $shortcut = trim($_POST['shortcut'] ?? '');
-        $title = trim($_POST['title'] ?? '');
-        $content = trim($_POST['content'] ?? '');
-        $variablesJson = $_POST['variables_json'] ?? null;
-        $sheetName = trim($_POST['sheet_name'] ?? '');
+    case 'update_template':
+    case 'template_update':
+        $id = (int)($jsonData['id'] ?? $_POST['id'] ?? 0);
+        $shortcut = trim($jsonData['shortcut'] ?? $_POST['shortcut'] ?? '');
+        $title = trim($jsonData['title'] ?? $_POST['title'] ?? '');
+        $content = trim($jsonData['content'] ?? $_POST['content'] ?? '');
+        $variablesJson = $jsonData['variables_json'] ?? $_POST['variables_json'] ?? null;
+        $sheetName = trim($jsonData['sheet_name'] ?? $_POST['sheet_name'] ?? '');
 
         $res = $templateController->update($id, $shortcut, $title, $content, $variablesJson, $sheetName);
         if ($res['success']) {
@@ -64,7 +75,9 @@ switch ($action) {
         break;
 
     case 'delete':
-        $id = (int)($_POST['id'] ?? 0);
+    case 'delete_template':
+    case 'template_delete':
+        $id = (int)($jsonData['id'] ?? $_POST['id'] ?? 0);
         $res = $templateController->delete($id);
         if ($res['success']) {
             $all = $templateController->getList();

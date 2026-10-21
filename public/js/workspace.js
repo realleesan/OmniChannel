@@ -2828,8 +2828,17 @@ async function loadTemplatesList() {
     if (!container) return;
 
     try {
-        const res = await fetch('../../api/template_action.php?action=get_list');
-        const data = await res.json();
+        let res = await fetch('../../api/template_action.php?action=get_list');
+        let data = null;
+        if (res.ok) {
+            try { data = await res.json(); } catch (e) {}
+        }
+        if (!data || !data.success) {
+            res = await fetch('../../api/sync_polling.php?action=get_templates');
+            if (res.ok) {
+                try { data = await res.json(); } catch (e) {}
+            }
+        }
         if (data && data.success && Array.isArray(data.templates)) {
             AppState.templates = data.templates;
             renderManageTemplatesList(AppState.templates);
@@ -3020,8 +3029,18 @@ async function saveEditTemplate(id) {
         formData.append('content', content);
         formData.append('sheet_name', sheetName);
 
-        const res = await fetch('../../api/template_action.php', { method: 'POST', body: formData });
-        const data = await res.json();
+        let res = await fetch('../../api/template_action.php', { method: 'POST', body: formData });
+        let data = null;
+        if (res.ok) {
+            try { data = await res.json(); } catch (e) {}
+        }
+        if (!data || !data.success) {
+            formData.set('action', 'update_template');
+            res = await fetch('../../api/sync_polling.php', { method: 'POST', body: formData });
+            if (res.ok) {
+                try { data = await res.json(); } catch (e) {}
+            }
+        }
 
         if (data && data.success) {
             editingTemplateId = null;
@@ -3047,8 +3066,18 @@ async function deleteTemplateItem(id, title) {
         formData.append('action', 'delete');
         formData.append('id', id);
 
-        const res = await fetch('../../api/template_action.php', { method: 'POST', body: formData });
-        const data = await res.json();
+        let res = await fetch('../../api/template_action.php', { method: 'POST', body: formData });
+        let data = null;
+        if (res.ok) {
+            try { data = await res.json(); } catch (e) {}
+        }
+        if (!data || !data.success) {
+            formData.set('action', 'delete_template');
+            res = await fetch('../../api/sync_polling.php', { method: 'POST', body: formData });
+            if (res.ok) {
+                try { data = await res.json(); } catch (e) {}
+            }
+        }
 
         if (data && data.success) {
             AppState.templates = data.templates || (AppState.templates || []).filter(t => t.id !== id);
@@ -3245,8 +3274,18 @@ async function saveNewTemplateRecord() {
         formData.append('content', content);
         formData.append('sheet_name', sheetName);
 
-        const res = await fetch('../../api/template_action.php', { method: 'POST', body: formData });
-        const data = await res.json();
+        let res = await fetch('../../api/template_action.php', { method: 'POST', body: formData });
+        let data = null;
+        if (res.ok) {
+            try { data = await res.json(); } catch (e) {}
+        }
+        if (!data || !data.success) {
+            formData.set('action', 'create_template');
+            res = await fetch('../../api/sync_polling.php', { method: 'POST', body: formData });
+            if (res.ok) {
+                try { data = await res.json(); } catch (e) {}
+            }
+        }
 
         if (data && data.success) {
             showToast('Tạo mẫu tin nhắn thành công!', 'success');
