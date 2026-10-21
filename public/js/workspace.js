@@ -1425,53 +1425,55 @@ function applyTemplateWithSheetRow(tpl, row) {
  */
 function tryResolveShortcutSync(inputVal) {
     const raw = (inputVal || '').trim();
-    if (!raw.startsWith('/')) return null;
+    if (!raw) return null;
 
     const all = AppState.templates || [];
     if (all.length === 0) return null;
 
-    // Tách "/sp 3" -> parts = ["/sp", "3"]
     const parts = raw.split(/\s+/);
     const baseCmd = parts[0];
+    const baseClean = baseCmd.replace(/^\/+/, '').toLowerCase();
+    const rawClean = raw.replace(/^\/+/, '').toLowerCase();
     const param = parts.length > 1 ? parts.slice(1).join(' ').trim() : null;
 
     let matchedTpl = null;
     let extractedParam = param;
 
     for (const t of all) {
-        const tClean = '/' + (t.shortcut || '').trim().replace(/^\/+/, '');
+        const tRaw = (t.shortcut || '').trim();
+        const tClean = tRaw.replace(/^\/+/, '').toLowerCase();
 
-        // 1. Khớp chính xác hoàn toàn (ví dụ: gõ "/chao" khớp template "/chao")
-        if (tClean.toLowerCase() === raw.toLowerCase()) {
+        // 1. Khớp chính xác hoàn toàn (ví dụ: "chao" hoặc "/chao")
+        if (tClean === rawClean || tRaw.toLowerCase() === raw.toLowerCase()) {
             matchedTpl = t;
             extractedParam = null;
             break;
         }
 
-        // 2. Template có dạng "/sp [id]" hoặc "/sp [ma]"
-        const varMatch = tClean.match(/^(\/[^\s\[]+)\s*\[([^\]]+)\]$/i);
+        // 2. Template có dạng "sp [id]" hoặc "/sp [id]"
+        const varMatch = tClean.match(/^([^\s\[]+)\s*\[([^\]]+)\]$/i);
         if (varMatch) {
-            const cmd = varMatch[1];
-            if (cmd.toLowerCase() === baseCmd.toLowerCase() && param) {
+            const cmd = varMatch[1].toLowerCase();
+            if (cmd === baseClean && param) {
                 matchedTpl = t;
                 extractedParam = param;
                 break;
             }
         }
 
-        // 3. Template có dạng "/id=[id]"
-        const eqMatch = tClean.match(/^(\/[^=\[]+=)\s*\[([^\]]+)\]$/i);
+        // 3. Template có dạng "id=[id]" hoặc "/id=[id]"
+        const eqMatch = tClean.match(/^([^=\[]+=)\s*\[([^\]]+)\]$/i);
         if (eqMatch) {
-            const prefix = eqMatch[1];
-            if (raw.toLowerCase().startsWith(prefix.toLowerCase())) {
+            const prefix = eqMatch[1].toLowerCase();
+            if (rawClean.startsWith(prefix)) {
                 matchedTpl = t;
-                extractedParam = raw.substring(prefix.length).trim();
+                extractedParam = rawClean.substring(prefix.length).trim();
                 break;
             }
         }
 
-        // 4. Template shortcut thuần "/sp", người dùng gõ "/sp 3"
-        if (tClean.toLowerCase() === baseCmd.toLowerCase() && param) {
+        // 4. Template shortcut thuần "sp", người dùng gõ "sp 3" hoặc "/sp 3"
+        if (tClean === baseClean && param) {
             matchedTpl = t;
             extractedParam = param;
             break;
@@ -1480,7 +1482,7 @@ function tryResolveShortcutSync(inputVal) {
         // 5. Template shortcut chỉ ghi mỗi tên biến "[id]" hoặc "/[id]"
         if (/^\/?\[([^\]]+)\]$/i.test(tClean)) {
             matchedTpl = t;
-            extractedParam = raw.replace(/^\/+/, '').trim();
+            extractedParam = rawClean;
             break;
         }
     }
@@ -1493,10 +1495,15 @@ function tryResolveShortcutSync(inputVal) {
         return matchedTpl.content;
     }
 
-    // Tìm dòng dữ liệu tương ứng: ưu tiên trang tính được gắn trong template
+    // Tìm dòng dữ liệu tương ứng: ưu tiên trang tính được gắn trong template hoặc gộp toàn bộ sheets
     let rows = AppState.sheetRows || [];
     if (matchedTpl.sheet_name && AppState.sheetsCache && AppState.sheetsCache[matchedTpl.sheet_name]) {
         rows = AppState.sheetsCache[matchedTpl.sheet_name];
+    } else if (AppState.sheetsCache && Object.keys(AppState.sheetsCache).length > 0) {
+        rows = [];
+        Object.values(AppState.sheetsCache).forEach(arr => {
+            if (Array.isArray(arr)) rows.push(...arr);
+        });
     }
     let matchedRow = null;
 
@@ -2759,6 +2766,25 @@ async function toggleConversationLabel(labelId) {
 let isOpenedFromManageTemplateModal = false;
 let editingTemplateId = null;
 
+function getGroupedSheetVariables() {
+    if (AppState.sheetSheetsList && AppState.sheetSheetsList.length > 0) {
+        return AppState.sheetSheetsList.map(s => ({
+            name: s.name,
+            columns: (s.columns && s.columns.length > 0) ? s.columns : (AppState.sheetColumns || [])
+        }));
+    }
+    if (AppState.sheetColumns && AppState.sheetColumns.length > 0) {
+        return [{
+            name: 'Trang tính 1',
+            columns: AppState.sheetColumns
+        }];
+    }
+    return [{
+        name: 'Trang tính 1',
+        columns: ['id', 'sản phẩm', 'giá', 'số lượng']
+    }];
+}
+
 function getColumnsForSheet(sheetName) {
     if (sheetName && AppState.sheetSheetsList) {
         const found = AppState.sheetSheetsList.find(s => s.name === sheetName);
@@ -2770,14 +2796,7 @@ function getColumnsForSheet(sheetName) {
 }
 
 function handleEditTplSheetChange(id, sheetName) {
-    const chipsContainer = document.getElementById(`editTplVarChips_${id}`);
-    if (!chipsContainer) return;
-    const cols = getColumnsForSheet(sheetName);
-    chipsContainer.innerHTML = cols.map(col => `
-        <button type="button" class="chip-var-btn" style="padding:2px 6px;font-size:10.5px;" onclick="insertVarToEditModal(${id}, '[${escapeHtml(col)}]')">
-            + ${escapeHtml(col)}
-        </button>
-    `).join('');
+    // Không còn dùng dropdown sheet đơn lẻ
 }
 
 // Hỗ trợ hàm cũ để tương thích ngược
@@ -2828,18 +2847,18 @@ function renderManageTemplatesList(templates) {
     if (list.length === 0) {
         container.innerHTML = `
             <div style="text-align:center;padding:40px 16px;color:#94A3B8;font-size:13px;">
-                <i class="fa-solid fa-bolt" style="font-size:26px;margin-bottom:8px;display:block;opacity:0.35;"></i>
                 Chưa có mẫu tin nhắn nhanh nào. Bấm nút bên dưới để tạo mới!
             </div>
         `;
         return;
     }
 
+    const groupedSheets = getGroupedSheetVariables();
+
     let html = '';
     list.forEach(t => {
         const isEditing = (editingTemplateId === t.id);
         if (isEditing) {
-            const editCols = getColumnsForSheet(t.sheet_name);
             html += `
                 <div class="template-manage-row is-editing" id="tplRow_${t.id}">
                     <div style="width:100%;display:flex;flex-direction:column;gap:8px;">
@@ -2849,48 +2868,42 @@ function renderManageTemplatesList(templates) {
                                 <input type="text" id="editTplTitle_${t.id}" value="${escapeHtml(t.title || '')}" class="form-input" style="height:32px;font-size:12.5px;padding:4px 8px;">
                             </div>
                             <div style="width:160px;">
-                                <label style="font-size:11px;font-weight:700;color:#475569;">Phím tắt</label>
+                                <label style="font-size:11px;font-weight:700;color:#475569;">Viết tắt</label>
                                 <input type="text" id="editTplShortcut_${t.id}" value="${escapeHtml(t.shortcut)}" class="form-input" style="height:32px;font-size:12.5px;padding:4px 8px;font-family:monospace;"
                                        oninput="handleValidateEditShortcut(this.value, ${t.id})">
                             </div>
                         </div>
-                        <div>
-                            <label style="font-size:11px;font-weight:700;color:#475569;">Trang tính Google Sheet áp dụng</label>
-                            <select id="editTplSheetName_${t.id}" class="form-input" style="height:32px;font-size:12px;padding:4px 8px;" onchange="handleEditTplSheetChange(${t.id}, this.value)">
-                                <option value="">-- Mẫu tin chung (Không gắn bảng cụ thể) --</option>
-                                ${(AppState.sheetSheetsList || []).map(s => `
-                                    <option value="${escapeHtml(s.name)}" ${(t.sheet_name === s.name) ? 'selected' : ''}>
-                                        ${escapeHtml(s.name)} (${s.count || 0} dòng, ${(s.columns || []).length} cột)
-                                    </option>
-                                `).join('')}
-                            </select>
-                        </div>
                         <div id="editShortcutError_${t.id}" class="shortcut-invalid-text" style="display:none;">
-                            <i class="fa-solid fa-triangle-exclamation"></i> <span>Phím tắt này đã được dùng!</span>
+                            <i class="fa-solid fa-triangle-exclamation"></i> <span>Viết tắt này đã được dùng!</span>
                         </div>
                         <div>
                             <label style="font-size:11px;font-weight:700;color:#475569;">Nội dung mẫu tin</label>
                             <textarea id="editTplContent_${t.id}" class="form-textarea" rows="3" style="font-size:12.5px;padding:6px 8px;">${escapeHtml(t.content)}</textarea>
                         </div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:4px;">
-                            <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
-                                <span style="font-size:11px;color:#94A3B8;">Biến Sheet:</span>
-                                <div id="editTplVarChips_${t.id}" style="display:inline-flex;gap:4px;flex-wrap:wrap;">
-                                    ${editCols.map(col => `
-                                        <button type="button" class="chip-var-btn" style="padding:2px 6px;font-size:10.5px;" onclick="insertVarToEditModal(${t.id}, '[${escapeHtml(col)}]')">
-                                            + ${escapeHtml(col)}
-                                        </button>
-                                    `).join('')}
-                                </div>
+                        <div style="margin-top:2px;">
+                            <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:6px;">Chèn biến từ Google Sheet:</div>
+                            <div id="editTplVarChips_${t.id}" style="display:flex;flex-direction:column;gap:8px;">
+                                ${groupedSheets.map(s => `
+                                    <div>
+                                        <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:4px;">${escapeHtml(s.name)}</div>
+                                        <div style="display:flex;flex-wrap:wrap;gap:5px;">
+                                            ${(s.columns || []).map(col => `
+                                                <button type="button" class="draggable-chip-var" style="cursor:pointer;padding:3px 8px;font-size:11px;" onclick="insertVarToEditModal(${t.id}, '[${escapeHtml(col)}]')">
+                                                    [${escapeHtml(col)}]
+                                                </button>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                `).join('')}
                             </div>
-                            <div style="display:flex;gap:6px;">
-                                <button type="button" class="btn-manage-action btn-manage-save" onclick="saveEditTemplate(${t.id})">
-                                    <i class="fa-solid fa-check"></i> Lưu
-                                </button>
-                                <button type="button" class="btn-manage-action btn-manage-cancel" onclick="cancelEditTemplate()">
-                                    <i class="fa-solid fa-xmark"></i> Hủy
-                                </button>
-                            </div>
+                        </div>
+                        <div style="display:flex;justify-content:flex-end;gap:6px;padding-top:6px;">
+                            <button type="button" class="btn-manage-action btn-manage-save" onclick="saveEditTemplate(${t.id})">
+                                <i class="fa-solid fa-check"></i> Lưu
+                            </button>
+                            <button type="button" class="btn-manage-action btn-manage-cancel" onclick="cancelEditTemplate()">
+                                <i class="fa-solid fa-xmark"></i> Hủy
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -2900,7 +2913,7 @@ function renderManageTemplatesList(templates) {
                 <div class="template-manage-row" id="tplRow_${t.id}">
                     <div class="template-manage-left">
                         <div class="template-meta-top">
-                            <span class="template-shortcut-badge"><i class="fa-solid fa-bolt"></i> ${escapeHtml(t.shortcut)}</span>
+                            <span class="template-shortcut-badge">${escapeHtml(t.shortcut)}</span>
                             <span class="template-title-text">${escapeHtml(t.title || 'Mẫu tin')}</span>
                             ${t.sheet_name ? `<span class="template-sheet-badge" title="Gắn với trang tính: ${escapeHtml(t.sheet_name)}"><i class="fa-solid fa-table"></i> ${escapeHtml(t.sheet_name)}</span>` : ''}
                         </div>
@@ -2960,8 +2973,8 @@ function insertVarToEditModal(id, varName) {
 }
 
 function handleValidateEditShortcut(val, id) {
-    const clean = '/' + val.replace(/^\/+/, '').trim();
-    const isDup = (AppState.templates || []).some(t => t.id !== id && t.shortcut.toLowerCase() === clean.toLowerCase());
+    const clean = (val || '').trim();
+    const isDup = clean ? (AppState.templates || []).some(t => t.id !== id && (t.shortcut || '').trim().toLowerCase() === clean.toLowerCase()) : false;
     const errEl = document.getElementById(`editShortcutError_${id}`);
     const inputEl = document.getElementById(`editTplShortcut_${id}`);
 
@@ -2980,26 +2993,21 @@ async function saveEditTemplate(id) {
     const titleInput = document.getElementById(`editTplTitle_${id}`);
     const shortcutInput = document.getElementById(`editTplShortcut_${id}`);
     const contentInput = document.getElementById(`editTplContent_${id}`);
-    const sheetSelect = document.getElementById(`editTplSheetName_${id}`);
 
     const title = titleInput ? titleInput.value.trim() : '';
     let shortcut = shortcutInput ? shortcutInput.value.trim() : '';
     const content = contentInput ? contentInput.value.trim() : '';
-    const sheetName = sheetSelect ? sheetSelect.value.trim() : '';
+    const sheetName = '';
 
     if (!shortcut || !content) {
-        alert('Phím tắt và nội dung không được để trống');
+        alert('Viết tắt và nội dung không được để trống');
         return;
     }
 
-    if (!shortcut.startsWith('/')) {
-        shortcut = '/' + shortcut;
-    }
-
-    // Kiểm tra trùng phím tắt ở client
-    const isDup = (AppState.templates || []).some(t => t.id !== id && t.shortcut.toLowerCase() === shortcut.toLowerCase());
+    // Kiểm tra trùng viết tắt ở client
+    const isDup = (AppState.templates || []).some(t => t.id !== id && (t.shortcut || '').trim().toLowerCase() === shortcut.toLowerCase());
     if (isDup) {
-        alert(`Phím tắt "${shortcut}" đã được sử dụng bởi mẫu tin khác. Vui lòng chọn phím tắt khác!`);
+        alert(`Viết tắt "${shortcut}" đã được sử dụng bởi mẫu tin khác. Vui lòng chọn viết tắt khác!`);
         return;
     }
 
@@ -3080,20 +3088,7 @@ function openCreateTemplateFromManage() {
     if (contentEl) contentEl.value = '';
     if (errMsg) errMsg.style.display = 'none';
 
-    // Nạp danh sách các trang tính vào dropdown #newTplSheetName
-    const sheetSelect = document.getElementById('newTplSheetName');
-    if (sheetSelect) {
-        let optionsHtml = '<option value="">-- Mẫu tin chung (Không gắn bảng cụ thể) --</option>';
-        const sheets = AppState.sheetSheetsList || [];
-        sheets.forEach(s => {
-            const isSelected = (AppState.activeSheetTab && s.name === AppState.activeSheetTab) ? 'selected' : '';
-            optionsHtml += `<option value="${escapeHtml(s.name)}" ${isSelected}>${escapeHtml(s.name)} (${s.count || 0} dòng, ${(s.columns || []).length} cột)</option>`;
-        });
-        sheetSelect.innerHTML = optionsHtml;
-    }
-
-    const initialSheet = (sheetSelect ? sheetSelect.value : '') || AppState.activeSheetTab || '';
-    renderCreateTemplateVarChips(initialSheet);
+    renderCreateTemplateVarChips();
     if (titleEl) titleEl.focus();
 }
 
@@ -3108,43 +3103,36 @@ function closeCreateTemplateModal() {
 }
 
 function handleSelectCreateTplSheet(sheetName) {
-    renderCreateTemplateVarChips(sheetName);
+    renderCreateTemplateVarChips();
 }
 
-function renderCreateTemplateVarChips(selectedSheetName = '') {
+function renderCreateTemplateVarChips() {
     const container = document.getElementById('tplCreateVarChipsContainer');
-    const hintEl = document.getElementById('selectedSheetColsHint');
     if (!container) return;
 
-    let targetSheet = selectedSheetName;
-    if (!targetSheet) {
-        const sel = document.getElementById('newTplSheetName');
-        if (sel) targetSheet = sel.value;
-    }
-
-    const cols = getColumnsForSheet(targetSheet);
-
-    if (hintEl) {
-        if (targetSheet) {
-            hintEl.innerHTML = `<i class="fa-solid fa-table"></i> ${cols.length} biến từ [<strong>${escapeHtml(targetSheet)}</strong>]`;
-        } else {
-            hintEl.innerText = 'Tự động nạp biến mặc định';
-        }
-    }
-
-    container.innerHTML = cols.map(col => {
-        const isImg = isImageColumnName(col);
-        return `
-            <div class="draggable-chip-var ${isImg ? 'chip-image' : ''}" 
-                 draggable="true" 
-                 ondragstart="handleVarDragStart(event, '[${escapeHtml(col)}]')"
-                 onclick="insertVarToCreateModal('[${escapeHtml(col)}]')"
-                 title="Bấm để chèn hoặc Kéo thả vào ô nội dung/viết tắt">
-                ${isImg ? '<i class="fa-regular fa-image"></i>' : '<i class="fa-solid fa-cube"></i>'}
-                + ${escapeHtml(col)}
+    const grouped = getGroupedSheetVariables();
+    let html = '';
+    grouped.forEach(s => {
+        if (!s.columns || s.columns.length === 0) return;
+        html += `
+            <div style="margin-bottom:8px;width:100%;">
+                <div style="font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;">${escapeHtml(s.name)}</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                    ${s.columns.map(col => `
+                        <div class="draggable-chip-var" 
+                             draggable="true" 
+                             ondragstart="handleVarDragStart(event, '[${escapeHtml(col)}]')"
+                             onclick="insertVarToCreateModal('[${escapeHtml(col)}]')"
+                             title="Bấm để chèn hoặc Kéo thả vào ô nội dung/viết tắt">
+                            [${escapeHtml(col)}]
+                        </div>
+                    `).join('')}
+                </div>
             </div>
         `;
-    }).join('');
+    });
+
+    container.innerHTML = html || '<div style="font-size:12px;color:#94A3B8;">Chưa có dữ liệu biến từ Google Sheet</div>';
 }
 
 // --------------------------------------------------------
@@ -3211,8 +3199,8 @@ function handleValidateNewShortcut(val) {
         toggleShortcutError(false);
         return;
     }
-    const clean = '/' + val.replace(/^\/+/, '').trim();
-    const isDup = (AppState.templates || []).some(t => t.shortcut.toLowerCase() === clean.toLowerCase());
+    const clean = val.trim();
+    const isDup = (AppState.templates || []).some(t => (t.shortcut || '').trim().toLowerCase() === clean.toLowerCase());
     toggleShortcutError(isDup);
 }
 
@@ -3230,26 +3218,21 @@ async function saveNewTemplateRecord() {
     const titleEl = document.getElementById('newTplTitle');
     const shortcutEl = document.getElementById('newTplShortcut');
     const contentEl = document.getElementById('newTplContent');
-    const sheetSelect = document.getElementById('newTplSheetName');
 
     const title = titleEl ? titleEl.value.trim() : '';
     let shortcut = shortcutEl ? shortcutEl.value.trim() : '';
     const content = contentEl ? contentEl.value.trim() : '';
-    const sheetName = sheetSelect ? sheetSelect.value.trim() : '';
+    const sheetName = '';
 
     if (!title || !shortcut || !content) {
-        alert('Vui lòng điền đầy đủ Tiêu đề, Phím tắt và Nội dung mẫu tin');
+        alert('Vui lòng điền đầy đủ Tiêu đề, Viết tắt và Nội dung mẫu tin');
         return;
     }
 
-    if (!shortcut.startsWith('/')) {
-        shortcut = '/' + shortcut;
-    }
-
     // Kiểm tra trùng lặp
-    const isDup = (AppState.templates || []).some(t => t.shortcut.toLowerCase() === shortcut.toLowerCase());
+    const isDup = (AppState.templates || []).some(t => (t.shortcut || '').trim().toLowerCase() === shortcut.toLowerCase());
     if (isDup) {
-        alert(`Phím tắt "${shortcut}" đã tồn tại trong hệ thống. Vui lòng chọn phím tắt khác!`);
+        alert(`Viết tắt "${shortcut}" đã tồn tại trong hệ thống. Vui lòng chọn viết tắt khác!`);
         toggleShortcutError(true);
         return;
     }

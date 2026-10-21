@@ -2420,20 +2420,21 @@ body {
 }
 
 .chip-var-btn {
-    padding: 4px 8px;
-    background: #FFFFFF;
-    border: 1px solid var(--border);
-    border-radius: 4px;
+    padding: 3px 8px;
+    background: #F1F5F9;
+    border: 1px solid #CBD5E1;
+    border-radius: 6px;
     font-size: 11.5px;
-    font-weight: 700;
-    color: var(--primary);
+    font-weight: 600;
+    color: #334155;
     cursor: pointer;
     transition: all 0.15s;
 }
 
 .chip-var-btn:hover {
-    background: var(--primary-light);
-    border-color: var(--primary);
+    background: #E2E8F0;
+    border-color: #94A3B8;
+    color: #0F172A;
 }
 
 .modal-footer {
@@ -3253,28 +3254,26 @@ body {
 }
 
 .draggable-chip-var {
-    background: #FFFFFF;
-    border: 1.5px solid #CBD5E1;
+    background: #F1F5F9;
+    border: 1px solid #CBD5E1;
     color: #334155;
-    padding: 5px 10px;
+    padding: 4px 9px;
     border-radius: 6px;
     font-size: 11.5px;
-    font-weight: 700;
+    font-weight: 600;
     cursor: grab;
     user-select: none;
     display: inline-flex;
     align-items: center;
-    gap: 5px;
     transition: all 0.15s ease;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .draggable-chip-var:hover {
-    border-color: #4F46E5;
-    color: #4F46E5;
-    background: #EEF2FF;
+    border-color: #94A3B8;
+    color: #0F172A;
+    background: #E2E8F0;
     transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(79, 70, 229, 0.15);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
 .draggable-chip-var:active {
@@ -3282,9 +3281,9 @@ body {
 }
 
 .draggable-chip-var.chip-image {
-    border-color: #93C5FD;
-    background: #EFF6FF;
-    color: #1D4ED8;
+    background: #F1F5F9;
+    border-color: #CBD5E1;
+    color: #334155;
 }
 
 .input-drag-over {

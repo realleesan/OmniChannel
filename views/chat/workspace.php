@@ -650,21 +650,10 @@ if (!$currentUser) {
 <div class="modal-overlay" id="modalManageTemplates" style="display:none;">
     <div class="modal-content" style="max-width: 680px; width: 95%;">
         <div class="modal-header">
-            <div style="display:flex;align-items:center;gap:10px;">
-                <div style="background:#EEF2FF;color:var(--primary);width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;">
-                    <i class="fa-solid fa-bolt"></i>
-                </div>
-                <div>
-                    <h3 class="modal-title" style="margin:0;font-size:16px;">Quản Lý Mẫu Tin Nhắn Nhanh</h3>
-                    <div style="font-size:11.5px;color:#64748B;">Danh sách mẫu tin và phím tắt trả lời khách hàng</div>
-                </div>
-            </div>
+            <h3 class="modal-title" style="margin:0;font-size:16px;">Quản Lý Mẫu Tin Nhắn Nhanh</h3>
             <button type="button" class="modal-close-btn" onclick="closeManageTemplatesModal()">&times;</button>
         </div>
         <div class="modal-body" style="padding:16px 20px;">
-            <div style="margin-bottom:12px;">
-                <input type="text" id="searchManageTemplateInput" class="form-input" placeholder="Tìm kiếm mẫu tin theo phím tắt hoặc tiêu đề..." oninput="handleSearchManageTemplates(this.value)">
-            </div>
             <div id="templateManageListContainer" class="template-manage-list">
                 <!-- Danh sách template render động -->
             </div>
@@ -684,64 +673,46 @@ if (!$currentUser) {
 <div class="modal-overlay" id="modalCreateTemplate" style="display:none;">
     <div class="modal-content" style="max-width: 580px; width: 95%;">
         <div class="modal-header">
-            <div style="display:flex;align-items:center;gap:10px;">
-                <div style="background:#EEF2FF;color:var(--primary);width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;">
-                    <i class="fa-solid fa-circle-plus"></i>
-                </div>
-                <div>
-                    <h3 class="modal-title" style="margin:0;font-size:16px;">Tạo Mẫu Tin Nhắn Mới</h3>
-                    <div style="font-size:11.5px;color:#64748B;">Hỗ trợ kéo thả biến động từ Google Sheet</div>
-                </div>
-            </div>
+            <h3 class="modal-title" style="margin:0;font-size:16px;">Tạo Mẫu Tin Nhắn Mới</h3>
             <button type="button" class="modal-close-btn" onclick="closeCreateTemplateModal()">&times;</button>
         </div>
         <div class="modal-body" style="padding:18px 20px;">
-            <div class="form-group">
-                <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">
-                    <span><i class="fa-solid fa-file-excel" style="color:#10B981;"></i> Trang tính Google Sheet áp dụng:</span>
-                    <span style="font-size:11px;font-weight:600;color:#64748B;" id="selectedSheetColsHint">Tự động nạp biến theo bảng</span>
-                </label>
-                <select id="newTplSheetName" class="form-input" onchange="handleSelectCreateTplSheet(this.value)">
-                    <option value="">-- Mẫu tin chung (Không gắn bảng cụ thể) --</option>
-                </select>
-            </div>
-
             <div class="form-group">
                 <label class="form-label">Tiêu đề gợi nhớ <span style="color:#EF4444;">*</span></label>
                 <input type="text" id="newTplTitle" class="form-input" placeholder="Ví dụ: Báo giá sản phẩm theo ID">
             </div>
 
             <div class="form-group">
-                <label class="form-label">Viết tắt / Phím tắt (Bắt đầu bằng /) <span style="color:#EF4444;">*</span></label>
-                <input type="text" id="newTplShortcut" class="form-input" placeholder="Ví dụ: /sp [id] hoặc /id=[id] hoặc [id]" 
+                <label class="form-label">Viết tắt <span style="color:#EF4444;">*</span></label>
+                <input type="text" id="newTplShortcut" class="form-input" placeholder="Ví dụ: sp hoặc id" 
                        oninput="handleValidateNewShortcut(this.value)"
                        ondragover="handleVarDragOver(event, this)"
                        ondragleave="handleVarDragLeave(this)"
                        ondrop="handleVarDrop(event, 'newTplShortcut')">
                 <div class="shortcut-invalid-text" id="newShortcutInvalidMsg" style="display:none;">
                     <i class="fa-solid fa-triangle-exclamation"></i>
-                    <span id="newShortcutInvalidText">Phím tắt đã tồn tại trong hệ thống!</span>
+                    <span id="newShortcutInvalidText">Viết tắt đã tồn tại trong hệ thống!</span>
                 </div>
-                <div style="font-size:11.5px;color:#64748B;margin-top:2px;">Có thể kéo thả biến mã/ID vào đây để định danh phím tắt khi chat.</div>
+                <div style="font-size:11.5px;color:#64748B;margin-top:2px;">Nhập từ khóa viết tắt để gọi nhanh mẫu tin khi chat.</div>
             </div>
 
             <div class="form-group">
                 <label class="form-label">Nội dung mẫu tin <span style="color:#EF4444;">*</span></label>
                 <textarea id="newTplContent" class="form-textarea" rows="4" 
-                          placeholder="Ví dụ: Sản phẩm [sản phẩm] mã [id] có giá [giá] ạ... Kéo thả hoặc click các biến bên dưới để chèn tự động."
+                          placeholder="Ví dụ: Sản phẩm [Tên sản phẩm] có giá [Giá bán] ạ... Kéo thả hoặc click các biến bên dưới để chèn tự động."
                           ondragover="handleVarDragOver(event, this)"
                           ondragleave="handleVarDragLeave(this)"
                           ondrop="handleVarDrop(event, 'newTplContent')"></textarea>
             </div>
 
-            <!-- Khu vực chèn biến động từ Google Sheet -->
+            <!-- Khu vực chèn biến động từ Google Sheet (hiển thị từng trang tính với từng biến) -->
             <div class="form-group">
                 <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">
-                    <span><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--primary);"></i> Chèn biến động từ Google Sheet:</span>
+                    <span>Chèn biến động từ Google Sheet:</span>
                     <span style="font-size:11px;font-weight:600;color:#94A3B8;">Kéo thả hoặc click để chèn</span>
                 </label>
-                <div class="draggable-vars-container" id="tplCreateVarChipsContainer">
-                    <!-- Nạp động danh sách biến từ AppState.sheetColumns -->
+                <div class="draggable-vars-container" id="tplCreateVarChipsContainer" style="display:flex;flex-direction:column;gap:10px;">
+                    <!-- Nạp động danh sách biến phân theo từng trang tính -->
                 </div>
             </div>
         </div>
