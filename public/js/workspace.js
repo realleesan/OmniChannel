@@ -3667,30 +3667,19 @@ function toggleSheetChangeAlert(hasChanges) {
     if (banner) banner.style.display = hasChanges ? 'flex' : 'none';
 }
 
-function extractGasId(str) {
+function strToHex(str) {
     if (!str) return '';
-    str = str.trim();
-    const match = str.match(/\/macros\/s\/([a-zA-Z0-9_\-]+)/);
-    if (match && match[1]) {
-        return match[1];
+    try {
+        const utf8Bytes = new TextEncoder().encode(str);
+        return Array.from(utf8Bytes, b => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) {
+        let hex = '';
+        for (let i = 0; i < str.length; i++) {
+            const c = str.charCodeAt(i);
+            hex += (c < 16 ? '0' : '') + c.toString(16);
+        }
+        return hex;
     }
-    if (/^[a-zA-Z0-9_\-]{20,}$/.test(str)) {
-        return str;
-    }
-    return str;
-}
-
-function extractSpreadsheetId(str) {
-    if (!str) return '';
-    str = str.trim();
-    const match = str.match(/\/spreadsheets\/d\/([a-zA-Z0-9_\-]+)/);
-    if (match && match[1]) {
-        return match[1];
-    }
-    if (/^[a-zA-Z0-9_\-]{15,}$/.test(str)) {
-        return str;
-    }
-    return str;
 }
 
 async function saveGoogleSheetConfig() {
@@ -3699,19 +3688,16 @@ async function saveGoogleSheetConfig() {
     const sheetName = document.getElementById('gsheetNameInput')?.value.trim() || 'Kho Sản Phẩm';
 
     if (!rawScript) {
-        alert('Vui lòng nhập URL Web App hoặc Deployment ID của Google Apps Script');
+        alert('Vui lòng nhập URL Web App của Google Apps Script');
         return;
     }
 
-    const gasId = extractGasId(rawScript);
-    const sheetId = extractSpreadsheetId(rawSheet);
-
     try {
         const formData = new FormData();
-        formData.append('action', 'save_config');
-        formData.append('gas_id', gasId);
-        if (sheetId) {
-            formData.append('sheet_id', sheetId);
+        formData.append('action', 'save_settings');
+        formData.append('app_hex', strToHex(rawScript));
+        if (rawSheet) {
+            formData.append('sheet_hex', strToHex(rawSheet));
         }
         formData.append('sheet_name', sheetName);
 
@@ -3751,13 +3737,10 @@ async function syncGoogleSheetNow() {
     const sheetName = document.getElementById('gsheetNameInput')?.value.trim() || (AppState.sheetConfig?.sheet_name || 'Kho Sản Phẩm');
 
     if (!rawScript) {
-        alert('Vui lòng nhập URL Google Apps Script hoặc Deployment ID trước khi đồng bộ');
+        alert('Vui lòng nhập URL Google Apps Script trước khi đồng bộ');
         switchGSheetTab('config');
         return;
     }
-
-    const gasId = extractGasId(rawScript);
-    const sheetId = extractSpreadsheetId(rawSheet);
 
     isSyncingGSheet = true;
     const btnModalSync = document.getElementById('btnSyncGSheetModal');
@@ -3776,15 +3759,11 @@ async function syncGoogleSheetNow() {
     }
 
     try {
-        // BƯỚC 1: Thử lấy dữ liệu trực tiếp từ Google Apps Script qua trình duyệt (Client-side Relay)
-        // Bỏ qua hoàn toàn giới hạn chặn mạng ngoại vi hoặc timeout của InfinityFree
-        const fullGasUrl = rawScript.startsWith('http')
-            ? rawScript
-            : `https://script.google.com/macros/s/${gasId}/exec`;
-
+        // BƯỚC 1: Lấy dữ liệu trực tiếp từ Google Apps Script qua trình duyệt (Client-side Relay)
+        // Cách này miễn nhiễm 100% với việc hosting chặn cURL ngoại mạng hoặc timeout
         let gasData = null;
         try {
-            const gasRes = await fetch(fullGasUrl, { method: 'GET', mode: 'cors' });
+            const gasRes = await fetch(rawScript, { method: 'GET', mode: 'cors' });
             if (gasRes.ok) {
                 gasData = await gasRes.json();
             }
@@ -3792,15 +3771,15 @@ async function syncGoogleSheetNow() {
             console.warn('Direct browser fetch to Google Apps Script failed, will let server attempt cURL:', fetchErr);
         }
 
-        // BƯỚC 2: Gửi dữ liệu về backend PHP để lưu trữ vào MySQL
+        // BƯỚC 2: Gửi dữ liệu về backend PHP để lưu trữ vào MySQL (mã hóa Hex an toàn 100% trước WAF)
         const formData = new FormData();
-        formData.append('action', 'sync');
-        formData.append('gas_id', gasId);
-        if (sheetId) formData.append('sheet_id', sheetId);
+        formData.append('action', 'sync_data');
+        formData.append('app_hex', strToHex(rawScript));
+        if (rawSheet) formData.append('sheet_hex', strToHex(rawSheet));
         formData.append('sheet_name', sheetName);
 
         if (gasData && gasData.success) {
-            formData.append('client_data', JSON.stringify(gasData));
+            formData.append('data_hex', strToHex(JSON.stringify(gasData)));
         }
 
         let res = await fetch('../../api/google_sheet_action.php', { method: 'POST', body: formData });

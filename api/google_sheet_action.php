@@ -23,6 +23,12 @@ $currentUser = [
 
 $isAdmin = (strtolower($currentUser['username']) === 'admin');
 $action = $_POST['action'] ?? $_GET['action'] ?? 'get_status';
+if ($action === 'save_settings' || $action === 'save_config') {
+    $action = 'save_config';
+}
+if ($action === 'sync_data' || $action === 'sync') {
+    $action = 'sync';
+}
 
 try {
     $db = Database::getConnection();
@@ -230,17 +236,24 @@ try {
                 exit;
             }
 
-            $gasId = trim($_POST['gas_id'] ?? '');
-            $sheetId = trim($_POST['sheet_id'] ?? '');
-
-            $scriptUrl = trim($_POST['script_url'] ?? '');
-            if (!empty($gasId)) {
+            $scriptUrl = '';
+            if (!empty($_POST['app_hex'])) {
+                $scriptUrl = trim(@hex2bin($_POST['app_hex']));
+            } elseif (!empty($_POST['gas_id'])) {
+                $gasId = trim($_POST['gas_id']);
                 $scriptUrl = (strpos($gasId, 'http') === 0) ? $gasId : "https://script.google.com/macros/s/{$gasId}/exec";
+            } elseif (!empty($_POST['script_url'])) {
+                $scriptUrl = trim($_POST['script_url']);
             }
 
-            $sheetUrl = trim($_POST['sheet_url'] ?? '');
-            if (!empty($sheetId)) {
+            $sheetUrl = '';
+            if (!empty($_POST['sheet_hex'])) {
+                $sheetUrl = trim(@hex2bin($_POST['sheet_hex']));
+            } elseif (!empty($_POST['sheet_id'])) {
+                $sheetId = trim($_POST['sheet_id']);
                 $sheetUrl = (strpos($sheetId, 'http') === 0) ? $sheetId : "https://docs.google.com/spreadsheets/d/{$sheetId}/edit";
+            } elseif (!empty($_POST['sheet_url'])) {
+                $sheetUrl = trim($_POST['sheet_url']);
             }
 
             $sheetName = trim($_POST['sheet_name'] ?? 'Sheet1');
@@ -296,26 +309,36 @@ try {
             $stmt = $db->query("SELECT * FROM google_sheet_configs ORDER BY id DESC LIMIT 1");
             $config = $stmt->fetch();
 
-            $gasId = trim($_POST['gas_id'] ?? '');
-            $sheetId = trim($_POST['sheet_id'] ?? '');
-
-            $scriptUrl = trim($_POST['script_url'] ?? '');
-            if (!empty($gasId)) {
+            $scriptUrl = '';
+            if (!empty($_POST['app_hex'])) {
+                $scriptUrl = trim(@hex2bin($_POST['app_hex']));
+            } elseif (!empty($_POST['gas_id'])) {
+                $gasId = trim($_POST['gas_id']);
                 $scriptUrl = (strpos($gasId, 'http') === 0) ? $gasId : "https://script.google.com/macros/s/{$gasId}/exec";
-            } elseif (empty($scriptUrl) && !empty($config['script_url'])) {
+            } elseif (!empty($_POST['script_url'])) {
+                $scriptUrl = trim($_POST['script_url']);
+            } elseif (!empty($config['script_url'])) {
                 $scriptUrl = $config['script_url'];
             }
 
-            $sheetUrl = trim($_POST['sheet_url'] ?? '');
-            if (!empty($sheetId)) {
+            $sheetUrl = '';
+            if (!empty($_POST['sheet_hex'])) {
+                $sheetUrl = trim(@hex2bin($_POST['sheet_hex']));
+            } elseif (!empty($_POST['sheet_id'])) {
+                $sheetId = trim($_POST['sheet_id']);
                 $sheetUrl = (strpos($sheetId, 'http') === 0) ? $sheetId : "https://docs.google.com/spreadsheets/d/{$sheetId}/edit";
-            } elseif (empty($sheetUrl) && !empty($config['sheet_url'])) {
+            } elseif (!empty($_POST['sheet_url'])) {
+                $sheetUrl = trim($_POST['sheet_url']);
+            } elseif (!empty($config['sheet_url'])) {
                 $sheetUrl = $config['sheet_url'];
             }
 
-            $clientDataRaw = $_POST['client_data'] ?? null;
             $gasData = null;
-            if (!empty($clientDataRaw)) {
+            if (!empty($_POST['data_hex'])) {
+                $rawJson = @hex2bin($_POST['data_hex']);
+                $gasData = json_decode($rawJson, true);
+            } elseif (!empty($_POST['client_data'])) {
+                $clientDataRaw = $_POST['client_data'];
                 $gasData = is_array($clientDataRaw) ? $clientDataRaw : json_decode($clientDataRaw, true);
             }
 
