@@ -3080,13 +3080,23 @@ body {
     object-fit: cover;
     border: 1px solid #CBD5E1;
     cursor: pointer;
-    transition: transform 0.15s ease;
-    display: block;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    display: inline-block;
+    vertical-align: middle;
+    background: #F1F5F9;
 }
 
 .sheet-thumb-img:hover {
     transform: scale(1.15);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+    border-color: #0284C7;
+}
+
+.sheet-thumb-wrapper {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
 }
 
 /* ========================================================

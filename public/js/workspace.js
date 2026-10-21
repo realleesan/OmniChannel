@@ -3544,24 +3544,29 @@ function extractImageUrl(cell, formula) {
     var match = formula.match(/=IMAGE\\s*\\(\\s*["']([^"']+)["']/i);
     if (match && match[1]) return match[1];
   }
-  if (cell && typeof cell === "object") {
-    try {
-      if (typeof cell.getContentUrl === "function") {
-        var u = cell.getContentUrl();
-        if (u) return u;
-      }
-      if (typeof cell.getUrl === "function") {
-        var u2 = cell.getUrl();
-        if (u2) return u2;
-      }
-    } catch(e) {}
+  if (cell !== null && cell !== undefined) {
+    if (typeof cell === "object" || String(cell) === "CellImage") {
+      try {
+        if (typeof cell.getContentUrl === "function") {
+          var u = cell.getContentUrl();
+          if (u) return u;
+        }
+      } catch(e) {}
+      try {
+        if (typeof cell.getUrl === "function") {
+          var u2 = cell.getUrl();
+          if (u2) return u2;
+        }
+      } catch(e) {}
+    }
+    var str = String(cell).trim();
+    if (str.indexOf("drive.google.com") !== -1) {
+      var m = str.match(/\\/d\\/([a-zA-Z0-9_-]+)/) || str.match(/id=([a-zA-Z0-9_-]+)/);
+      if (m && m[1]) return "https://drive.google.com/uc?export=view&id=" + m[1];
+    }
+    return str;
   }
-  var str = String(cell).trim();
-  if (str.indexOf("drive.google.com") !== -1) {
-    var m = str.match(/\\/d\\/([a-zA-Z0-9_-]+)/) || str.match(/id=([a-zA-Z0-9_-]+)/);
-    if (m && m[1]) return "https://drive.google.com/uc?export=view&id=" + m[1];
-  }
-  return str;
+  return "";
 }
 
 function responseJson(data) {
@@ -4006,16 +4011,19 @@ function renderSheetDataTable(rows) {
                     const val = String(rawVal).trim();
                     const isImg = isImageUrlString(val);
                     if (isImg) {
+                        const imgTitle = escapeHtml(row['Tên sản phẩm'] || row['Mã sản phẩm'] || col);
                         return `
                             <td style="text-align:center;">
-                                <img src="${escapeHtml(val)}" class="sheet-thumb-img" title="Bấm để phóng to" onclick="openLightboxFromSingleUrl('${escapeHtml(val)}', 'Ảnh: ${escapeHtml(row['Tên sản phẩm'] || row['Mã sản phẩm'] || col)}')">
+                                <div class="sheet-thumb-wrapper">
+                                    <img src="${escapeHtml(val)}" class="sheet-thumb-img" title="Bấm để phóng to ảnh" referrerpolicy="no-referrer" onclick="openLightboxFromSingleUrl('${escapeHtml(val)}', 'Ảnh: ${imgTitle}')" onerror="this.onerror=null;this.parentElement.innerHTML='<span class=\\'cell-image-badge\\' title=\\'Không thể tải ảnh trực tiếp\\'><i class=\\'fa-regular fa-image\\'></i> Lỗi ảnh</span>';">
+                                </div>
                             </td>
                         `;
                     }
                     if (val.toLowerCase() === 'cellimage' || val === '[CellImage]') {
                         return `
                             <td style="text-align:center;">
-                                <span class="cell-image-badge" title="Hình ảnh nhúng trực tiếp trong ô Google Sheet" style="display:inline-flex;align-items:center;gap:5px;background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600;">
+                                <span class="cell-image-badge" title="Hình ảnh nhúng trực tiếp trong ô Google Sheet (Hãy cập nhật Web App Apps Script mới và bấm Đồng bộ lại để hiện ảnh)" style="display:inline-flex;align-items:center;gap:5px;background:#EFF6FF;color:#2563EB;border:1px solid #BFDBFE;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;">
                                     <i class="fa-regular fa-image"></i> Hình ảnh
                                 </span>
                             </td>
@@ -4038,6 +4046,7 @@ function renderSheetDataTable(rows) {
 function isImageUrlString(str) {
     if (!str || typeof str !== 'string') return false;
     const s = str.trim();
+    if (s.startsWith('data:image/')) return true;
     if (!s.startsWith('http://') && !s.startsWith('https://')) return false;
     if (s.includes('googleusercontent.com') || s.includes('drive.google.com') || s.includes('docs.google.com/spreadsheets')) return true;
     return /\.(png|jpe?g|webp|gif|svg|bmp)(\?.*)?$/i.test(s);
@@ -4083,7 +4092,7 @@ function openLightboxFromSingleUrl(url, title = 'Ảnh sản phẩm') {
     if (avatarEl) avatarEl.innerHTML = '<i class="fa-solid fa-file-excel" style="color:#10B981;"></i>';
 
     updateLightboxActiveImage();
-    renderLightboxThumbnails();
+    renderLightboxThumbs();
 }
 
 function showToast(message, type = 'info') {
