@@ -3993,14 +3993,14 @@ function renderSheetDataTable(rows) {
                     if (isImg) {
                         return `
                             <td style="text-align:center;">
-                                <img src="${escapeHtml(val)}" class="sheet-thumb-img" title="Bấm để phóng to ảnh" onclick="openLightboxFromSingleUrl('${escapeHtml(val)}', 'Ảnh: ${escapeHtml(row['Tên sản phẩm'] || row['Mã sản phẩm'] || col)}')" style="cursor:pointer;width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid #CBD5E1;box-shadow:0 1px 3px rgba(0,0,0,0.08);transition:transform 0.15s ease;" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
+                                <img src="${escapeHtml(val)}" class="sheet-thumb-img" title="Bấm để phóng to" onclick="openLightboxFromSingleUrl('${escapeHtml(val)}', 'Ảnh: ${escapeHtml(row['Tên sản phẩm'] || row['Mã sản phẩm'] || col)}')">
                             </td>
                         `;
                     }
-                    if (val.toLowerCase() === 'cellimage' || val === '[cellimage]') {
+                    if (val.toLowerCase() === 'cellimage' || val === '[CellImage]') {
                         return `
                             <td style="text-align:center;">
-                                <span class="cell-image-badge" title="Bấm để xem trạng thái ảnh" onclick="handleClickCellImage('${escapeHtml(col)}', '${escapeHtml(row['Tên sản phẩm'] || row['Mã sản phẩm'] || col)}')" style="cursor:pointer;display:inline-flex;align-items:center;gap:5px;background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;padding:4px 9px;border-radius:6px;font-size:11px;font-weight:700;transition:all 0.15s ease;" onmouseover="this.style.background='#D1FAE5'" onmouseout="this.style.background='#ECFDF5'">
+                                <span class="cell-image-badge" title="Hình ảnh nhúng trực tiếp trong ô Google Sheet" style="display:inline-flex;align-items:center;gap:5px;background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600;">
                                     <i class="fa-regular fa-image"></i> Hình ảnh
                                 </span>
                             </td>
@@ -4026,17 +4026,6 @@ function isImageUrlString(str) {
     if (!s.startsWith('http://') && !s.startsWith('https://')) return false;
     if (s.includes('googleusercontent.com') || s.includes('drive.google.com') || s.includes('docs.google.com/spreadsheets')) return true;
     return /\.(png|jpe?g|webp|gif|svg|bmp)(\?.*)?$/i.test(s);
-}
-
-function handleClickCellImage(colName, itemName) {
-    const sheetUrl = AppState.sheetConfig?.sheet_url || '';
-    if (sheetUrl) {
-        if (confirm(`Cột [${colName}] (${itemName}):\nÔ này chứa ảnh nhúng nội bộ của Google Sheet.\n\nBấm "OK" để mở trực tiếp Google Sheet xem ảnh gốc.`)) {
-            window.open(sheetUrl, '_blank');
-        }
-    } else {
-        alert(`Cột [${colName}] (${itemName}):\nÔ này chứa ảnh nhúng nội bộ của Google Sheet.\n\nĐể hệ thống hiển thị trực tiếp ảnh sản phẩm:\n1. Mở Tiện ích mở rộng > Apps Script trên Google Sheet\n2. Cập nhật mã Apps Script mới nhất\n3. Bấm "Đồng bộ từ Sheet" trên hệ thống.`);
-    }
 }
 
 function copyAppsScriptCode() {

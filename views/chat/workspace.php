@@ -444,8 +444,8 @@ if (!$currentUser) {
      Tab 2: Bảng dữ liệu Sheet (CHẾ ĐỘ CHỈ XEM 100%)
      ======================================================== -->
 <div class="modal-overlay" id="modalGoogleSheet" style="display:none;">
-    <div class="modal-content modal-content-wide" style="max-width:920px;width:95%;max-height:88vh;height:88vh;display:flex;flex-direction:column;overflow:hidden;">
-        <div class="modal-header" style="flex-shrink:0;">
+    <div class="modal-content modal-content-wide">
+        <div class="modal-header">
             <div style="display:flex;align-items:center;gap:10px;">
                 <div style="background:#ECFDF5;color:#10B981;width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;">
                     <i class="fa-solid fa-file-excel"></i>
@@ -459,7 +459,7 @@ if (!$currentUser) {
         </div>
 
         <!-- Thanh chuyển đổi 2 Tab -->
-        <div class="modal-subtabs-nav" style="flex-shrink:0;">
+        <div class="modal-subtabs-nav">
             <button type="button" class="modal-subtab-btn active" id="btnTabGSheetConfig" onclick="switchGSheetTab('config')">
                 <i class="fa-solid fa-sliders"></i> Cấu hình kết nối
             </button>
@@ -469,7 +469,7 @@ if (!$currentUser) {
         </div>
 
         <!-- Banner cảnh báo khi Google Sheet có dữ liệu mới -->
-        <div class="gsheet-alert-banner" id="gsheetChangeAlertBanner" style="display:none;flex-shrink:0;">
+        <div class="gsheet-alert-banner" id="gsheetChangeAlertBanner" style="display:none;">
             <div style="display:flex;align-items:center;gap:8px;">
                 <i class="fa-solid fa-triangle-exclamation" style="color:#D97706;font-size:16px;"></i>
                 <span>Phát hiện dữ liệu trên Google Sheet có cập nhật mới. Bấm "Đồng bộ ngay" để cập nhật vào hệ thống!</span>
@@ -481,7 +481,7 @@ if (!$currentUser) {
             <?php endif; ?>
         </div>
 
-        <div class="modal-body" style="padding:18px 20px;flex:1;overflow-y:auto;min-height:0;">
+        <div class="modal-body" style="padding:18px 20px;">
             <!-- TAB 1: CẤU HÌNH LIÊN KẾT (CHỈ ADMIN SỬA ĐƯỢC) -->
             <div id="paneGSheetConfig" class="modal-tab-pane">
                 <?php if (strtolower($currentUser['username']) !== 'admin'): ?>

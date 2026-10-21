@@ -179,33 +179,29 @@ $conversations = $convModel->getFilteredList($userId, $tab, $unrepliedScope, $se
 // 3. Nếu đang mở 1 hội thoại cụ thể, lấy tin mới và kiểm tra quyền
 $activeConversationData = null;
 if ($activeConvId) {
-    try {
-        $conv = $convModel->getById($activeConvId);
-        if ($conv) {
-            $isMine = ($conv['assigned_user_id'] == $userId);
-            $isViewOnly = (!empty($conv['assigned_user_id']) && !$isMine);
+    $conv = $convModel->getById($activeConvId);
+    if ($conv) {
+        $isMine = ($conv['assigned_user_id'] == $userId);
+        $isViewOnly = (!empty($conv['assigned_user_id']) && !$isMine);
 
-            // QUAN TRỌNG: Chỉ đánh dấu đã đọc nếu là hội thoại của chính mình hoặc hội thoại chưa được gán cho ai!
-            // Nếu là hội thoại của nhân viên khác, xem chỉ là View-only, KHÔNG làm mất trạng thái Chưa đọc của nhân viên phụ trách!
-            if ($isMine || empty($conv['assigned_user_id'])) {
-                $convModel->markAsRead($activeConvId);
-            }
-
-            $newMessages = $msgModel->getLatestAfterId($activeConvId, $lastMsgId);
-            $profile = $profileModel->getByConversationId($activeConvId);
-            $assignedLabels = $labelModel->getLabelsForConversation($activeConvId);
-
-            $activeConversationData = [
-                'conversation'    => $conv,
-                'is_mine'         => $isMine,
-                'is_view_only'    => $isViewOnly,
-                'new_messages'    => $newMessages,
-                'profile'         => $profile,
-                'assigned_labels' => $assignedLabels
-            ];
+        // QUAN TRỌNG: Chỉ đánh dấu đã đọc nếu là hội thoại của chính mình hoặc hội thoại chưa được gán cho ai!
+        // Nếu là hội thoại của nhân viên khác, xem chỉ là View-only, KHÔNG làm mất trạng thái Chưa đọc của nhân viên phụ trách!
+        if ($isMine || empty($conv['assigned_user_id'])) {
+            $convModel->markAsRead($activeConvId);
         }
-    } catch (Throwable $e) {
-        error_log("sync_polling active conversation error: " . $e->getMessage());
+
+        $newMessages = $msgModel->getLatestAfterId($activeConvId, $lastMsgId);
+        $profile = $profileModel->getByConversationId($activeConvId);
+        $assignedLabels = $labelModel->getLabelsForConversation($activeConvId);
+
+        $activeConversationData = [
+            'conversation'    => $conv,
+            'is_mine'         => $isMine,
+            'is_view_only'    => $isViewOnly,
+            'new_messages'    => $newMessages,
+            'profile'         => $profile,
+            'assigned_labels' => $assignedLabels
+        ];
     }
 }
 

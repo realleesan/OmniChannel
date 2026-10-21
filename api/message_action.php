@@ -27,16 +27,12 @@ $authController = new AuthController();
 
 switch ($action) {
     case 'get_conversation':
-        try {
-            $conversationId = (int)($_GET['id'] ?? 0);
-            $data = $chatController->getConversationDetail($conversationId, $userId);
-            if (!$data) {
-                jsonResponse(false, [], 'Không tìm thấy hội thoại', 404);
-            }
-            jsonResponse(true, $data);
-        } catch (Throwable $e) {
-            jsonResponse(false, ['error' => $e->getMessage()], 'Lỗi tải hội thoại: ' . $e->getMessage(), 200);
+        $conversationId = (int)($_GET['id'] ?? 0);
+        $data = $chatController->getConversationDetail($conversationId, $userId);
+        if (!$data) {
+            jsonResponse(false, [], 'Không tìm thấy hội thoại', 404);
         }
+        jsonResponse(true, $data);
         break;
 
     case 'send_message':
