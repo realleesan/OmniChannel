@@ -48,6 +48,13 @@ if (!$currentUser) {
     </div>
 
     <div class="header-actions">
+        <!-- Nút mở Modal Google Sheets (Tích hợp bảng tính) -->
+        <button type="button" class="topbar-action-btn" id="btnOpenGSheetModal" onclick="openGoogleSheetModal()" title="Bảng tính Google Sheets">
+            <i class="fa-solid fa-file-excel" style="color:#10B981;font-size:16px;"></i>
+            <span>Google Sheets</span>
+            <span class="gsheet-sync-dot" id="gsheetSyncDot" style="display:none;" title="Có dữ liệu mới cần đồng bộ"></span>
+        </button>
+
         <!-- Nút gạt trạng thái ca trực 1 chạm (Quick Shift Toggle) -->
         <div class="shift-toggle-btn <?= $currentUser['status'] === 'ONLINE' ? 'is-online' : 'is-offline' ?>" 
              id="shiftToggleBtn" 
@@ -408,6 +415,146 @@ if (!$currentUser) {
         </div>
     </aside>
 
+<!-- ========================================================
+     MODAL POPUP TÍCH HỢP GOOGLE SHEETS (PHASE 2)
+     Tab 1: Cấu hình liên kết (Chỉ Admin)
+     Tab 2: Bảng dữ liệu Sheet (CHẾ ĐỘ CHỈ XEM 100%)
+     ======================================================== -->
+<div class="modal-overlay" id="modalGoogleSheet" style="display:none;">
+    <div class="modal-content modal-content-wide">
+        <div class="modal-header">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="background:#ECFDF5;color:#10B981;width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;">
+                    <i class="fa-solid fa-file-excel"></i>
+                </div>
+                <div>
+                    <h3 class="modal-title" style="margin:0;font-size:16px;">Tích Hợp Google Sheets</h3>
+                    <div style="font-size:11.5px;color:#64748B;" id="gsheetHeaderSubtitle">Bảng dữ liệu & Trích xuất biến động mẫu tin</div>
+                </div>
+            </div>
+            <button type="button" class="modal-close-btn" onclick="closeGoogleSheetModal()">&times;</button>
+        </div>
+
+        <!-- Thanh chuyển đổi 2 Tab -->
+        <div class="modal-subtabs-nav">
+            <button type="button" class="modal-subtab-btn active" id="btnTabGSheetConfig" onclick="switchGSheetTab('config')">
+                <i class="fa-solid fa-sliders"></i> Cấu hình kết nối
+            </button>
+            <button type="button" class="modal-subtab-btn" id="btnTabGSheetData" onclick="switchGSheetTab('data')">
+                <i class="fa-solid fa-table"></i> Bảng dữ liệu <span class="badge-tab-count" id="sheetDataCountBadge">0</span>
+            </button>
+        </div>
+
+        <!-- Banner cảnh báo khi Google Sheet có dữ liệu mới -->
+        <div class="gsheet-alert-banner" id="gsheetChangeAlertBanner" style="display:none;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <i class="fa-solid fa-triangle-exclamation" style="color:#D97706;font-size:16px;"></i>
+                <span>Phát hiện dữ liệu trên Google Sheet có cập nhật mới. Bấm "Đồng bộ ngay" để cập nhật vào hệ thống!</span>
+            </div>
+            <?php if (strtolower($currentUser['username']) === 'admin'): ?>
+                <button type="button" class="btn-alert-sync" onclick="syncGoogleSheetNow()">
+                    <i class="fa-solid fa-arrows-rotate"></i> Đồng bộ ngay
+                </button>
+            <?php endif; ?>
+        </div>
+
+        <div class="modal-body" style="padding:18px 20px;">
+            <!-- TAB 1: CẤU HÌNH LIÊN KẾT (CHỈ ADMIN SỬA ĐƯỢC) -->
+            <div id="paneGSheetConfig" class="modal-tab-pane">
+                <?php if (strtolower($currentUser['username']) !== 'admin'): ?>
+                    <div class="viewonly-notice-box">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span>Chế độ xem: Bạn đang đăng nhập bằng tài khoản Nhân viên. Chỉ Admin mới có quyền chỉnh sửa cấu hình liên kết và thực hiện đồng bộ.</span>
+                    </div>
+                <?php endif; ?>
+
+                <div class="form-group">
+                    <label class="form-label">Link Google Sheet (Trang tính gốc)</label>
+                    <input type="url" id="gsheetUrlInput" class="form-input" placeholder="https://docs.google.com/spreadsheets/d/.../edit" <?= strtolower($currentUser['username']) !== 'admin' ? 'disabled' : '' ?>>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">URL Web App của Google Apps Script <span style="color:#EF4444;">*</span></label>
+                    <input type="url" id="gsheetScriptUrlInput" class="form-input" placeholder="https://script.google.com/macros/s/.../exec" <?= strtolower($currentUser['username']) !== 'admin' ? 'disabled' : '' ?>>
+                    <div style="font-size:11.5px;color:#64748B;margin-top:2px;">URL ứng dụng web được triển khai từ Apps Script của trang tính (quyền truy cập: Bất kỳ ai).</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Tên bảng tính / Ghi chú</label>
+                    <input type="text" id="gsheetNameInput" class="form-input" placeholder="Ví dụ: Kho Sản Phẩm OmniChannel" <?= strtolower($currentUser['username']) !== 'admin' ? 'disabled' : '' ?>>
+                </div>
+
+                <!-- Hướng dẫn 3 bước cài đặt kèm nút Copy mã Apps Script mẫu -->
+                <div class="gsheet-guide-card">
+                    <div class="guide-header">
+                        <div class="guide-title"><i class="fa-solid fa-code"></i> Mã Google Apps Script mẫu (Triển khai trong 60 giây)</div>
+                        <button type="button" class="btn-copy-code" id="btnCopyScriptCode" onclick="copyAppsScriptCode()">
+                            <i class="fa-regular fa-copy"></i> Sao chép mã
+                        </button>
+                    </div>
+                    <div class="guide-steps-list">
+                        <div class="guide-step-item"><strong>Bước 1:</strong> Mở Google Sheet &rarr; Vào <em>Tiện ích mở rộng (Extensions)</em> &rarr; <em>Apps Script</em>.</div>
+                        <div class="guide-step-item"><strong>Bước 2:</strong> Xóa code cũ, bấm nút <strong>"Sao chép mã"</strong> ở trên và dán vào.</div>
+                        <div class="guide-step-item"><strong>Bước 3:</strong> Bấm <em>Triển khai (Deploy)</em> &rarr; <em>Tùy chọn triển khai mới (New deployment)</em> &rarr; Chọn <strong>Ứng dụng web (Web App)</strong> &rarr; Ai có quyền truy cập: <strong>Bất kỳ ai (Anyone)</strong> &rarr; Sao chép URL Web App dán vào ô trên!</div>
+                    </div>
+                </div>
+
+                <!-- Trạng thái kết nối hiện tại -->
+                <div class="gsheet-status-box" id="gsheetStatusBox" style="display:none;">
+                    <div class="status-box-row">
+                        <span>Lần đồng bộ cuối: <strong id="gsheetLastSyncTime">--:--</strong></span>
+                        <span>Tổng số dòng: <strong id="gsheetTotalRowsCount">0</strong></span>
+                        <span>Số cột nhận diện: <strong id="gsheetColsCount">0</strong></span>
+                    </div>
+                    <div style="font-size:11px;font-weight:700;color:#64748B;margin-bottom:5px;text-transform:uppercase;">Danh sách biến cột sẵn sàng cho Template:</div>
+                    <div class="status-cols-chips" id="gsheetDetectedColsList">
+                        <!-- Render danh sách chip cột nhận diện được -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: BẢNG DỮ LIỆU SHEET (CHẾ ĐỘ CHỈ XEM 100%) -->
+            <div id="paneGSheetData" class="modal-tab-pane" style="display:none;">
+                <div class="sheet-data-toolbar">
+                    <div class="sheet-search-wrapper">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="sheetDataSearchInput" placeholder="Tìm kiếm nhanh mã, tên sản phẩm, giá..." oninput="handleSearchSheetData(this.value)">
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <button type="button" class="btn-sheet-tool" onclick="loadGoogleSheetData(true)">
+                            <i class="fa-solid fa-rotate-right"></i> Làm mới
+                        </button>
+                        <?php if (strtolower($currentUser['username']) === 'admin'): ?>
+                            <button type="button" class="btn-sheet-tool btn-sync-primary" id="btnSyncFromDataTab" onclick="syncGoogleSheetNow()">
+                                <i class="fa-solid fa-arrows-rotate"></i> Đồng bộ từ Sheet
+                            </button>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <div class="sheet-table-scroll-container" id="sheetTableContainer">
+                    <div style="text-align:center;padding:50px 20px;color:#94A3B8;font-size:13px;">
+                        <i class="fa-solid fa-table-cells" style="font-size:28px;margin-bottom:10px;display:block;opacity:0.4;"></i>
+                        Chưa có dữ liệu bảng tính. Bấm "Cấu hình kết nối" và thực hiện đồng bộ.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;">
+            <button type="button" class="tab-btn" onclick="closeGoogleSheetModal()">Đóng</button>
+            <div style="display:flex;gap:8px;">
+                <?php if (strtolower($currentUser['username']) === 'admin'): ?>
+                    <button type="button" class="tab-btn" id="btnSaveGSheetConfig" onclick="saveGoogleSheetConfig()" style="background:#F1F5F9;border:1px solid #CBD5E1;font-weight:700;">
+                        <i class="fa-solid fa-floppy-disk"></i> Lưu cấu hình
+                    </button>
+                    <button type="button" class="btn-send-message" id="btnSyncGSheetModal" onclick="syncGoogleSheetNow()" style="background:linear-gradient(135deg, #10B981, #059669);">
+                        <i class="fa-solid fa-arrows-rotate"></i> Đồng bộ ngay
+                    </button>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- ========================================================
