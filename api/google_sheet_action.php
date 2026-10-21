@@ -25,6 +25,33 @@ $action = $_POST['action'] ?? $_GET['action'] ?? 'get_status';
 try {
     $db = Database::getConnection();
 
+    // Tự động kiểm tra và khởi tạo cấu trúc bảng nếu chưa tồn tại (Self-healing schema)
+    @$db->exec("
+        CREATE TABLE IF NOT EXISTS google_sheet_configs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            sheet_url TEXT NULL,
+            script_url TEXT NOT NULL,
+            sheet_name VARCHAR(100) DEFAULT 'Sheet1',
+            columns_json TEXT NOT NULL,
+            checksum VARCHAR(64) DEFAULT NULL,
+            last_synced_at DATETIME DEFAULT NULL,
+            synced_by_user_id INT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_synced_by (synced_by_user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ");
+    @$db->exec("
+        CREATE TABLE IF NOT EXISTS google_sheet_rows (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            config_id INT NOT NULL,
+            row_index INT NOT NULL,
+            row_data_json LONGTEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_config_id (config_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ");
+
     switch ($action) {
         // --------------------------------------------------------
         // 1. LẤY TRẠNG THÁI CẤU HÌNH & KIỂM TRA THAY ĐỔI
