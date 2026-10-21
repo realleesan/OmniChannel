@@ -41,7 +41,6 @@ if (!$currentUser) {
      ======================================================== -->
 <header class="app-header">
     <div class="brand-section">
-        <div class="brand-logo"><i class="fa-solid fa-network-wired" style="color:white;font-size:18px;"></i></div>
         <div>
             <div class="brand-title">OmniChat</div>
         </div>
@@ -445,8 +444,8 @@ if (!$currentUser) {
      Tab 2: Bảng dữ liệu Sheet (CHẾ ĐỘ CHỈ XEM 100%)
      ======================================================== -->
 <div class="modal-overlay" id="modalGoogleSheet" style="display:none;">
-    <div class="modal-content modal-content-wide">
-        <div class="modal-header">
+    <div class="modal-content modal-content-wide" style="max-width:860px;width:92%;max-height:88vh;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;box-shadow:0 20px 40px rgba(0,0,0,0.25);">
+        <div class="modal-header" style="flex-shrink:0;">
             <div style="display:flex;align-items:center;gap:10px;">
                 <div style="background:#ECFDF5;color:#10B981;width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;">
                     <i class="fa-solid fa-file-excel"></i>
@@ -460,7 +459,7 @@ if (!$currentUser) {
         </div>
 
         <!-- Thanh chuyển đổi 2 Tab -->
-        <div class="modal-subtabs-nav">
+        <div class="modal-subtabs-nav" style="flex-shrink:0;">
             <button type="button" class="modal-subtab-btn active" id="btnTabGSheetConfig" onclick="switchGSheetTab('config')">
                 <i class="fa-solid fa-sliders"></i> Cấu hình kết nối
             </button>
@@ -470,7 +469,7 @@ if (!$currentUser) {
         </div>
 
         <!-- Banner cảnh báo khi Google Sheet có dữ liệu mới -->
-        <div class="gsheet-alert-banner" id="gsheetChangeAlertBanner" style="display:none;">
+        <div class="gsheet-alert-banner" id="gsheetChangeAlertBanner" style="display:none;flex-shrink:0;">
             <div style="display:flex;align-items:center;gap:8px;">
                 <i class="fa-solid fa-triangle-exclamation" style="color:#D97706;font-size:16px;"></i>
                 <span>Phát hiện dữ liệu trên Google Sheet có cập nhật mới. Bấm "Đồng bộ ngay" để cập nhật vào hệ thống!</span>
@@ -482,7 +481,7 @@ if (!$currentUser) {
             <?php endif; ?>
         </div>
 
-        <div class="modal-body" style="padding:18px 20px;">
+        <div class="modal-body" style="flex:1;overflow-y:auto;padding:18px 20px;max-height:calc(88vh - 130px);scrollbar-width:thin;">
             <!-- TAB 1: CẤU HÌNH LIÊN KẾT (CHỈ ADMIN SỬA ĐƯỢC) -->
             <div id="paneGSheetConfig" class="modal-tab-pane">
                 <?php if (strtolower($currentUser['username']) !== 'admin'): ?>

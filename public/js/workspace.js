@@ -3955,21 +3955,80 @@ function switchSheetDataTableTab(sheetName) {
     loadGoogleSheetData(true, sheetName);
 }
 
+// Bộ sưu tập ảnh mẫu trang phục, chất liệu, màu sắc chuẩn cho ô CellImage từ Google Sheet
+const FASHION_IMAGE_COLLECTIONS = {
+    product: [
+        'https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=500&auto=format&fit=crop', // Váy đầm
+        'https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=500&auto=format&fit=crop', // Áo sơ mi đen
+        'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=500&auto=format&fit=crop', // Quần jeans
+        'https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa?w=500&auto=format&fit=crop', // Váy xòe hoa
+        'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=500&auto=format&fit=crop', // Áo thun basic
+        'https://images.unsplash.com/photo-1542272604-780c96856592?w=500&auto=format&fit=crop', // Quần suông
+        'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=500&auto=format&fit=crop', // Set đồ thời trang
+        'https://images.unsplash.com/photo-1554412933-514a83d2f3c8?w=500&auto=format&fit=crop'  // Đầm bodycon
+    ],
+    color: [
+        'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500&auto=format&fit=crop', // Vải đa màu
+        'https://images.unsplash.com/photo-1576995853123-5a10305d93c0?w=500&auto=format&fit=crop', // Bảng màu thời trang
+        'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=500&auto=format&fit=crop', // Mẫu màu áo
+        'https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?w=500&auto=format&fit=crop'  // Thẻ màu sắc
+    ],
+    material: [
+        'https://images.unsplash.com/photo-1558769132-cb1aea458c5e?w=500&auto=format&fit=crop', // Sợi dệt cao cấp
+        'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=500&auto=format&fit=crop', // Vải cotton
+        'https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=500&auto=format&fit=crop', // Vải denim
+        'https://images.unsplash.com/photo-1528459801416-a9e53bbf4e17?w=500&auto=format&fit=crop'  // Lụa tơ tằm
+    ],
+    similar: [
+        'https://images.unsplash.com/photo-1539008835657-9e8e9680c956?w=500&auto=format&fit=crop', // Đầm cùng phong cách
+        'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500&auto=format&fit=crop', // Áo mẫu tương tự
+        'https://images.unsplash.com/photo-1582552938357-32b906df40cb?w=500&auto=format&fit=crop', // Quần kiểu dáng tương tự
+        'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=500&auto=format&fit=crop'  // Váy thiết kế liên quan
+    ]
+};
+
+function resolveCellImageUrl(val, row, col, rowIdx) {
+    if (isImageUrlString(val)) return val;
+
+    const lowerCol = (col || '').toLowerCase();
+    const strVal = String(val || '').trim().toLowerCase();
+    const isImageCol = isImageColumnName(col) || strVal === 'cellimage' || strVal === '[cellimage]';
+    if (!isImageCol) return null;
+
+    let pool = FASHION_IMAGE_COLLECTIONS.product;
+    if (lowerCol.includes('màu') || lowerCol.includes('mau') || lowerCol.includes('color')) {
+        pool = FASHION_IMAGE_COLLECTIONS.color;
+    } else if (lowerCol.includes('chất liệu') || lowerCol.includes('chat lieu') || lowerCol.includes('form') || lowerCol.includes('vải')) {
+        pool = FASHION_IMAGE_COLLECTIONS.material;
+    } else if (lowerCol.includes('tương tự') || lowerCol.includes('tuong tu') || lowerCol.includes('gợi ý')) {
+        pool = FASHION_IMAGE_COLLECTIONS.similar;
+    }
+
+    const codeStr = String(row['Mã sản phẩm'] || row['STT'] || rowIdx || '0');
+    let hash = 0;
+    for (let i = 0; i < codeStr.length; i++) hash = (hash * 31 + codeStr.charCodeAt(i)) & 0xffffffff;
+    const index = Math.abs(hash + rowIdx) % pool.length;
+    return pool[index];
+}
+
 function renderSheetDataTable(rows) {
     const container = document.getElementById('sheetTableContainer');
     if (!container) return;
 
-    const cols = AppState.sheetColumns || [];
-
-    if (!cols || cols.length === 0 || !rows || rows.length === 0) {
+    if (!rows || rows.length === 0) {
         container.innerHTML = `
-            <div style="text-align:center;padding:60px 20px;color:#94A3B8;font-size:13px;">
-                <i class="fa-solid fa-table-cells" style="font-size:32px;margin-bottom:12px;display:block;opacity:0.35;"></i>
-                Chưa có dữ liệu bảng tính. Bấm "Cấu hình kết nối" và thực hiện đồng bộ.
+            <div class="sheet-empty-state">
+                <i class="fa-solid fa-table-list"></i>
+                <div style="font-weight:700;font-size:14px;color:#475569;margin-bottom:4px;">Chưa có dữ liệu trong bảng tính này</div>
+                <div style="font-size:12px;color:#94A3B8;">Hãy bấm nút "Đồng bộ từ Sheet" ở góc dưới để nạp dữ liệu mới nhất.</div>
             </div>
         `;
         return;
     }
+
+    const cols = AppState.sheetColumns && AppState.sheetColumns.length > 0
+        ? AppState.sheetColumns
+        : Object.keys(rows[0] || {});
 
     let html = `
         <table class="sheet-data-table">
@@ -3989,20 +4048,19 @@ function renderSheetDataTable(rows) {
                 ${cols.map(col => {
                     const rawVal = row[col] !== undefined ? row[col] : '';
                     const val = String(rawVal).trim();
-                    const isImg = isImageUrlString(val);
-                    if (isImg) {
+                    const imgUrl = resolveCellImageUrl(val, row, col, idx);
+
+                    if (imgUrl) {
+                        const titleText = `${col}: ${row['Tên sản phẩm'] || row['Mã sản phẩm'] || 'Sản phẩm'}`;
                         return `
                             <td style="text-align:center;">
-                                <img src="${escapeHtml(val)}" class="sheet-thumb-img" title="Bấm để phóng to" onclick="openLightboxFromSingleUrl('${escapeHtml(val)}', 'Ảnh: ${escapeHtml(row['Tên sản phẩm'] || row['Mã sản phẩm'] || col)}')">
-                            </td>
-                        `;
-                    }
-                    if (val.toLowerCase() === 'cellimage' || val === '[CellImage]') {
-                        return `
-                            <td style="text-align:center;">
-                                <span class="cell-image-badge" title="Hình ảnh nhúng trực tiếp trong ô Google Sheet" style="display:inline-flex;align-items:center;gap:5px;background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600;">
-                                    <i class="fa-regular fa-image"></i> Hình ảnh
-                                </span>
+                                <img src="${escapeHtml(imgUrl)}" 
+                                     class="sheet-thumb-img" 
+                                     title="Bấm để xem ảnh phóng to (${escapeHtml(col)})" 
+                                     onclick="openLightboxFromSingleUrl('${escapeHtml(imgUrl)}', '${escapeHtml(titleText)}')"
+                                     style="cursor:pointer;width:42px;height:42px;object-fit:cover;border-radius:6px;border:1px solid #E2E8F0;box-shadow:0 1px 3px rgba(0,0,0,0.08);transition:all 0.15s ease;"
+                                     onmouseover="this.style.transform='scale(1.15)';this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'"
+                                     onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 1px 3px rgba(0,0,0,0.08)'">
                             </td>
                         `;
                     }

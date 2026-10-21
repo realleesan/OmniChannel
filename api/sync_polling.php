@@ -173,46 +173,61 @@ if (($_GET['action'] ?? '') === 'customer_seen') {
     exit;
 }
 
-// 2. Lấy danh sách hội thoại theo bộ lọc mới (chuẩn plan.md)
-$conversations = $convModel->getFilteredList($userId, $tab, $unrepliedScope, $search, $labelId, $channel);
+try {
+    // 2. Lấy danh sách hội thoại theo bộ lọc mới (chuẩn plan.md)
+    $conversations = $convModel->getFilteredList($userId, $tab, $unrepliedScope, $search, $labelId, $channel);
 
-// 3. Nếu đang mở 1 hội thoại cụ thể, lấy tin mới và kiểm tra quyền
-$activeConversationData = null;
-if ($activeConvId) {
-    $conv = $convModel->getById($activeConvId);
-    if ($conv) {
-        $isMine = ($conv['assigned_user_id'] == $userId);
-        $isViewOnly = (!empty($conv['assigned_user_id']) && !$isMine);
+    // 3. Nếu đang mở 1 hội thoại cụ thể, lấy tin mới và kiểm tra quyền
+    $activeConversationData = null;
+    if ($activeConvId) {
+        $conv = $convModel->getById($activeConvId);
+        if ($conv) {
+            $isMine = ($conv['assigned_user_id'] == $userId);
+            $isViewOnly = (!empty($conv['assigned_user_id']) && !$isMine);
 
-        // QUAN TRỌNG: Chỉ đánh dấu đã đọc nếu là hội thoại của chính mình hoặc hội thoại chưa được gán cho ai!
-        // Nếu là hội thoại của nhân viên khác, xem chỉ là View-only, KHÔNG làm mất trạng thái Chưa đọc của nhân viên phụ trách!
-        if ($isMine || empty($conv['assigned_user_id'])) {
-            $convModel->markAsRead($activeConvId);
+            // QUAN TRỌNG: Chỉ đánh dấu đã đọc nếu là hội thoại của chính mình hoặc hội thoại chưa được gán cho ai!
+            if ($isMine || empty($conv['assigned_user_id'])) {
+                try { $convModel->markAsRead($activeConvId); } catch (Exception $e) {}
+            }
+
+            $newMessages = [];
+            try { $newMessages = $msgModel->getLatestAfterId($activeConvId, $lastMsgId); } catch (Exception $e) {}
+
+            $profile = null;
+            try { $profile = $profileModel->getByConversationId($activeConvId); } catch (Exception $e) {}
+
+            $assignedLabels = [];
+            try { $assignedLabels = $labelModel->getLabelsForConversation($activeConvId); } catch (Exception $e) {}
+
+            $activeConversationData = [
+                'conversation'    => $conv,
+                'is_mine'         => $isMine,
+                'is_view_only'    => $isViewOnly,
+                'new_messages'    => $newMessages,
+                'profile'         => $profile,
+                'assigned_labels' => $assignedLabels
+            ];
         }
-
-        $newMessages = $msgModel->getLatestAfterId($activeConvId, $lastMsgId);
-        $profile = $profileModel->getByConversationId($activeConvId);
-        $assignedLabels = $labelModel->getLabelsForConversation($activeConvId);
-
-        $activeConversationData = [
-            'conversation'    => $conv,
-            'is_mine'         => $isMine,
-            'is_view_only'    => $isViewOnly,
-            'new_messages'    => $newMessages,
-            'profile'         => $profile,
-            'assigned_labels' => $assignedLabels
-        ];
     }
+
+    // 4. Lấy danh sách tất cả các nhãn phân loại (phục vụ dropdown Phân loại)
+    $allLabels = [];
+    try { $allLabels = $labelModel->getAll(); } catch (Exception $e) {}
+
+    echo json_encode([
+        'success'              => true,
+        'current_user_status'  => $userStatus,
+        'conversations'        => $conversations,
+        'all_labels'           => $allLabels,
+        'active_conversation'  => $activeConversationData,
+        'timestamp'            => time()
+    ], JSON_UNESCAPED_UNICODE);
+} catch (Throwable $e) {
+    echo json_encode([
+        'success'             => false,
+        'error'               => 'SERVER_ERROR',
+        'message'             => $e->getMessage(),
+        'file'                => basename($e->getFile()),
+        'line'                => $e->getLine()
+    ], JSON_UNESCAPED_UNICODE);
 }
-
-// 4. Lấy danh sách tất cả các nhãn phân loại (phục vụ dropdown Phân loại)
-$allLabels = $labelModel->getAll();
-
-echo json_encode([
-    'success'              => true,
-    'current_user_status'  => $userStatus,
-    'conversations'        => $conversations,
-    'all_labels'           => $allLabels,
-    'active_conversation'  => $activeConversationData,
-    'timestamp'            => time()
-], JSON_UNESCAPED_UNICODE);

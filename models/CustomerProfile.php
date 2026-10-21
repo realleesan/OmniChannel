@@ -11,6 +11,33 @@ class CustomerProfile {
 
     public function __construct() {
         $this->db = Database::getConnection();
+
+        // Tự động kiểm tra và bổ sung các trường CRM thực tế nếu chưa có (Self-healing schema)
+        static $checkedCrmSchema = false;
+        if (!$checkedCrmSchema) {
+            $checkedCrmSchema = true;
+            try {
+                $cols = $this->db->query("DESCRIBE customer_profiles")->fetchAll(PDO::FETCH_COLUMN);
+                $needed = [
+                    'real_name'            => "VARCHAR(150) NULL AFTER customer_name",
+                    'phone'                => "VARCHAR(50) NULL AFTER real_name",
+                    'address'              => "VARCHAR(255) NULL AFTER phone",
+                    'customer_needs'       => "TEXT NULL AFTER address",
+                    'conversation_summary' => "TEXT NULL AFTER customer_needs",
+                    'from_date'            => "DATE NULL AFTER conversation_summary",
+                    'to_date'              => "DATE NULL AFTER from_date",
+                    'scan_version'         => "INT DEFAULT 1",
+                    'is_boom_risk'         => "TINYINT(1) DEFAULT 0",
+                    'preferred_size'       => "VARCHAR(50) DEFAULT 'Chưa xác định'",
+                    'recent_purchases'     => "TEXT NULL"
+                ];
+                foreach ($needed as $col => $def) {
+                    if (!in_array($col, $cols)) {
+                        @$this->db->exec("ALTER TABLE customer_profiles ADD COLUMN $col $def");
+                    }
+                }
+            } catch (Exception $e) {}
+        }
     }
 
     public function getByConversationId($conversationId) {
@@ -25,12 +52,30 @@ class CustomerProfile {
             $conv = $convStmt->fetch();
             $customerName = $conv['sender_name'] ?? 'Khách Hàng';
 
-            $insertStmt = $this->db->prepare("
-                INSERT INTO customer_profiles (conversation_id, customer_name, real_name, phone, address, customer_needs, conversation_summary, from_date, to_date, last_scanned_at)
-                VALUES (:cid, :cname, NULL, NULL, NULL, NULL, NULL, CURDATE(), CURDATE(), NOW())
-            ");
-            $insertStmt->execute([':cid' => $conversationId, ':cname' => $customerName]);
-            return $this->getByConversationId($conversationId);
+            try {
+                $insertStmt = $this->db->prepare("
+                    INSERT INTO customer_profiles (conversation_id, customer_name, real_name, phone, address, customer_needs, conversation_summary, from_date, to_date, last_scanned_at)
+                    VALUES (:cid, :cname, NULL, NULL, NULL, NULL, NULL, CURDATE(), CURDATE(), NOW())
+                ");
+                $insertStmt->execute([':cid' => $conversationId, ':cname' => $customerName]);
+            } catch (Exception $e) {
+                // Fallback nếu bảng chưa có các cột nâng cao
+                try {
+                    $insertStmt = $this->db->prepare("INSERT INTO customer_profiles (conversation_id, customer_name) VALUES (:cid, :cname)");
+                    $insertStmt->execute([':cid' => $conversationId, ':cname' => $customerName]);
+                } catch (Exception $e2) {}
+            }
+            $stmt->execute([':conversation_id' => $conversationId]);
+            $profile = $stmt->fetch();
+            if (!$profile) {
+                return [
+                    'conversation_id'      => $conversationId,
+                    'customer_name'        => $customerName,
+                    'from_date_formatted'  => date('d/m/Y'),
+                    'to_date_formatted'    => date('d/m/Y'),
+                    'last_scanned_formatted' => date('H:i - d/m/Y')
+                ];
+            }
         }
 
         // Lấy ngày bắt đầu nhắn tin đầu tiên và ngày nhắn tin gần nhất từ messages
@@ -45,8 +90,8 @@ class CustomerProfile {
         $fromDate = !empty($profile['from_date']) ? $profile['from_date'] : ($dateRange['min_date'] ?? date('Y-m-d'));
         $toDate = !empty($profile['to_date']) ? $profile['to_date'] : ($dateRange['max_date'] ?? date('Y-m-d'));
 
-        $profile['from_date_formatted'] = date('d/m/Y', strtotime($fromDate));
-        $profile['to_date_formatted'] = date('d/m/Y', strtotime($toDate));
+        $profile['from_date_formatted'] = date('d/m/Y', $fromDate ? strtotime($fromDate) : time());
+        $profile['to_date_formatted'] = date('d/m/Y', $toDate ? strtotime($toDate) : time());
 
         $scannedTime = !empty($profile['last_scanned_at']) ? strtotime($profile['last_scanned_at']) : time();
         $profile['last_scanned_formatted'] = date('H:i - d/m/Y', $scannedTime);
