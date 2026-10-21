@@ -503,36 +503,16 @@ if (!$currentUser) {
                     <div style="font-size:11.5px;color:#64748B;margin-top:2px;">URL ứng dụng web được triển khai từ Apps Script của trang tính (quyền truy cập: Bất kỳ ai).</div>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">Tên bảng tính / Ghi chú</label>
-                    <input type="text" id="gsheetNameInput" class="form-input" placeholder="Ví dụ: Kho Sản Phẩm OmniChannel" <?= strtolower($currentUser['username']) !== 'admin' ? 'disabled' : '' ?>>
-                </div>
-
-                <!-- Hướng dẫn 3 bước cài đặt kèm nút Copy mã Apps Script mẫu -->
-                <div class="gsheet-guide-card">
-                    <div class="guide-header">
-                        <div class="guide-title"><i class="fa-solid fa-code"></i> Mã Google Apps Script mẫu (Triển khai trong 60 giây)</div>
-                        <button type="button" class="btn-copy-code" id="btnCopyScriptCode" onclick="copyAppsScriptCode()">
-                            <i class="fa-regular fa-copy"></i> Sao chép mã
-                        </button>
-                    </div>
-                    <div class="guide-steps-list">
-                        <div class="guide-step-item"><strong>Bước 1:</strong> Mở Google Sheet &rarr; Vào <em>Tiện ích mở rộng (Extensions)</em> &rarr; <em>Apps Script</em>.</div>
-                        <div class="guide-step-item"><strong>Bước 2:</strong> Xóa code cũ, bấm nút <strong>"Sao chép mã"</strong> ở trên và dán vào.</div>
-                        <div class="guide-step-item"><strong>Bước 3:</strong> Bấm <em>Triển khai (Deploy)</em> &rarr; <em>Tùy chọn triển khai mới (New deployment)</em> &rarr; Chọn <strong>Ứng dụng web (Web App)</strong> &rarr; Ai có quyền truy cập: <strong>Bất kỳ ai (Anyone)</strong> &rarr; Sao chép URL Web App dán vào ô trên!</div>
-                    </div>
-                </div>
-
-                <!-- Trạng thái kết nối hiện tại -->
-                <div class="gsheet-status-box" id="gsheetStatusBox" style="display:none;">
-                    <div class="status-box-row">
+                <!-- Trạng thái kết nối hiện tại & Danh sách biến theo từng bảng tính -->
+                <div class="gsheet-status-box" id="gsheetStatusBox" style="display:none;margin-top:16px;">
+                    <div class="status-box-row" style="margin-bottom:12px;">
                         <span>Lần đồng bộ cuối: <strong id="gsheetLastSyncTime">--:--</strong></span>
                         <span>Tổng số dòng: <strong id="gsheetTotalRowsCount">0</strong></span>
                         <span>Số cột nhận diện: <strong id="gsheetColsCount">0</strong></span>
                     </div>
-                    <div style="font-size:11px;font-weight:700;color:#64748B;margin-bottom:5px;text-transform:uppercase;">Danh sách biến cột sẵn sàng cho Template:</div>
-                    <div class="status-cols-chips" id="gsheetDetectedColsList">
-                        <!-- Render danh sách chip cột nhận diện được -->
+                    <div style="font-size:11px;font-weight:700;color:#64748B;margin-bottom:8px;text-transform:uppercase;">Danh sách biến cột phân theo từng bảng tính:</div>
+                    <div id="gsheetDetectedColsList">
+                        <!-- Render từng bảng tính kèm chip biến tương ứng -->
                     </div>
                 </div>
             </div>
@@ -540,26 +520,9 @@ if (!$currentUser) {
             <!-- TAB 2: BẢNG DỮ LIỆU SHEET (CHẾ ĐỘ CHỈ XEM 100%) -->
             <div id="paneGSheetData" class="modal-tab-pane" style="display:none;">
                 <!-- Thanh chuyển đổi danh sách các trang tính (Multi-sheet Tabs) -->
-                <div class="sheet-tabs-nav-bar" id="sheetTabsNavBar" style="display:none;">
+                <div class="sheet-tabs-nav-bar" id="sheetTabsNavBar" style="display:none;margin-bottom:12px;">
                     <div class="sheet-tabs-list" id="sheetTabsListContainer">
-                        <!-- Render các tab: [ 📄 Quần Áo (20) ] [ 📄 Giày Dép (15) ] ... -->
-                    </div>
-                </div>
-
-                <div class="sheet-data-toolbar">
-                    <div class="sheet-search-wrapper">
-                        <i class="fa-solid fa-magnifying-glass"></i>
-                        <input type="text" id="sheetDataSearchInput" placeholder="Tìm kiếm nhanh mã, tên sản phẩm, giá..." oninput="handleSearchSheetData(this.value)">
-                    </div>
-                    <div style="display:flex;align-items:center;gap:8px;">
-                        <button type="button" class="btn-sheet-tool" onclick="loadGoogleSheetData(true)">
-                            <i class="fa-solid fa-rotate-right"></i> Làm mới
-                        </button>
-                        <?php if (strtolower($currentUser['username']) === 'admin'): ?>
-                            <button type="button" class="btn-sheet-tool btn-sync-primary" id="btnSyncFromDataTab" onclick="syncGoogleSheetNow()">
-                                <i class="fa-solid fa-arrows-rotate"></i> Đồng bộ từ Sheet
-                            </button>
-                        <?php endif; ?>
+                        <!-- Render các tab: [ 📄 SanPham (8) ] [ 📄 TonKho (87) ] ... -->
                     </div>
                 </div>
 
@@ -574,13 +537,27 @@ if (!$currentUser) {
 
         <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;">
             <button type="button" class="tab-btn" onclick="closeGoogleSheetModal()">Đóng</button>
-            <div style="display:flex;gap:8px;">
+            
+            <!-- Nút điều khiển khi đang ở Tab 1: Cấu hình kết nối -->
+            <div id="footerConfigButtons" style="display:flex;gap:8px;">
                 <?php if (strtolower($currentUser['username']) === 'admin'): ?>
                     <button type="button" class="tab-btn" id="btnSaveGSheetConfig" onclick="saveGoogleSheetConfig()" style="background:#F1F5F9;border:1px solid #CBD5E1;font-weight:700;">
                         <i class="fa-solid fa-floppy-disk"></i> Lưu cấu hình
                     </button>
                     <button type="button" class="btn-send-message" id="btnSyncGSheetModal" onclick="syncGoogleSheetNow()" style="background:linear-gradient(135deg, #10B981, #059669);">
                         <i class="fa-solid fa-arrows-rotate"></i> Đồng bộ ngay
+                    </button>
+                <?php endif; ?>
+            </div>
+
+            <!-- Nút điều khiển khi đang ở Tab 2: Bảng dữ liệu -->
+            <div id="footerDataButtons" style="display:none;gap:8px;">
+                <button type="button" class="tab-btn" id="btnRefreshSheetData" onclick="loadGoogleSheetData(true)" style="background:#F1F5F9;border:1px solid #CBD5E1;font-weight:700;">
+                    <i class="fa-solid fa-arrows-rotate"></i> Làm mới
+                </button>
+                <?php if (strtolower($currentUser['username']) === 'admin'): ?>
+                    <button type="button" class="btn-send-message" id="btnSyncFromDataTab" onclick="syncGoogleSheetNow()" style="background:linear-gradient(135deg, #10B981, #059669);">
+                        <i class="fa-solid fa-arrows-rotate"></i> Đồng bộ từ Sheet
                     </button>
                 <?php endif; ?>
             </div>

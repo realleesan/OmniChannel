@@ -3515,6 +3515,18 @@ function extractImageUrl(cell, formula) {
     var match = formula.match(/=IMAGE\\s*\\(\\s*["']([^"']+)["']/i);
     if (match && match[1]) return match[1];
   }
+  if (cell && typeof cell === "object") {
+    try {
+      if (typeof cell.getContentUrl === "function") {
+        var u = cell.getContentUrl();
+        if (u) return u;
+      }
+      if (typeof cell.getUrl === "function") {
+        var u2 = cell.getUrl();
+        if (u2) return u2;
+      }
+    } catch(e) {}
+  }
   var str = String(cell).trim();
   if (str.indexOf("drive.google.com") !== -1) {
     var m = str.match(/\\/d\\/([a-zA-Z0-9_-]+)/) || str.match(/id=([a-zA-Z0-9_-]+)/);
@@ -3570,18 +3582,25 @@ function switchGSheetTab(tab) {
     const btnData = document.getElementById('btnTabGSheetData');
     const paneConfig = document.getElementById('paneGSheetConfig');
     const paneData = document.getElementById('paneGSheetData');
+    const footerConfig = document.getElementById('footerConfigButtons');
+    const footerData = document.getElementById('footerDataButtons');
 
     if (tab === 'config') {
         btnConfig?.classList.add('active');
         btnData?.classList.remove('active');
         if (paneConfig) paneConfig.style.display = 'block';
         if (paneData) paneData.style.display = 'none';
+        if (footerConfig) footerConfig.style.display = 'flex';
+        if (footerData) footerData.style.display = 'none';
     } else {
         btnConfig?.classList.remove('active');
         btnData?.classList.add('active');
         if (paneConfig) paneConfig.style.display = 'none';
         if (paneData) paneData.style.display = 'block';
-        loadGoogleSheetData(false);
+        if (footerConfig) footerConfig.style.display = 'none';
+        if (footerData) footerData.style.display = 'flex';
+        // Tự động làm mới dữ liệu bảng tính ngay khi chuyển sang tab
+        loadGoogleSheetData(true);
     }
 }
 
@@ -3601,10 +3620,8 @@ async function loadGoogleSheetStatus(checkRemote = false) {
             if (data.config) {
                 const urlInp = document.getElementById('gsheetUrlInput');
                 const scriptInp = document.getElementById('gsheetScriptUrlInput');
-                const nameInp = document.getElementById('gsheetNameInput');
                 if (urlInp && !urlInp.matches(':focus')) urlInp.value = data.config.sheet_url || '';
                 if (scriptInp && !scriptInp.matches(':focus')) scriptInp.value = data.config.script_url || '';
-                if (nameInp && !nameInp.matches(':focus')) nameInp.value = data.config.sheet_name || '';
 
                 // Cập nhật trạng thái
                 const statusBox = document.getElementById('gsheetStatusBox');
@@ -3619,7 +3636,7 @@ async function loadGoogleSheetStatus(checkRemote = false) {
                 const colsCountEl = document.getElementById('gsheetColsCount');
                 if (colsCountEl) colsCountEl.innerText = (data.config.columns || []).length;
 
-                renderDetectedColsChips(data.config.columns || []);
+                renderDetectedColsChips(data.config.sheets || [], data.config.columns || []);
             }
 
             // Cập nhật badge số lượng dòng trên tab
@@ -3633,16 +3650,48 @@ async function loadGoogleSheetStatus(checkRemote = false) {
     }
 }
 
-function renderDetectedColsChips(columns) {
+function renderDetectedColsChips(sheets, fallbackColumns) {
     const container = document.getElementById('gsheetDetectedColsList');
     if (!container) return;
 
-    if (!columns || columns.length === 0) {
+    if ((!sheets || sheets.length === 0) && (!fallbackColumns || fallbackColumns.length === 0)) {
         container.innerHTML = '<span style="font-size:12px;color:#94A3B8;">Chưa nhận diện được cột nào</span>';
         return;
     }
 
-    container.innerHTML = columns.map(col => {
+    // Phân nhóm rõ ràng theo từng bảng tính
+    if (sheets && sheets.length > 0) {
+        container.innerHTML = sheets.map(s => {
+            const cols = s.columns || [];
+            return `
+                <div class="sheet-vars-card" style="margin-bottom:12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:12px 14px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                        <span style="font-weight:700;font-size:13px;color:#0F172A;display:flex;align-items:center;gap:6px;">
+                            <i class="fa-solid fa-table" style="color:#10B981;"></i>
+                            Bảng tính: <strong style="color:#0284C7;">${escapeHtml(s.name)}</strong>
+                        </span>
+                        <span style="font-size:11px;background:#E2E8F0;color:#475569;padding:2px 8px;border-radius:10px;font-weight:600;">
+                            ${cols.length} biến · ${s.count || 0} dòng
+                        </span>
+                    </div>
+                    <div class="status-cols-chips" style="display:flex;flex-wrap:wrap;gap:6px;">
+                        ${cols.map(col => {
+                            const isImg = isImageColumnName(col);
+                            return `
+                                <span class="col-pill-chip ${isImg ? 'col-image' : ''}" title="${isImg ? 'Cột hình ảnh' : 'Cột văn bản'} (${escapeHtml(s.name)})">
+                                    ${isImg ? '<i class="fa-regular fa-image"></i>' : '<i class="fa-solid fa-cube"></i>'}
+                                    [${escapeHtml(col)}]
+                                </span>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }).join('');
+        return;
+    }
+
+    container.innerHTML = (fallbackColumns || []).map(col => {
         const isImage = isImageColumnName(col);
         return `
             <span class="col-pill-chip ${isImage ? 'col-image' : ''}" title="${isImage ? 'Cột hình ảnh' : 'Cột văn bản'}">
@@ -3707,8 +3756,12 @@ async function saveGoogleSheetConfig() {
         if (btn) btn.disabled = true;
 
         iframe.onload = async () => {
-            if (btn) btn.disabled = false;
-            showToast('Lưu cấu hình Google Sheet thành công!', 'success');
+            if (btn) {
+                btn.disabled = false;
+                const oldHtml = btn.innerHTML;
+                btn.innerHTML = '<i class="fa-solid fa-check" style="color:#10B981;"></i> Đã lưu cấu hình!';
+                setTimeout(() => { btn.innerHTML = oldHtml; }, 2000);
+            }
             await loadGoogleSheetStatus(false);
         };
 
@@ -3778,7 +3831,6 @@ async function syncGoogleSheetNow() {
                 }
 
                 const totalRows = (gasData.sheets || []).reduce((sum, s) => sum + (s.data ? s.data.length : 0), 0) || (gasData.data ? gasData.data.length : 0);
-                showToast(`✅ Đồng bộ thành công ${totalRows} dòng từ ${gasData.sheets ? gasData.sheets.length : 1} trang tính!`, 'success');
                 toggleSheetChangeAlert(false);
 
                 AppState.sheetsCache = {};
@@ -3897,9 +3949,10 @@ function renderSheetTabsNavBar() {
 }
 
 function switchSheetDataTableTab(sheetName) {
-    if (AppState.activeSheetTab === sheetName) return;
     AppState.activeSheetTab = sheetName;
-    loadGoogleSheetData(false, sheetName);
+    renderSheetTabsNavBar();
+    // Tự động làm mới dữ liệu từ CSDL ngay khi chuyển tab!
+    loadGoogleSheetData(true, sheetName);
 }
 
 function renderSheetDataTable(rows) {
@@ -3934,12 +3987,22 @@ function renderSheetDataTable(rows) {
             <tr>
                 <td style="text-align:center;color:#94A3B8;font-weight:600;font-size:11px;">${idx + 1}</td>
                 ${cols.map(col => {
-                    const val = row[col] !== undefined ? String(row[col]) : '';
+                    const rawVal = row[col] !== undefined ? row[col] : '';
+                    const val = String(rawVal).trim();
                     const isImg = isImageUrlString(val);
                     if (isImg) {
                         return `
-                            <td>
-                                <img src="${escapeHtml(val)}" class="sheet-thumb-img" title="Bấm để phóng to" onclick="openLightboxFromSingleUrl('${escapeHtml(val)}', 'Ảnh: ${escapeHtml(row['sản phẩm'] || row['name'] || col)}')">
+                            <td style="text-align:center;">
+                                <img src="${escapeHtml(val)}" class="sheet-thumb-img" title="Bấm để phóng to" onclick="openLightboxFromSingleUrl('${escapeHtml(val)}', 'Ảnh: ${escapeHtml(row['Tên sản phẩm'] || row['Mã sản phẩm'] || col)}')">
+                            </td>
+                        `;
+                    }
+                    if (val.toLowerCase() === 'cellimage' || val === '[CellImage]') {
+                        return `
+                            <td style="text-align:center;">
+                                <span class="cell-image-badge" title="Hình ảnh nhúng trực tiếp trong ô Google Sheet" style="display:inline-flex;align-items:center;gap:5px;background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600;">
+                                    <i class="fa-regular fa-image"></i> Hình ảnh
+                                </span>
                             </td>
                         `;
                     }
@@ -3961,22 +4024,8 @@ function isImageUrlString(str) {
     if (!str || typeof str !== 'string') return false;
     const s = str.trim();
     if (!s.startsWith('http://') && !s.startsWith('https://')) return false;
-    if (s.includes('drive.google.com/uc') || s.includes('googleusercontent.com')) return true;
-    return /\\.(png|jpe?g|webp|gif|svg)(\\?.*)?$/i.test(s);
-}
-
-function handleSearchSheetData(keyword) {
-    const kw = (keyword || '').toLowerCase().trim();
-    if (!kw) {
-        renderSheetDataTable(AppState.sheetRows || []);
-        return;
-    }
-
-    const filtered = (AppState.sheetRows || []).filter(row => {
-        return Object.values(row).some(v => String(v).toLowerCase().includes(kw));
-    });
-
-    renderSheetDataTable(filtered);
+    if (s.includes('googleusercontent.com') || s.includes('drive.google.com') || s.includes('docs.google.com/spreadsheets')) return true;
+    return /\.(png|jpe?g|webp|gif|svg|bmp)(\?.*)?$/i.test(s);
 }
 
 function copyAppsScriptCode() {
