@@ -1401,7 +1401,7 @@ body {
     line-height: 1.5;
     position: relative;
     word-break: break-word;
-    white-space: pre-wrap;
+    white-space: normal;
 }
 
 .message-text {

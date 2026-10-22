@@ -112,6 +112,45 @@ switch ($action) {
         }
         break;
 
+    case 'upload_attachment_b64':
+        $files = $jsonData['files'] ?? [];
+        if (!is_array($files) || empty($files)) {
+            jsonResponse(false, [], 'Không có tệp tải lên hợp lệ');
+        }
+        $uploadDir = __DIR__ . '/../public/uploads/';
+        if (!is_dir($uploadDir)) {
+            @mkdir($uploadDir, 0777, true);
+        }
+        $mimeToExt = [
+            'image/jpeg' => 'jpg',
+            'image/png'  => 'png',
+            'image/gif'  => 'gif',
+            'image/webp' => 'webp'
+        ];
+        $uploadedUrls = [];
+        foreach (array_slice($files, 0, 10) as $f) {
+            $dataUrl = $f['data'] ?? '';
+            if (!preg_match('/^data:(image\/[a-z]+);base64,(.+)$/is', $dataUrl, $m)) continue;
+            $binary = base64_decode($m[2], true);
+            if ($binary === false || strlen($binary) > 10 * 1024 * 1024) continue;
+            $info = @getimagesizefromstring($binary);
+            if (!$info || !isset($mimeToExt[$info['mime']])) continue;
+
+            $fileName = 'attach_' . time() . '_' . uniqid() . '.' . $mimeToExt[$info['mime']];
+            if (@file_put_contents($uploadDir . $fileName, $binary) !== false) {
+                $uploadedUrls[] = BASE_URL . '/public/uploads/' . $fileName;
+            }
+        }
+        if (!empty($uploadedUrls)) {
+            jsonResponse(true, [
+                'url'            => $uploadedUrls[0],
+                'urls'           => $uploadedUrls,
+                'attachment_url' => implode(',', $uploadedUrls)
+            ], 'Tải ảnh thành công');
+        }
+        jsonResponse(false, [], 'Không thể lưu tệp ảnh lên máy chủ');
+        break;
+
     default:
         jsonResponse(false, [], 'Hành động không hợp lệ', 400);
 }

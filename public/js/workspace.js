@@ -822,7 +822,7 @@ function buildMediaGridHtml(urls, senderName, displayTime, msgId, isStaff) {
 
         itemsHtml += `
             <div class="omni-media-item" onclick="openLightboxFromGrid('${msgId}', ${i})" title="Bấm để xem ảnh phóng to">
-                <img src="${escapeHtml(u)}" alt="Ảnh tin nhắn" loading="lazy" referrerpolicy="no-referrer">
+                <img src="${escapeHtml(toDisplayImageUrl(u))}" alt="Ảnh tin nhắn" loading="lazy" referrerpolicy="no-referrer">
                 ${isLastMore ? `<div class="omni-media-overlay-more">+${moreCount}</div>` : ''}
             </div>
         `;
@@ -943,7 +943,7 @@ function renderAttachedPreviews() {
     container.style.display = 'flex';
     container.innerHTML = pendingAttachedImages.map((imgUrl, idx) => `
         <div class="chat-preview-item" title="Ảnh đính kèm sẽ được gửi riêng biệt">
-            <img src="${escapeHtml(imgUrl)}" alt="Preview">
+            <img src="${escapeHtml(toDisplayImageUrl(imgUrl))}" alt="Preview" referrerpolicy="no-referrer">
             <button type="button" class="chat-preview-remove-btn" onclick="removePendingAttachedImage(${idx})" title="Gỡ ảnh này">&times;</button>
         </div>
     `).join('');
@@ -981,11 +981,20 @@ function normalizeImageUrl(url) {
         u = `https://drive.google.com/thumbnail?id=${driveIdMatch[1]}&sz=w1200`;
     }
 
-    // Nếu là ảnh từ Google Docs/Sheets/Drive/GoogleUserContent bị chặn CORB/NotSameSite, bọc qua proxy_image.php
+    return u;
+}
+
+/**
+ * Chỉ dùng khi RENDER thẻ <img>: bọc ảnh Google (bị chặn NotSameSite) qua proxy server.
+ * URL lưu DB / gửi đi luôn là URL gốc.
+ */
+function toDisplayImageUrl(url) {
+    if (!url) return '';
+    const u = String(url).trim();
+    if (u.includes('proxy_image.php')) return u;
     if (u.includes('docs.google.com/sheets-images-rt') || u.includes('googleusercontent.com') || u.includes('drive.google.com')) {
         return `../../api/proxy_image.php?url=${encodeURIComponent(u)}`;
     }
-
     return u;
 }
 
@@ -994,6 +1003,11 @@ function normalizeImageUrl(url) {
  */
 function extractImageUrlsFromText(text) {
     if (!text || typeof text !== 'string') return { text: '', imageUrls: [] };
+
+    // Giải mã các link proxy tương đối cũ (../../api/proxy_image.php?url=...) về URL gốc
+    text = text.replace(/(?:\.\.\/)*(?:api\/)?proxy_image\.php\?url=([^\s<>"']+)/gi, (m, enc) => {
+        try { return decodeURIComponent(enc); } catch (e) { return m; }
+    });
 
     const urlRegex = /(https?:\/\/[^\s<>"'{}|\\^`]+|data:image\/[a-zA-Z+]+;base64,[^\s<>"']+)/gi;
     const imageUrls = [];
@@ -1704,69 +1718,100 @@ function applyShortcutDirectly() {
     }
 }
 
+/**
+ * Nén ảnh phía client (tối đa 1600px, JPEG 0.85) và trả về dataURL base64
+ */
+function compressImageToDataUrl(file, maxSize = 1600, quality = 0.85) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('Không đọc được tệp ' + file.name));
+        reader.onload = () => {
+            // GIF giữ nguyên để không mất animation
+            if (file.type === 'image/gif') return resolve(reader.result);
+            const img = new Image();
+            img.onerror = () => resolve(reader.result);
+            img.onload = () => {
+                let { width, height } = img;
+                if (width > maxSize || height > maxSize) {
+                    const ratio = Math.min(maxSize / width, maxSize / height);
+                    width = Math.round(width * ratio);
+                    height = Math.round(height * ratio);
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+async function postJsonSafe(url, payload) {
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    const text = await res.text();
+    let data = null;
+    try { data = JSON.parse(text); } catch (e) {
+        const sIdx = text.indexOf('{');
+        const eIdx = text.lastIndexOf('}');
+        if (sIdx !== -1 && eIdx !== -1) {
+            try { data = JSON.parse(text.substring(sIdx, eIdx + 1)); } catch (e2) { }
+        }
+    }
+    return { res, text, data };
+}
+
 async function handleAttachmentUpload(input) {
     if (!input.files || input.files.length === 0) return;
-    const files = Array.from(input.files);
-
-    const formData = new FormData();
-    formData.append('action', 'upload_attachment');
-    files.forEach(f => formData.append('files[]', f));
+    const files = Array.from(input.files).filter(f => /^image\//.test(f.type));
+    if (files.length === 0) {
+        input.value = '';
+        return alert('Chỉ hỗ trợ tệp ảnh.');
+    }
 
     try {
-        let res = null;
-        let text = '';
-        let data = null;
+        // Upload bằng JSON base64 (hosting đang chặn POST multipart/form-data)
+        const encoded = [];
+        for (const f of files) {
+            encoded.push({ name: f.name, data: await compressImageToDataUrl(f) });
+        }
+        const payload = { action: 'upload_attachment_b64', files: encoded };
 
-        // Ưu tiên 1: Upload qua message_action.php
+        let r = null;
         try {
-            res = await fetch('../../api/message_action.php', {
-                method: 'POST',
-                body: formData
-            });
-            text = await res.text();
-            try { data = JSON.parse(text); } catch (e) {
-                const sIdx = text.indexOf('{');
-                const eIdx = text.lastIndexOf('}');
-                if (sIdx !== -1 && eIdx !== -1) data = JSON.parse(text.substring(sIdx, eIdx + 1));
-            }
+            r = await postJsonSafe('../../api/message_action.php', payload);
         } catch (netErr) {
             console.warn('Lỗi mạng khi tải ảnh qua message_action.php:', netErr);
         }
 
-        // Kênh dự phòng 2: Nếu bị WAF 403 Forbidden, tự động fallback sang sync_polling.php
-        if (!data || (!data.success && (res?.status === 403 || text.includes('403 Forbidden') || text.includes('blocking you')))) {
-            const fallbackFormData = new FormData();
-            fallbackFormData.append('action', 'upload_attachment');
-            files.forEach(f => fallbackFormData.append('files[]', f));
-
-            res = await fetch('../../api/sync_polling.php', {
-                method: 'POST',
-                body: fallbackFormData
-            });
-            text = await res.text();
-            try { data = JSON.parse(text); } catch (e) {
-                const sIdx = text.indexOf('{');
-                const eIdx = text.lastIndexOf('}');
-                if (sIdx !== -1 && eIdx !== -1) data = JSON.parse(text.substring(sIdx, eIdx + 1));
-            }
+        // Dự phòng: nếu WAF chặn, gửi qua sync_polling.php
+        if (!r || !r.data || (!r.data.success && (r.res.status === 403 || r.text.includes('403 Forbidden')))) {
+            r = await postJsonSafe('../../api/sync_polling.php', payload);
         }
 
-        if (data && data.success && (data.data.attachment_url || data.data.url)) {
-            const finalAttachment = data.data.attachment_url || data.data.url;
-            // Đưa ảnh vào danh sách preview chờ gửi hoặc gửi kèm luôn
-            const urls = parseAttachmentUrls(finalAttachment);
+        const data = r && r.data;
+        if (data && data.success && data.data && (data.data.attachment_url || data.data.url)) {
+            const urls = parseAttachmentUrls(data.data.attachment_url || data.data.url);
             urls.forEach(u => {
-                if (!pendingAttachedImages.includes(u)) {
-                    pendingAttachedImages.push(u);
-                }
+                if (!pendingAttachedImages.includes(u)) pendingAttachedImages.push(u);
             });
             renderAttachedPreviews();
-            showToast('Đã đính kèm ảnh thành công!', 'success');
+            showToast('Đã đính kèm ảnh, bấm Gửi để gửi cho khách.', 'success');
         } else {
-            alert(data ? data.message : 'Lỗi tải ảnh');
+            alert((data && data.message) || ('Lỗi tải ảnh (HTTP ' + (r?.res?.status || '?') + ')'));
         }
     } catch (err) {
         console.error('Lỗi upload tệp:', err);
+        alert(err.message || 'Lỗi tải ảnh');
     } finally {
         input.value = '';
     }
@@ -4005,7 +4050,7 @@ function updateLightboxActiveImage() {
     const mainImg = document.getElementById('lightboxMainImg');
     const counterEl = document.getElementById('lightboxCounter');
     const downloadBtn = document.getElementById('lightboxBtnDownload');
-    const currentUrl = urls[currentIndex];
+    const currentUrl = toDisplayImageUrl(urls[currentIndex]);
 
     mainImg.src = currentUrl;
     counterEl.innerText = `Ảnh ${currentIndex + 1} / ${urls.length}`;
@@ -4035,7 +4080,7 @@ function renderLightboxThumbs() {
     strip.style.display = 'flex';
     strip.innerHTML = urls.map((u, idx) => `
         <div class="lightbox-thumb-item ${idx === currentLightboxState.currentIndex ? 'active' : ''}" onclick="selectLightboxIndex(${idx})">
-            <img src="${escapeHtml(u)}" alt="Thumb ${idx + 1}" referrerpolicy="no-referrer">
+            <img src="${escapeHtml(toDisplayImageUrl(u))}" alt="Thumb ${idx + 1}" referrerpolicy="no-referrer">
         </div>
     `).join('');
 }
