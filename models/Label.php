@@ -39,6 +39,17 @@ class Label {
             return ['success' => false, 'message' => 'Tên nhãn không được để trống'];
         }
 
+        // Kiểm tra trùng tên nhãn (không phân biệt hoa thường và khoảng trắng)
+        $checkStmt = $this->db->prepare("SELECT id, name FROM labels WHERE LOWER(TRIM(name)) = LOWER(:name) LIMIT 1");
+        $checkStmt->execute([':name' => $name]);
+        $existing = $checkStmt->fetch();
+        if ($existing) {
+            return [
+                'success' => false,
+                'message' => "Tên nhãn \"{$existing['name']}\" đã tồn tại trong hệ thống. Vui lòng đặt tên khác."
+            ];
+        }
+
         $stmt = $this->db->prepare("
             INSERT INTO labels (name, color, icon, created_by_user_id, created_at)
             VALUES (:name, :color, :icon, :created_by_user_id, NOW())
@@ -113,6 +124,17 @@ class Label {
 
         if (empty($name)) {
             return ['success' => false, 'message' => 'Tên nhãn không được để trống'];
+        }
+
+        // Kiểm tra trùng tên với nhãn khác (loại trừ chính nhãn này)
+        $checkStmt = $this->db->prepare("SELECT id, name FROM labels WHERE LOWER(TRIM(name)) = LOWER(:name) AND id != :id LIMIT 1");
+        $checkStmt->execute([':name' => $name, ':id' => $id]);
+        $existing = $checkStmt->fetch();
+        if ($existing) {
+            return [
+                'success' => false,
+                'message' => "Tên nhãn \"{$existing['name']}\" đã được sử dụng bởi một nhãn khác. Vui lòng đặt tên khác."
+            ];
         }
 
         $stmt = $this->db->prepare("

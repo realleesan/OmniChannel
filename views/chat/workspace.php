@@ -608,8 +608,12 @@ if (!$currentUser) {
         </div>
         <div class="modal-body">
             <div class="form-group">
-                <label class="form-label">Tên nhãn phân loại</label>
-                <input type="text" id="newLabelName" class="form-input" placeholder="Ví dụ: Khách mới, Khách VIP, Chờ gọi lại...">
+                <label class="form-label">Tên nhãn phân loại <span style="color:#EF4444;">*</span></label>
+                <input type="text" id="newLabelName" class="form-input" placeholder="Ví dụ: Khách mới, Khách VIP, Chờ gọi lại..." oninput="handleValidateNewLabelName(this.value)">
+                <div class="shortcut-invalid-text" id="newLabelDuplicateError" style="display:none; color:#EF4444; font-size:12px; margin-top:4px; align-items:center; gap:6px;">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span id="newLabelDuplicateErrorText">Tên nhãn này đã tồn tại trong hệ thống!</span>
+                </div>
             </div>
 
             <div class="form-group">

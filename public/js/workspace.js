@@ -2569,6 +2569,21 @@ async function saveEditLabel(id) {
 
     if (!name) {
         alert('Tên nhãn không được để trống');
+        if (nameInput) nameInput.focus();
+        return;
+    }
+
+    // Kiểm tra trùng tên với nhãn khác (loại trừ chính nhãn này, không phân biệt hoa thường)
+    const isDuplicate = (AppState.allLabels || []).some(
+        l => l.id != id && (l.name || '').trim().toLowerCase() === name.toLowerCase()
+    );
+    if (isDuplicate) {
+        alert(`Tên nhãn "${name}" đã được sử dụng bởi một nhãn khác. Vui lòng đặt tên khác.`);
+        if (nameInput) {
+            nameInput.classList.add('is-invalid');
+            nameInput.focus();
+            nameInput.select();
+        }
         return;
     }
 
@@ -2640,9 +2655,45 @@ function openCreateLabelFromManage() {
 function openCreateLabelModal() {
     document.getElementById('labelDropdownMenu')?.classList.remove('show');
     document.getElementById('modalCreateLabel').style.display = 'flex';
-    document.getElementById('newLabelName').value = '';
+    const input = document.getElementById('newLabelName');
+    if (input) {
+        input.value = '';
+        input.classList.remove('is-invalid');
+        input.focus();
+    }
+    const err = document.getElementById('newLabelDuplicateError');
+    if (err) err.style.display = 'none';
     selectLabelColor(null, '#2563EB');
-    document.getElementById('newLabelName').focus();
+}
+
+function handleValidateNewLabelName(val) {
+    const cleanVal = (val || '').trim().toLowerCase();
+    const errorEl = document.getElementById('newLabelDuplicateError');
+    const textEl = document.getElementById('newLabelDuplicateErrorText');
+    const inputEl = document.getElementById('newLabelName');
+
+    if (!cleanVal) {
+        if (errorEl) errorEl.style.display = 'none';
+        if (inputEl) inputEl.classList.remove('is-invalid');
+        return false;
+    }
+
+    const isDuplicate = (AppState.allLabels || []).some(
+        l => (l.name || '').trim().toLowerCase() === cleanVal
+    );
+
+    if (isDuplicate) {
+        if (errorEl) {
+            errorEl.style.display = 'flex';
+            if (textEl) textEl.innerText = `Tên nhãn "${val.trim()}" đã tồn tại trong hệ thống!`;
+        }
+        if (inputEl) inputEl.classList.add('is-invalid');
+        return true;
+    } else {
+        if (errorEl) errorEl.style.display = 'none';
+        if (inputEl) inputEl.classList.remove('is-invalid');
+        return false;
+    }
 }
 
 function closeCreateLabelModal() {
@@ -2681,6 +2732,22 @@ async function saveNewLabel() {
 
     if (!name) {
         alert('Vui lòng nhập tên nhãn');
+        document.getElementById('newLabelName').focus();
+        return;
+    }
+
+    // Kiểm tra trùng tên ngay trên frontend (không phân biệt hoa thường)
+    const isDuplicate = (AppState.allLabels || []).some(
+        l => (l.name || '').trim().toLowerCase() === name.toLowerCase()
+    );
+    if (isDuplicate) {
+        handleValidateNewLabelName(name);
+        alert(`Tên nhãn "${name}" đã tồn tại trong hệ thống. Vui lòng đặt tên khác.`);
+        const input = document.getElementById('newLabelName');
+        if (input) {
+            input.focus();
+            input.select();
+        }
         return;
     }
 
