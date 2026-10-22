@@ -385,20 +385,6 @@ class Conversation {
             'messages'  => $messages
         ];
     }
-
-    /**
-     * Cập nhật trạng thái khách hàng đã xem tin nhắn theo external_sender_id
-     */
-    public function setCustomerSeenByExternalId($externalSenderId, $seen = 1) {
-        $stmt = $this->db->prepare("
-            UPDATE conversations 
-            SET customer_seen = :seen 
-            WHERE external_sender_id = :external_id
-        ");
-        return $stmt->execute([
-            ':seen' => $seen ? 1 : 0,
-            ':external_id' => $externalSenderId
-        ]);
-    }
 }
+
 
