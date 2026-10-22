@@ -340,69 +340,81 @@ if (!$currentUser) {
         </div>
 
         <!-- Thuộc tính bóc tách thông tin khách hàng (Customer Attributes CRM) -->
+        <!-- Thuộc tính bóc tách thông tin khách hàng (Customer Attributes CRM) -->
         <div class="profile-section-widget">
-            <div class="section-widget-title">
-                <i class="fa-solid fa-user-check"></i> Thông Tin Khách Hàng
+            <div class="section-widget-title" style="display:flex; justify-content:space-between; align-items:center;">
+                <span>THÔNG TIN KHÁCH HÀNG</span>
+                <button type="button" class="btn-edit-inline crm-edit-btn" id="btnEditCustomerProfile" onclick="openEditCustomerProfileModal()">
+                    <i class="fa-solid fa-pen-to-square"></i> Sửa
+                </button>
             </div>
 
-            <!-- Tên thật khách hàng -->
+            <!-- 1. Họ và tên -->
             <div class="attribute-item-box">
                 <div class="attr-header">
-                    <span class="attr-label"><i class="fa-solid fa-signature"></i> Tên thật:</span>
-                    <button type="button" class="btn-edit-inline crm-edit-btn" onclick="editFieldPrompt('real_name', 'Tên thật khách hàng')">
-                        <i class="fa-solid fa-pen-to-square"></i> Sửa
-                    </button>
+                    <span class="attr-label">Họ và tên:</span>
                 </div>
                 <div class="attr-value-text" id="crmRealName">Chưa có thông tin</div>
             </div>
 
-            <!-- Số điện thoại -->
+            <!-- 2. Số điện thoại -->
             <div class="attribute-item-box">
                 <div class="attr-header">
-                    <span class="attr-label"><i class="fa-solid fa-phone"></i> Số điện thoại:</span>
-                    <button type="button" class="btn-edit-inline crm-edit-btn" onclick="editFieldPrompt('phone', 'Số điện thoại')">
-                        <i class="fa-solid fa-pen-to-square"></i> Sửa
-                    </button>
+                    <span class="attr-label">Số điện thoại:</span>
                 </div>
                 <div class="attr-value-text" id="crmPhone">Chưa có thông tin</div>
             </div>
 
-            <!-- Địa chỉ nhận hàng -->
+            <!-- 3. Địa chỉ -->
             <div class="attribute-item-box">
                 <div class="attr-header">
-                    <span class="attr-label"><i class="fa-solid fa-location-dot"></i> Địa chỉ:</span>
-                    <button type="button" class="btn-edit-inline crm-edit-btn" onclick="editFieldPrompt('address', 'Địa chỉ giao hàng')">
-                        <i class="fa-solid fa-pen-to-square"></i> Sửa
-                    </button>
+                    <span class="attr-label">Địa chỉ:</span>
                 </div>
                 <div class="attr-value-text" id="crmAddress">Chưa có thông tin</div>
             </div>
 
-            <!-- Sản phẩm quan tâm -->
+            <!-- 4. Số đo -->
             <div class="attribute-item-box">
                 <div class="attr-header">
-                    <span class="attr-label"><i class="fa-solid fa-bag-shopping"></i> Sản phẩm quan tâm:</span>
-                    <button type="button" class="btn-edit-inline crm-edit-btn" onclick="editFieldPrompt('customer_needs', 'Sản phẩm quan tâm')">
-                        <i class="fa-solid fa-pen-to-square"></i> Sửa
-                    </button>
+                    <span class="attr-label">Số đo:</span>
+                </div>
+                <div class="attr-value-text" id="crmBodyMeasurements">Chưa có thông tin</div>
+            </div>
+
+            <!-- 5. Sản phẩm quan tâm -->
+            <div class="attribute-item-box">
+                <div class="attr-header">
+                    <span class="attr-label">Sản phẩm quan tâm:</span>
                 </div>
                 <div class="attr-value-text" id="crmCustomerNeeds">Chưa có thông tin</div>
             </div>
 
-            <!-- Tóm tắt trao đổi -->
+            <!-- 6. Đơn hàng từng mua -->
             <div class="attribute-item-box">
                 <div class="attr-header">
-                    <span class="attr-label"><i class="fa-solid fa-comment-dots"></i> Tóm tắt trao đổi:</span>
-                    <button type="button" class="btn-edit-inline crm-edit-btn" onclick="editFieldPrompt('conversation_summary', 'Tóm tắt nội dung trao đổi')">
-                        <i class="fa-solid fa-pen-to-square"></i> Sửa
-                    </button>
+                    <span class="attr-label">Đơn hàng từng mua:</span>
+                </div>
+                <div class="attr-value-text" id="crmRecentPurchases">Chưa có thông tin</div>
+            </div>
+
+            <!-- 7. Ghi chú -->
+            <div class="attribute-item-box">
+                <div class="attr-header">
+                    <span class="attr-label">Ghi chú:</span>
+                </div>
+                <div class="attr-value-text" id="crmNotes">Chưa có thông tin</div>
+            </div>
+
+            <!-- 8. Tóm tắt hội thoại -->
+            <div class="attribute-item-box">
+                <div class="attr-header">
+                    <span class="attr-label">Tóm tắt hội thoại:</span>
                 </div>
                 <div class="attr-value-text" id="crmSummary">Chưa có tóm tắt</div>
             </div>
 
             <!-- Mốc thời gian ghi nhận dữ liệu -->
             <div class="attr-footer-time">
-                <i class="fa-regular fa-calendar-days"></i>
                 <span>Dữ liệu từ:</span>
                 <strong id="crmDateRange">--/--/---- đến --/--/----</strong>
             </div>
@@ -410,7 +422,6 @@ if (!$currentUser) {
 
         <!-- Nút Cập nhật hồ sơ -->
         <button type="button" class="btn-update-profile" id="btnUpdateProfile" onclick="handleUpdateCustomerProfile()">
-            <i class="fa-solid fa-arrows-rotate"></i>
             <span>CẬP NHẬT HỒ SƠ</span>
         </button>
 
@@ -728,6 +739,56 @@ if (!$currentUser) {
                 Biến này tồn tại ở nhiều bảng tính. Vui lòng chọn bảng tính bạn muốn áp dụng:
             </p>
             <div id="modalChooseSheetButtonsList" style="display:flex;flex-direction:column;gap:8px;"></div>
+        </div>
+    </div>
+<!-- Modal Chỉnh Sửa Hồ Sơ Khách Hàng (8 trường chuẩn) -->
+<div class="modal-overlay" id="modalEditCustomerProfile" style="display:none;z-index:100100;">
+    <div class="modal-content" style="max-width: 520px; width: 92%;">
+        <div class="modal-header">
+            <h3 class="modal-title" style="margin:0;font-size:16px;">Chỉnh Sửa Thông Tin Khách Hàng</h3>
+            <button type="button" class="modal-close-btn" onclick="closeEditCustomerProfileModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding:16px 20px; max-height: 75vh; overflow-y: auto;">
+            <form id="formEditCustomerProfile" onsubmit="event.preventDefault(); handleSaveCustomerProfileModal();">
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label class="form-label">Họ và tên:</label>
+                    <input type="text" class="form-control" id="modalInputRealName" placeholder="Nhập họ và tên...">
+                </div>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label class="form-label">Số điện thoại:</label>
+                    <input type="text" class="form-control" id="modalInputPhone" placeholder="Nhập số điện thoại...">
+                </div>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label class="form-label">Địa chỉ:</label>
+                    <input type="text" class="form-control" id="modalInputAddress" placeholder="Nhập địa chỉ giao hàng...">
+                </div>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label class="form-label">Số đo:</label>
+                    <input type="text" class="form-control" id="modalInputBodyMeasurements" placeholder="Ví dụ: Size L, cao 1m70, nặng 65kg...">
+                </div>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label class="form-label">Sản phẩm quan tâm:</label>
+                    <textarea class="form-control" id="modalInputCustomerNeeds" rows="2" placeholder="Sản phẩm hoặc nhu cầu khách quan tâm..."></textarea>
+                </div>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label class="form-label">Đơn hàng từng mua:</label>
+                    <textarea class="form-control" id="modalInputRecentPurchases" rows="2" placeholder="Đơn hàng hoặc sản phẩm đã từng chốt..."></textarea>
+                </div>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label class="form-label">Ghi chú:</label>
+                    <textarea class="form-control" id="modalInputNotes" rows="2" placeholder="Ghi chú về khách hàng..."></textarea>
+                </div>
+                <div class="form-group" style="margin-bottom:4px;">
+                    <label class="form-label">Tóm tắt hội thoại:</label>
+                    <textarea class="form-control" id="modalInputSummary" rows="2" placeholder="Tóm tắt ngắn nội dung cuộc trò chuyện..."></textarea>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;padding:12px 20px;">
+            <button type="button" class="tab-btn" onclick="closeEditCustomerProfileModal()">Hủy</button>
+            <button type="button" class="btn-send-message" id="btnSaveCustomerProfileModal" onclick="handleSaveCustomerProfileModal()">
+                Lưu Thay Đổi
+            </button>
         </div>
     </div>
 </div>

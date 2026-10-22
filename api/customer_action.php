@@ -57,6 +57,24 @@ switch ($action) {
         jsonResponse($res['success'], ['profile' => $res['profile']], $res['message']);
         break;
 
+    case 'ai_extract_profile':
+        $conversationId = (int)($_POST['conversation_id'] ?? 0);
+        if (!$conversationId) {
+            jsonResponse(false, [], 'Thiếu mã hội thoại', 400);
+        }
+
+        $conv = $convModel->getById($conversationId);
+        if ($conv && !empty($conv['assigned_user_id']) && $conv['assigned_user_id'] != $userId) {
+            jsonResponse(false, [], 'Hội thoại do nhân viên khác phụ trách. Bạn không có quyền chỉnh sửa hồ sơ.', 403);
+        }
+
+        $res = $customerController->extractProfileWithAI($conversationId);
+        if (!$res['success']) {
+            jsonResponse(false, [], $res['message'], 400);
+        }
+        jsonResponse(true, ['profile' => $res['profile'], 'extracted' => $res['extracted']], $res['message']);
+        break;
+
     case 'scan_agent':
         $conversationId = (int)($_POST['conversation_id'] ?? 0);
         if (!$conversationId) {

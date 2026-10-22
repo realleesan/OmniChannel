@@ -1559,6 +1559,9 @@ async function handleAttachmentUpload(input) {
 function renderProfileSidebar(profile, conv, assignedLabels) {
     if (!profile) return;
 
+    // Lưu lại profile hiện tại vào AppState để Modal dễ dùng
+    AppState.currentCustomerProfile = profile;
+
     const customerName = profile.real_name || profile.customer_name || (conv && conv.sender_name) || 'Khách Hàng';
     const profileCustNameEl = document.getElementById('profileCustomerName');
     if (profileCustNameEl) profileCustNameEl.innerText = customerName;
@@ -1575,21 +1578,28 @@ function renderProfileSidebar(profile, conv, assignedLabels) {
         }
     }
 
-    // Các thuộc tính bóc tách thông tin khách hàng (CRM)
-    const elRealName = document.getElementById('crmRealName');
-    if (elRealName) elRealName.innerText = profile.real_name || 'Chưa có thông tin';
+    // Helper cập nhật ô text + class is-empty
+    function setAttrVal(elId, val, defaultText = 'Chưa có thông tin') {
+        const el = document.getElementById(elId);
+        if (!el) return;
+        const textVal = (val && String(val).trim()) ? String(val).trim() : defaultText;
+        el.innerText = textVal;
+        if (textVal === defaultText) {
+            el.classList.add('is-empty');
+        } else {
+            el.classList.remove('is-empty');
+        }
+    }
 
-    const elPhone = document.getElementById('crmPhone');
-    if (elPhone) elPhone.innerText = profile.phone || 'Chưa có thông tin';
-
-    const elAddress = document.getElementById('crmAddress');
-    if (elAddress) elAddress.innerText = profile.address || 'Chưa có thông tin';
-
-    const elNeeds = document.getElementById('crmCustomerNeeds');
-    if (elNeeds) elNeeds.innerText = profile.customer_needs || 'Chưa có thông tin';
-
-    const elSummary = document.getElementById('crmSummary');
-    if (elSummary) elSummary.innerText = profile.conversation_summary || 'Chưa có tóm tắt';
+    // 8 trường thông tin khách hàng chuẩn
+    setAttrVal('crmRealName', profile.real_name);
+    setAttrVal('crmPhone', profile.phone);
+    setAttrVal('crmAddress', profile.address);
+    setAttrVal('crmBodyMeasurements', profile.body_measurements || profile.preferred_size);
+    setAttrVal('crmCustomerNeeds', profile.customer_needs);
+    setAttrVal('crmRecentPurchases', profile.recent_purchases);
+    setAttrVal('crmNotes', profile.notes);
+    setAttrVal('crmSummary', profile.conversation_summary, 'Chưa có tóm tắt');
 
     // Mốc thời gian ghi nhận dữ liệu
     const elDateRange = document.getElementById('crmDateRange');
@@ -1599,17 +1609,17 @@ function renderProfileSidebar(profile, conv, assignedLabels) {
         elDateRange.innerText = `${fromDate} đến ${toDate}`;
     }
 
-    // Khóa/Mở các nút chỉnh sửa CRM nếu ở chế độ Chỉ Xem
-    const crmEditBtns = document.querySelectorAll('.crm-edit-btn');
-    crmEditBtns.forEach(btn => {
+    // Khóa/Mở nút Sửa ở tiêu đề nếu ở chế độ Chỉ Xem
+    const btnEditProfile = document.getElementById('btnEditCustomerProfile');
+    if (btnEditProfile) {
         if (AppState.isViewOnly) {
-            btn.style.pointerEvents = 'none';
-            btn.style.opacity = '0.35';
+            btnEditProfile.style.pointerEvents = 'none';
+            btnEditProfile.style.opacity = '0.35';
         } else {
-            btn.style.pointerEvents = 'auto';
-            btn.style.opacity = '1';
+            btnEditProfile.style.pointerEvents = 'auto';
+            btnEditProfile.style.opacity = '1';
         }
-    });
+    }
 
     const btnUpdate = document.getElementById('btnUpdateProfile');
     if (btnUpdate) {
@@ -1622,7 +1632,7 @@ function renderProfileSidebar(profile, conv, assignedLabels) {
 }
 
 /**
- * Nút cập nhật hồ sơ khách hàng (CRM)
+ * Nút CẬP NHẬT HỒ SƠ: Gọi Gemini AI đọc toàn bộ hội thoại và trích xuất 8 trường CRM
  */
 async function handleUpdateCustomerProfile() {
     if (!AppState.activeConvId) return;
@@ -1632,28 +1642,16 @@ async function handleUpdateCustomerProfile() {
     }
 
     const btn = document.getElementById('btnUpdateProfile');
-    const originalHtml = btn ? btn.innerHTML : '';
+    const originalText = btn ? btn.innerText : 'CẬP NHẬT HỒ SƠ';
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>ĐANG CẬP NHẬT...</span>';
+        btn.innerText = 'AI ĐANG PHÂN TÍCH...';
     }
 
     try {
         const formData = new FormData();
-        formData.append('action', 'update_crm_profile');
+        formData.append('action', 'ai_extract_profile');
         formData.append('conversation_id', AppState.activeConvId);
-
-        const realName = document.getElementById('crmRealName')?.innerText;
-        const phone = document.getElementById('crmPhone')?.innerText;
-        const address = document.getElementById('crmAddress')?.innerText;
-        const needs = document.getElementById('crmCustomerNeeds')?.innerText;
-        const summary = document.getElementById('crmSummary')?.innerText;
-
-        if (realName && realName !== 'Chưa có thông tin') formData.append('real_name', realName);
-        if (phone && phone !== 'Chưa có thông tin') formData.append('phone', phone);
-        if (address && address !== 'Chưa có thông tin') formData.append('address', address);
-        if (needs && needs !== 'Chưa có thông tin') formData.append('customer_needs', needs);
-        if (summary && summary !== 'Chưa có tóm tắt') formData.append('conversation_summary', summary);
 
         const res = await fetch('../../api/customer_action.php', {
             method: 'POST',
@@ -1662,86 +1660,166 @@ async function handleUpdateCustomerProfile() {
         const data = await res.json();
 
         if (data.success && data.data && data.data.profile) {
-            if (btn) btn.innerHTML = '<i class="fa-solid fa-check"></i> <span>ĐÃ CẬP NHẬT THÀNH CÔNG</span>';
+            if (btn) btn.innerText = 'ĐÃ CẬP NHẬT XONG!';
             renderProfileSidebar(data.data.profile, { id: AppState.activeConvId });
+
+            // Hiệu ứng highlight các trường vừa được AI phát hiện
+            const extracted = data.data.extracted || {};
+            const fieldMap = {
+                'real_name': 'crmRealName',
+                'phone': 'crmPhone',
+                'address': 'crmAddress',
+                'body_measurements': 'crmBodyMeasurements',
+                'customer_needs': 'crmCustomerNeeds',
+                'recent_purchases': 'crmRecentPurchases',
+                'notes': 'crmNotes',
+                'conversation_summary': 'crmSummary'
+            };
+
+            Object.entries(fieldMap).forEach(([k, elId]) => {
+                if (extracted[k] && String(extracted[k]).trim() !== '') {
+                    const el = document.getElementById(elId);
+                    const parentBox = el ? el.closest('.attribute-item-box') : null;
+                    if (parentBox) {
+                        parentBox.classList.remove('attr-highlight-updated');
+                        void parentBox.offsetWidth; // trigger reflow
+                        parentBox.classList.add('attr-highlight-updated');
+                    }
+                }
+            });
         } else {
-            if (btn) btn.innerHTML = '<i class="fa-solid fa-check"></i> <span>HỒ SƠ ĐÃ ĐỒNG BỘ</span>';
+            alert(data.message || 'Không thể trích xuất hồ sơ bằng AI. Vui lòng kiểm tra lại GEMINI_API_KEY.');
+            if (btn) btn.innerText = 'LỖI CẬP NHẬT';
         }
     } catch (err) {
-        console.error('Lỗi cập nhật hồ sơ CRM:', err);
-        if (btn) btn.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> <span>LỖI CẬP NHẬT</span>';
+        console.error('Lỗi gọi Gemini AI trích xuất CRM:', err);
+        alert('Lỗi kết nối tới máy chủ khi gọi AI.');
+        if (btn) btn.innerText = 'LỖI CẬP NHẬT';
     } finally {
         setTimeout(() => {
             if (btn) {
                 btn.disabled = AppState.isViewOnly;
-                btn.innerHTML = originalHtml;
+                btn.innerText = 'CẬP NHẬT HỒ SƠ';
             }
-        }, 1500);
+        }, 2000);
     }
 }
 
 /**
- * Hộp thoại sửa nhanh từng trường thông tin CRM
+ * Mở modal chỉnh sửa hồ sơ khách hàng (8 trường)
  */
-async function editFieldPrompt(fieldName, fieldTitle) {
+function openEditCustomerProfileModal() {
     if (!AppState.activeConvId) return;
     if (AppState.isViewOnly) {
         alert('Hội thoại đang ở chế độ chỉ xem. Bạn không có quyền chỉnh sửa.');
         return;
     }
 
-    let currentVal = '';
-    let targetEl = null;
-    if (fieldName === 'real_name') {
-        targetEl = document.getElementById('crmRealName');
-    } else if (fieldName === 'phone') {
-        targetEl = document.getElementById('crmPhone');
-    } else if (fieldName === 'address') {
-        targetEl = document.getElementById('crmAddress');
-    } else if (fieldName === 'customer_needs') {
-        targetEl = document.getElementById('crmCustomerNeeds');
-    } else if (fieldName === 'conversation_summary') {
-        targetEl = document.getElementById('crmSummary');
-    } else if (fieldName === 'customer_name') {
-        targetEl = document.getElementById('profileCustomerName');
+    const modal = document.getElementById('modalEditCustomerProfile');
+    if (!modal) return;
+
+    // Helper lấy text sạch (nếu là 'Chưa có...' thì trả về rỗng)
+    function getCleanVal(elId, defaultText) {
+        const el = document.getElementById(elId);
+        if (!el) return '';
+        const txt = el.innerText.trim();
+        return (txt === defaultText || txt === 'Chưa có thông tin') ? '' : txt;
     }
 
-    if (targetEl) {
-        currentVal = targetEl.innerText;
-        if (currentVal === 'Chưa có thông tin' || currentVal === 'Chưa có tóm tắt') {
-            currentVal = '';
-        }
+    const p = AppState.currentCustomerProfile || {};
+
+    const inRealName = document.getElementById('modalInputRealName');
+    const inPhone = document.getElementById('modalInputPhone');
+    const inAddress = document.getElementById('modalInputAddress');
+    const inBody = document.getElementById('modalInputBodyMeasurements');
+    const inNeeds = document.getElementById('modalInputCustomerNeeds');
+    const inRecent = document.getElementById('modalInputRecentPurchases');
+    const inNotes = document.getElementById('modalInputNotes');
+    const inSummary = document.getElementById('modalInputSummary');
+
+    if (inRealName) inRealName.value = p.real_name || getCleanVal('crmRealName', 'Chưa có thông tin');
+    if (inPhone) inPhone.value = p.phone || getCleanVal('crmPhone', 'Chưa có thông tin');
+    if (inAddress) inAddress.value = p.address || getCleanVal('crmAddress', 'Chưa có thông tin');
+    if (inBody) inBody.value = p.body_measurements || p.preferred_size || getCleanVal('crmBodyMeasurements', 'Chưa có thông tin');
+    if (inNeeds) inNeeds.value = p.customer_needs || getCleanVal('crmCustomerNeeds', 'Chưa có thông tin');
+    if (inRecent) inRecent.value = p.recent_purchases || getCleanVal('crmRecentPurchases', 'Chưa có thông tin');
+    if (inNotes) inNotes.value = p.notes || getCleanVal('crmNotes', 'Chưa có thông tin');
+    if (inSummary) inSummary.value = p.conversation_summary || getCleanVal('crmSummary', 'Chưa có tóm tắt');
+
+    modal.style.display = 'flex';
+}
+
+function closeEditCustomerProfileModal() {
+    const modal = document.getElementById('modalEditCustomerProfile');
+    if (modal) modal.style.display = 'none';
+}
+
+/**
+ * Lưu 8 trường từ Modal chỉnh sửa hồ sơ khách hàng
+ */
+async function handleSaveCustomerProfileModal() {
+    if (!AppState.activeConvId) return;
+    if (AppState.isViewOnly) {
+        alert('Hội thoại đang ở chế độ chỉ xem. Bạn không có quyền chỉnh sửa.');
+        return;
     }
 
-    const newVal = prompt(`Nhập ${fieldTitle} mới:`, currentVal);
-    if (newVal === null) return; // Bấm Cancel
-    const trimmedVal = newVal.trim();
+    const btnSave = document.getElementById('btnSaveCustomerProfileModal');
+    const originalText = btnSave ? btnSave.innerText : 'Lưu Thay Đổi';
+    if (btnSave) {
+        btnSave.disabled = true;
+        btnSave.innerText = 'Đang lưu...';
+    }
 
     try {
         const formData = new FormData();
-        formData.append('action', 'update_field');
+        formData.append('action', 'update_crm_profile');
         formData.append('conversation_id', AppState.activeConvId);
-        formData.append('field', fieldName);
-        formData.append('value', trimmedVal);
+
+        const realName = document.getElementById('modalInputRealName')?.value?.trim() || '';
+        const phone = document.getElementById('modalInputPhone')?.value?.trim() || '';
+        const address = document.getElementById('modalInputAddress')?.value?.trim() || '';
+        const bodyMeasurements = document.getElementById('modalInputBodyMeasurements')?.value?.trim() || '';
+        const needs = document.getElementById('modalInputCustomerNeeds')?.value?.trim() || '';
+        const recentPurchases = document.getElementById('modalInputRecentPurchases')?.value?.trim() || '';
+        const notes = document.getElementById('modalInputNotes')?.value?.trim() || '';
+        const summary = document.getElementById('modalInputSummary')?.value?.trim() || '';
+
+        formData.append('real_name', realName);
+        formData.append('phone', phone);
+        formData.append('address', address);
+        formData.append('body_measurements', bodyMeasurements);
+        formData.append('customer_needs', needs);
+        formData.append('recent_purchases', recentPurchases);
+        formData.append('notes', notes);
+        formData.append('conversation_summary', summary);
 
         const res = await fetch('../../api/customer_action.php', {
             method: 'POST',
             body: formData
         });
         const data = await res.json();
-        if (data.success) {
-            if (targetEl) {
-                targetEl.innerText = trimmedVal || (fieldName === 'conversation_summary' ? 'Chưa có tóm tắt' : 'Chưa có thông tin');
-            }
-            if (fieldName === 'real_name' && trimmedVal) {
+
+        if (data.success && data.data && data.data.profile) {
+            renderProfileSidebar(data.data.profile, { id: AppState.activeConvId });
+            closeEditCustomerProfileModal();
+
+            // Nếu đổi tên thật thì đồng bộ luôn header hội thoại
+            if (realName) {
                 const headSender = document.getElementById('activeSenderName');
-                if (headSender) headSender.innerText = trimmedVal;
+                if (headSender) headSender.innerText = realName;
             }
         } else {
-            alert(data.message || 'Lỗi cập nhật');
+            alert(data.message || 'Lỗi lưu hồ sơ khách hàng.');
         }
     } catch (err) {
-        console.error('Lỗi sửa trường:', err);
+        console.error('Lỗi lưu hồ sơ CRM:', err);
+        alert('Lỗi kết nối máy chủ khi lưu hồ sơ.');
+    } finally {
+        if (btnSave) {
+            btnSave.disabled = false;
+            btnSave.innerText = originalText;
+        }
     }
 }
 

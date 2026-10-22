@@ -22,12 +22,14 @@ class CustomerProfile {
                     'real_name'            => "VARCHAR(150) NULL AFTER customer_name",
                     'phone'                => "VARCHAR(50) NULL AFTER real_name",
                     'address'              => "VARCHAR(255) NULL AFTER phone",
-                    'customer_needs'       => "TEXT NULL AFTER address",
-                    'conversation_summary' => "TEXT NULL AFTER customer_needs",
+                    'body_measurements'    => "VARCHAR(100) NULL AFTER address",
+                    'customer_needs'       => "TEXT NULL AFTER body_measurements",
+                    'recent_purchases'     => "TEXT NULL AFTER customer_needs",
+                    'notes'                => "TEXT NULL AFTER recent_purchases",
+                    'conversation_summary' => "TEXT NULL AFTER notes",
                     'from_date'            => "DATE NULL AFTER conversation_summary",
                     'to_date'              => "DATE NULL AFTER from_date",
                     'preferred_size'       => "VARCHAR(50) DEFAULT 'Chưa xác định'",
-                    'recent_purchases'     => "TEXT NULL",
                     'is_boom_risk'         => "TINYINT(1) DEFAULT 0",
                     'boom_note'            => "VARCHAR(255) NULL",
                     'scan_version'         => "INT DEFAULT 1"
@@ -66,8 +68,8 @@ class CustomerProfile {
             // Thử chèn đầy đủ cột
             try {
                 $insertStmt = $this->db->prepare("
-                    INSERT INTO customer_profiles (conversation_id, customer_name, real_name, phone, address, customer_needs, conversation_summary, from_date, to_date, last_scanned_at)
-                    VALUES (:cid, :cname, NULL, NULL, NULL, NULL, NULL, CURDATE(), CURDATE(), NOW())
+                    INSERT INTO customer_profiles (conversation_id, customer_name, real_name, phone, address, body_measurements, customer_needs, recent_purchases, notes, conversation_summary, from_date, to_date, last_scanned_at)
+                    VALUES (:cid, :cname, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, CURDATE(), CURDATE(), NOW())
                 ");
                 $insertStmt->execute([':cid' => $conversationId, ':cname' => $customerName]);
                 $inserted = true;
@@ -95,13 +97,21 @@ class CustomerProfile {
                     'real_name'              => null,
                     'phone'                  => null,
                     'address'                => null,
+                    'body_measurements'      => null,
                     'customer_needs'         => null,
+                    'recent_purchases'       => null,
+                    'notes'                  => null,
                     'conversation_summary'   => null,
                     'from_date_formatted'    => date('d/m/Y'),
                     'to_date_formatted'      => date('d/m/Y'),
                     'last_scanned_formatted' => date('H:i - d/m/Y')
                 ];
             }
+        }
+
+        // Đảm bảo tương thích ngược: nếu body_measurements rỗng nhưng preferred_size có giá trị
+        if (empty($profile['body_measurements']) && !empty($profile['preferred_size']) && $profile['preferred_size'] !== 'Chưa xác định') {
+            $profile['body_measurements'] = $profile['preferred_size'];
         }
 
         // Lấy ngày bắt đầu nhắn tin đầu tiên và ngày nhắn tin gần nhất từ messages
@@ -133,7 +143,7 @@ class CustomerProfile {
     }
 
     public function updateManual($conversationId, $field, $value) {
-        $allowedFields = ['customer_name', 'real_name', 'phone', 'address', 'customer_needs', 'conversation_summary', 'from_date', 'to_date', 'recent_purchases', 'preferred_size'];
+        $allowedFields = ['customer_name', 'real_name', 'phone', 'address', 'body_measurements', 'customer_needs', 'recent_purchases', 'notes', 'conversation_summary', 'from_date', 'to_date', 'preferred_size'];
         if (!in_array($field, $allowedFields)) {
             return false;
         }
@@ -147,7 +157,7 @@ class CustomerProfile {
     }
 
     /**
-     * Cập nhật toàn bộ hồ sơ CRM
+     * Cập nhật toàn bộ 8 trường hồ sơ CRM
      */
     public function updateCrmProfile($conversationId, array $data) {
         $stmt = $this->db->prepare("
@@ -155,7 +165,10 @@ class CustomerProfile {
                 real_name = :real_name,
                 phone = :phone,
                 address = :address,
+                body_measurements = :body_measurements,
                 customer_needs = :customer_needs,
+                recent_purchases = :recent_purchases,
+                notes = :notes,
                 conversation_summary = :conversation_summary,
                 to_date = CURDATE(),
                 last_scanned_at = NOW()
@@ -165,10 +178,56 @@ class CustomerProfile {
             ':real_name'            => !empty($data['real_name']) ? trim($data['real_name']) : null,
             ':phone'                => !empty($data['phone']) ? trim($data['phone']) : null,
             ':address'              => !empty($data['address']) ? trim($data['address']) : null,
+            ':body_measurements'    => !empty($data['body_measurements']) ? trim($data['body_measurements']) : null,
             ':customer_needs'       => !empty($data['customer_needs']) ? trim($data['customer_needs']) : null,
+            ':recent_purchases'     => !empty($data['recent_purchases']) ? trim($data['recent_purchases']) : null,
+            ':notes'                => !empty($data['notes']) ? trim($data['notes']) : null,
             ':conversation_summary' => !empty($data['conversation_summary']) ? trim($data['conversation_summary']) : null,
             ':cid'                  => $conversationId
         ]);
+    }
+
+    /**
+     * Cập nhật thông tin trích xuất từ Gemini AI (chỉ cập nhật những trường AI tìm thấy và không ghi đè dữ liệu người dùng đã nhập)
+     */
+    public function saveAiExtractedProfile($conversationId, array $aiData) {
+        $current = $this->getByConversationId($conversationId);
+        
+        $fieldsToUpdate = [];
+        $params = [':cid' => $conversationId];
+
+        $mapping = [
+            'real_name'            => 'real_name',
+            'phone'                => 'phone',
+            'address'              => 'address',
+            'body_measurements'    => 'body_measurements',
+            'customer_needs'       => 'customer_needs',
+            'recent_purchases'     => 'recent_purchases',
+            'notes'                => 'notes',
+            'conversation_summary' => 'conversation_summary'
+        ];
+
+        foreach ($mapping as $key => $col) {
+            if (isset($aiData[$key]) && $aiData[$key] !== null && trim($aiData[$key]) !== '') {
+                $fieldsToUpdate[] = "{$col} = :{$key}";
+                $params[":{$key}"] = trim($aiData[$key]);
+            }
+        }
+
+        if (empty($fieldsToUpdate)) {
+            // Không có trường nào mới từ AI, chỉ cập nhật thời gian quét
+            $this->db->prepare("UPDATE customer_profiles SET last_scanned_at = NOW() WHERE conversation_id = :cid")->execute([':cid' => $conversationId]);
+            return $this->getByConversationId($conversationId);
+        }
+
+        $fieldsToUpdate[] = "to_date = CURDATE()";
+        $fieldsToUpdate[] = "last_scanned_at = NOW()";
+        $sql = "UPDATE customer_profiles SET " . implode(', ', $fieldsToUpdate) . " WHERE conversation_id = :cid";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+
+        return $this->getByConversationId($conversationId);
     }
 
     /**
