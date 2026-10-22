@@ -203,37 +203,48 @@ LỊCH SỬ HỘI THOẠI CẦN PHÂN TÍCH:
 {$conversationText}
 PROMPT;
 
-        // 5. Gửi request đến Gemini API
-        $apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" . urlencode($apiKey);
+        // 5. Gửi request đến Gemini API (Sử dụng model Free Tier tốc độ cao có cơ chế tự động fallback)
+        $modelsToTry = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-flash-lite-latest'];
+        $rawResponse = null;
+        $httpCode = 0;
+        $curlError = '';
 
-        $payload = [
-            'contents' => [
-                [
-                    'role' => 'user',
-                    'parts' => [
-                        ['text' => $prompt]
+        foreach ($modelsToTry as $modelName) {
+            $apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$modelName}:generateContent?key=" . urlencode($apiKey);
+
+            $payload = [
+                'contents' => [
+                    [
+                        'role' => 'user',
+                        'parts' => [
+                            ['text' => $prompt]
+                        ]
                     ]
+                ],
+                'generationConfig' => [
+                    'response_mime_type' => 'application/json',
+                    'temperature'        => 0.1
                 ]
-            ],
-            'generationConfig' => [
-                'response_mime_type' => 'application/json',
-                'temperature'        => 0.1
-            ]
-        ];
+            ];
 
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $apiUrl);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload, JSON_UNESCAPED_UNICODE));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $apiUrl);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload, JSON_UNESCAPED_UNICODE));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 
-        $rawResponse = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        curl_close($ch);
+            $rawResponse = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+
+            if ($httpCode === 200 && !empty($rawResponse)) {
+                break;
+            }
+        }
 
         if ($curlError) {
             return [
