@@ -741,6 +741,8 @@ if (!$currentUser) {
             <div id="modalChooseSheetButtonsList" style="display:flex;flex-direction:column;gap:8px;"></div>
         </div>
     </div>
+</div>
+
 <!-- Modal Chỉnh Sửa Hồ Sơ Khách Hàng (8 trường chuẩn) -->
 <div class="modal-overlay" id="modalEditCustomerProfile" style="display:none;z-index:100100;">
     <div class="modal-content" style="max-width: 520px; width: 92%;">

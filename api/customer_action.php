@@ -70,7 +70,7 @@ switch ($action) {
 
         $res = $customerController->extractProfileWithAI($conversationId);
         if (!$res['success']) {
-            jsonResponse(false, [], $res['message'], 400);
+            jsonResponse(false, ['no_new_info' => !empty($res['no_new_info'])], $res['message'], 200);
         }
         jsonResponse(true, ['profile' => $res['profile'], 'extracted' => $res['extracted']], $res['message']);
         break;

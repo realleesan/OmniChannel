@@ -1595,7 +1595,9 @@ function renderProfileSidebar(profile, conv, assignedLabels) {
     function setAttrVal(elId, val, defaultText = 'Chưa có thông tin') {
         const el = document.getElementById(elId);
         if (!el) return;
-        const textVal = (val && String(val).trim()) ? String(val).trim() : defaultText;
+        const strVal = (val !== null && val !== undefined) ? String(val).trim() : '';
+        const isValid = strVal !== '' && strVal !== 'Chưa xác định' && strVal !== defaultText;
+        const textVal = isValid ? strVal : defaultText;
         el.innerText = textVal;
         if (textVal === defaultText) {
             el.classList.add('is-empty');
@@ -1608,7 +1610,8 @@ function renderProfileSidebar(profile, conv, assignedLabels) {
     setAttrVal('crmRealName', profile.real_name);
     setAttrVal('crmPhone', profile.phone);
     setAttrVal('crmAddress', profile.address);
-    setAttrVal('crmBodyMeasurements', profile.body_measurements || profile.preferred_size);
+    const rawBody = profile.body_measurements || profile.preferred_size;
+    setAttrVal('crmBodyMeasurements', (rawBody && rawBody !== 'Chưa xác định') ? rawBody : null);
     setAttrVal('crmCustomerNeeds', profile.customer_needs);
     setAttrVal('crmRecentPurchases', profile.recent_purchases);
     setAttrVal('crmNotes', profile.notes);
@@ -1700,6 +1703,10 @@ async function handleUpdateCustomerProfile() {
                     }
                 }
             });
+        } else if (data.data && data.data.no_new_info) {
+            // Không có dữ liệu/tin nhắn mới (cơ chế chống lãng phí API)
+            if (btn) btn.innerText = 'CHƯA CÓ TIN MỚI';
+            alert(data.message || 'Hội thoại chưa có thông tin mới để phân tích.');
         } else {
             alert(data.message || 'Không thể trích xuất hồ sơ bằng AI. Vui lòng kiểm tra lại GEMINI_API_KEY.');
             if (btn) btn.innerText = 'LỖI CẬP NHẬT';
@@ -1722,7 +1729,10 @@ async function handleUpdateCustomerProfile() {
  * Mở modal chỉnh sửa hồ sơ khách hàng (8 trường)
  */
 function openEditCustomerProfileModal() {
-    if (!AppState.activeConvId) return;
+    if (!AppState.activeConvId) {
+        alert('Vui lòng chọn một cuộc trò chuyện để chỉnh sửa hồ sơ.');
+        return;
+    }
     if (AppState.isViewOnly) {
         alert('Hội thoại đang ở chế độ chỉ xem. Bạn không có quyền chỉnh sửa.');
         return;
@@ -1731,12 +1741,12 @@ function openEditCustomerProfileModal() {
     const modal = document.getElementById('modalEditCustomerProfile');
     if (!modal) return;
 
-    // Helper lấy text sạch (nếu là 'Chưa có...' thì trả về rỗng)
+    // Helper lấy text sạch (nếu là 'Chưa có...' hoặc 'Chưa xác định' thì trả về rỗng)
     function getCleanVal(elId, defaultText) {
         const el = document.getElementById(elId);
         if (!el) return '';
         const txt = el.innerText.trim();
-        return (txt === defaultText || txt === 'Chưa có thông tin') ? '' : txt;
+        return (txt === defaultText || txt === 'Chưa có thông tin' || txt === 'Chưa xác định' || txt === 'Chưa có tóm tắt') ? '' : txt;
     }
 
     const p = AppState.currentCustomerProfile || {};
@@ -1753,7 +1763,11 @@ function openEditCustomerProfileModal() {
     if (inRealName) inRealName.value = p.real_name || getCleanVal('crmRealName', 'Chưa có thông tin');
     if (inPhone) inPhone.value = p.phone || getCleanVal('crmPhone', 'Chưa có thông tin');
     if (inAddress) inAddress.value = p.address || getCleanVal('crmAddress', 'Chưa có thông tin');
-    if (inBody) inBody.value = p.body_measurements || p.preferred_size || getCleanVal('crmBodyMeasurements', 'Chưa có thông tin');
+    
+    const rawBody = p.body_measurements || p.preferred_size;
+    const cleanBody = (rawBody && rawBody !== 'Chưa xác định') ? rawBody : getCleanVal('crmBodyMeasurements', 'Chưa có thông tin');
+    if (inBody) inBody.value = cleanBody;
+
     if (inNeeds) inNeeds.value = p.customer_needs || getCleanVal('crmCustomerNeeds', 'Chưa có thông tin');
     if (inRecent) inRecent.value = p.recent_purchases || getCleanVal('crmRecentPurchases', 'Chưa có thông tin');
     if (inNotes) inNotes.value = p.notes || getCleanVal('crmNotes', 'Chưa có thông tin');

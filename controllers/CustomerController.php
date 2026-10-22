@@ -66,7 +66,70 @@ class CustomerController {
             ];
         }
 
-        // 2. Lấy toàn bộ lịch sử tin nhắn của cuộc trò chuyện từ lúc bắt đầu tới mới nhất
+        // 2. Lấy hồ sơ hiện tại và kiểm tra cơ chế chống lãng phí API (Smart Delta Detection)
+        $currentProfile = $this->profileModel->getByConversationId($conversationId);
+        $lastScannedId = (int)($currentProfile['last_scanned_msg_id'] ?? 0);
+
+        // Kiểm tra ID tin nhắn mới nhất trong hội thoại
+        $statStmt = $db->prepare("SELECT MAX(id) as max_id, COUNT(*) as total_cnt FROM messages WHERE conversation_id = :cid");
+        $statStmt->execute([':cid' => $conversationId]);
+        $stat = $statStmt->fetch();
+        $maxMsgId = (int)($stat['max_id'] ?? 0);
+        $totalMsgs = (int)($stat['total_cnt'] ?? 0);
+
+        if ($totalMsgs === 0 || $maxMsgId === 0) {
+            return [
+                'success' => false,
+                'no_new_info' => true,
+                'message' => 'Chưa có tin nhắn nào trong cuộc trò chuyện để AI phân tích.'
+            ];
+        }
+
+        // TẦNG 1: Đối chiếu ID tin nhắn - nếu hoàn toàn không có thêm tin nhắn nào kể từ lần quét trước
+        if ($lastScannedId > 0 && $maxMsgId <= $lastScannedId) {
+            return [
+                'success' => false,
+                'no_new_info' => true,
+                'message' => 'Hội thoại chưa có tin nhắn mới kể từ lần cập nhật gần nhất.'
+            ];
+        }
+
+        // TẦNG 2: Nếu có tin nhắn mới, kiểm tra xem có tin nhắn nào từ KHÁCH HÀNG (CUSTOMER) hay không
+        if ($lastScannedId > 0 && $maxMsgId > $lastScannedId) {
+            $custStmt = $db->prepare("
+                SELECT id, content 
+                FROM messages 
+                WHERE conversation_id = :cid AND id > :last_id AND sender_type = 'CUSTOMER'
+            ");
+            $custStmt->execute([':cid' => $conversationId, ':last_id' => $lastScannedId]);
+            $newCustMsgs = $custStmt->fetchAll();
+
+            // Chỉ có tin nhắn từ phía tư vấn viên gửi đi, khách chưa phản hồi gì
+            if (empty($newCustMsgs)) {
+                return [
+                    'success' => false,
+                    'no_new_info' => true,
+                    'message' => 'Chưa có thêm thông tin từ khách hàng (chỉ có tin nhắn từ phía tư vấn viên). Không cần quét lại.'
+                ];
+            }
+
+            // TẦNG 3: Kiểm tra nội dung tin nhắn mới từ khách hàng xem có ý nghĩa thực chất hay không
+            $joinedCustText = '';
+            foreach ($newCustMsgs as $cm) {
+                $joinedCustText .= ' ' . trim($cm['content'] ?? '');
+            }
+            // Lọc bỏ khoảng trắng và ký tự dấu câu để đếm độ dài thực
+            $cleanText = preg_replace('/[\s\p{P}]+/u', '', $joinedCustText);
+            if (mb_strlen($cleanText, 'UTF-8') < 4) {
+                return [
+                    'success' => false,
+                    'no_new_info' => true,
+                    'message' => 'Phản hồi mới của khách hàng quá ngắn, chưa chứa thông tin cá nhân mới để phân tích.'
+                ];
+            }
+        }
+
+        // 3. Lấy toàn bộ lịch sử tin nhắn của cuộc trò chuyện từ lúc bắt đầu tới mới nhất
         $stmt = $db->prepare("
             SELECT sender_type, content, attachment_url, created_at 
             FROM messages 
@@ -79,6 +142,7 @@ class CustomerController {
         if (empty($messages)) {
             return [
                 'success' => false,
+                'no_new_info' => true,
                 'message' => 'Chưa có tin nhắn nào trong cuộc trò chuyện để AI phân tích.'
             ];
         }
@@ -213,7 +277,7 @@ PROMPT;
         }
 
         // 6. Lưu vào cơ sở dữ liệu và trả về kết quả
-        $updatedProfile = $this->profileModel->saveAiExtractedProfile($conversationId, $extracted);
+        $updatedProfile = $this->profileModel->saveAiExtractedProfile($conversationId, $extracted, $maxMsgId);
 
         return [
             'success'   => true,

@@ -32,7 +32,8 @@ class CustomerProfile {
                     'preferred_size'       => "VARCHAR(50) DEFAULT 'Chưa xác định'",
                     'is_boom_risk'         => "TINYINT(1) DEFAULT 0",
                     'boom_note'            => "VARCHAR(255) NULL",
-                    'scan_version'         => "INT DEFAULT 1"
+                    'scan_version'         => "INT DEFAULT 1",
+                    'last_scanned_msg_id'  => "INT NULL AFTER last_scanned_at"
                 ];
                 foreach ($needed as $col => $def) {
                     if (!in_array($col, $cols)) {
@@ -104,14 +105,21 @@ class CustomerProfile {
                     'conversation_summary'   => null,
                     'from_date_formatted'    => date('d/m/Y'),
                     'to_date_formatted'      => date('d/m/Y'),
-                    'last_scanned_formatted' => date('H:i - d/m/Y')
+                    'last_scanned_formatted' => date('H:i - d/m/Y'),
+                    'last_scanned_msg_id'    => 0
                 ];
             }
         }
 
-        // Đảm bảo tương thích ngược: nếu body_measurements rỗng nhưng preferred_size có giá trị
-        if (empty($profile['body_measurements']) && !empty($profile['preferred_size']) && $profile['preferred_size'] !== 'Chưa xác định') {
+        // Đảm bảo tương thích ngược: Chuẩn hóa body_measurements, loại bỏ giá trị mặc định 'Chưa xác định'
+        if (!empty($profile['body_measurements']) && trim($profile['body_measurements']) === 'Chưa xác định') {
+            $profile['body_measurements'] = null;
+        }
+        if (empty($profile['body_measurements']) && !empty($profile['preferred_size']) && trim($profile['preferred_size']) !== 'Chưa xác định') {
             $profile['body_measurements'] = $profile['preferred_size'];
+        }
+        if (empty($profile['body_measurements'])) {
+            $profile['body_measurements'] = null;
         }
 
         // Lấy ngày bắt đầu nhắn tin đầu tiên và ngày nhắn tin gần nhất từ messages
@@ -190,7 +198,7 @@ class CustomerProfile {
     /**
      * Cập nhật thông tin trích xuất từ Gemini AI (chỉ cập nhật những trường AI tìm thấy và không ghi đè dữ liệu người dùng đã nhập)
      */
-    public function saveAiExtractedProfile($conversationId, array $aiData) {
+    public function saveAiExtractedProfile($conversationId, array $aiData, $lastScannedMsgId = null) {
         $current = $this->getByConversationId($conversationId);
         
         $fieldsToUpdate = [];
@@ -212,6 +220,11 @@ class CustomerProfile {
                 $fieldsToUpdate[] = "{$col} = :{$key}";
                 $params[":{$key}"] = trim($aiData[$key]);
             }
+        }
+
+        if (!empty($lastScannedMsgId)) {
+            $fieldsToUpdate[] = "last_scanned_msg_id = :last_msg_id";
+            $params[':last_msg_id'] = (int)$lastScannedMsgId;
         }
 
         if (empty($fieldsToUpdate)) {
