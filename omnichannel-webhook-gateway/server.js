@@ -299,6 +299,40 @@ const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 app.use('/uploads', express.static(uploadsDir));
 
+// Proxy ảnh an toàn qua Render Node.js (vượt qua hoàn toàn chặn NotSameSite của Google và tường lửa InfinityFree)
+app.get('/api/proxy-image', async (req, res) => {
+    const rawUrl = req.query.url;
+    if (!rawUrl) return res.status(400).send('Missing url');
+
+    try {
+        const targetUrl = decodeURIComponent(rawUrl);
+        const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+        
+        const response = await fetch(targetUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': ''
+            }
+        });
+
+        if (!response.ok) {
+            return res.status(response.status).send('Upstream error');
+        }
+
+        const contentType = response.headers.get('content-type') || 'image/jpeg';
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+
+        const arrayBuffer = await response.arrayBuffer();
+        res.send(Buffer.from(arrayBuffer));
+    } catch (err) {
+        console.error('Lỗi proxy ảnh:', err.message);
+        res.status(500).send('Proxy error');
+    }
+});
+
 // Endpoint upload ảnh trực tiếp từ Webchat Widget (dạng Base64)
 app.post('/api/webchat/upload', (req, res) => {
     try {
