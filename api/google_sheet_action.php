@@ -53,6 +53,13 @@ if ($action === 'proxy_image') {
         exit;
     }
 
+    // Nếu URL này vừa bị lỗi gần đây (trong 10 phút), trả về 404 ngay lập tức mà không cURL lại
+    $failFile = $cacheFile . '.fail';
+    if (file_exists($failFile) && (time() - filemtime($failFile) < 600)) {
+        header('HTTP/1.1 404 Not Found');
+        exit('Token expired (cached)');
+    }
+
     // Chỉ cho phép proxy các ảnh từ Google Sheets hoặc Googleusercontent
     $allowedHosts = ['docs.google.com', 'googleusercontent.com'];
     $parsedHost = parse_url($imgUrl, PHP_URL_HOST);
@@ -73,7 +80,8 @@ if ($action === 'proxy_image') {
     curl_setopt($ch, CURLOPT_URL, $imgUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3); // Timeout kết nối nhanh 3s để không nghẽn tiến trình host
+    curl_setopt($ch, CURLOPT_TIMEOUT, 4);        // Timeout tối đa 4s tránh lỗi 508 Resource Limit
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
     curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
@@ -85,12 +93,15 @@ if ($action === 'proxy_image') {
     if ($httpCode === 200 && !empty($imageData)) {
         // Lưu ảnh vĩnh viễn trên host để không bao giờ bị hết hạn token
         @file_put_contents($cacheFile, $imageData);
+        if (file_exists($failFile)) @unlink($failFile);
 
         header('Content-Type: ' . ($contentType ?: 'image/jpeg'));
         header('Cache-Control: public, max-age=31536000');
         header('Access-Control-Allow-Origin: *');
         echo $imageData;
     } else {
+        // Đánh dấu lỗi ngắn hạn để ngăn 30 request cURL đồng thời làm sập giới hạn tài nguyên 508
+        @file_put_contents($failFile, (string)$httpCode);
         header('HTTP/1.1 404 Not Found');
         exit('Token phiên ảnh Google đã hết hạn. Vui lòng bấm Đồng bộ lại từ Google Sheet để nạp phiên mới.');
     }

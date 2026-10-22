@@ -4044,7 +4044,7 @@ function renderSheetDataTable(rows) {
                         return `
                             <td style="text-align:center;">
                                 <div class="sheet-thumb-wrapper">
-                                    <img src="${escapeHtml(displayUrl)}" class="sheet-thumb-img" title="Bấm để phóng to ảnh" onclick="openLightboxFromSingleUrl('${escapeHtml(displayUrl)}', 'Ảnh: ${imgTitle}')" onerror="this.onerror=null;this.parentElement.innerHTML='<span class=\\'cell-image-badge\\' title=\\'Ảnh Google Sheet đã hết hạn phiên token, hãy bấm Đồng bộ lại\\'><i class=\\'fa-solid fa-arrows-rotate\\'></i> Cần đồng bộ</span>';">
+                                    <img src="${escapeHtml(displayUrl)}" loading="lazy" decoding="async" class="sheet-thumb-img" title="Bấm để phóng to ảnh" onclick="openLightboxFromSingleUrl('${escapeHtml(displayUrl)}', 'Ảnh: ${imgTitle}')" onerror="this.onerror=null;this.parentElement.innerHTML='<span class=\\'cell-image-badge\\' title=\\'Ảnh Google Sheet đã hết hạn phiên token, hãy bấm Đồng bộ lại\\'><i class=\\'fa-solid fa-arrows-rotate\\'></i> Cần đồng bộ</span>';">
                                 </div>
                             </td>
                         `;
