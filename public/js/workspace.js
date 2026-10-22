@@ -925,38 +925,113 @@ function scrollChatToBottom() {
 }
 
 /**
- * Nhân viên gửi tin nhắn
+ * Chuẩn hóa URL ảnh (hỗ trợ cả công thức =IMAGE() của Google Sheet và link Google Drive)
  */
-async function sendMessage(attachmentUrl = null) {
-    if (!AppState.activeConvId || AppState.isViewOnly || AppState.isSending) return;
+function normalizeImageUrl(url) {
+    if (!url) return '';
+    let u = String(url).trim();
+    const formulaMatch = u.match(/^=IMAGE\(["'](https?:\/\/[^"']+)["']\)/i);
+    if (formulaMatch) {
+        u = formulaMatch[1];
+    }
+    const driveFileMatch = u.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i);
+    if (driveFileMatch) {
+        return `https://drive.google.com/thumbnail?id=${driveFileMatch[1]}&sz=w1200`;
+    }
+    const driveIdMatch = u.match(/drive\.google\.com\/(?:open|uc)\?(?:[^&]*&)*id=([a-zA-Z0-9_-]+)/i);
+    if (driveIdMatch) {
+        return `https://drive.google.com/thumbnail?id=${driveIdMatch[1]}&sz=w1200`;
+    }
+    return u;
+}
 
-    const input = document.getElementById('chatInput');
-    const content = input.value.trim();
+/**
+ * Trích xuất các URL ảnh ra khỏi văn bản tin nhắn (từ biến Google Sheet hoặc link ảnh)
+ */
+function extractImageUrlsFromText(text) {
+    if (!text || typeof text !== 'string') return { text: '', imageUrls: [] };
 
-    if (!content && !attachmentUrl) return;
+    const urlRegex = /(https?:\/\/[^\s<>"'{}|\\^`]+|data:image\/[a-zA-Z+]+;base64,[^\s<>"']+)/gi;
+    const imageUrls = [];
 
-    AppState.isSending = true;
-    input.value = '';
-    const previewBar = document.getElementById('shortcutPreviewBar');
-    if (previewBar) previewBar.style.display = 'none';
+    const isImageUrl = (url) => {
+        if (!url) return false;
+        const u = url.toLowerCase();
+        if (u.startsWith('data:image/')) return true;
+        if (u.includes('docs.google.com/sheets-images-rt')) return true;
+        if (u.includes('googleusercontent.com')) return true;
+        if (u.includes('drive.google.com') && (u.includes('thumbnail') || u.includes('export=view') || u.includes('id=') || u.includes('/file/d/'))) return true;
+        if (/\.(png|jpe?g|gif|webp|svg|bmp)(\?.*)?$/i.test(url)) return true;
+        if ((u.includes('imgur.com') || u.includes('cloudinary.com') || u.includes('/images/') || u.includes('/img/')) && (/\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i.test(url) || u.includes('image'))) return true;
+        return false;
+    };
 
-    try {
-        const payload = {
-            action: 'send_message',
-            conversation_id: AppState.activeConvId,
-            content: content
-        };
-        if (attachmentUrl) {
-            payload.attachment_url = attachmentUrl;
+    let remainingText = text.replace(urlRegex, (match) => {
+        let cleanUrl = match.replace(/[\.,;!?:)]+$/, '');
+        let trailingPunct = match.substring(cleanUrl.length);
+
+        if (isImageUrl(cleanUrl)) {
+            imageUrls.push(normalizeImageUrl(cleanUrl));
+            return trailingPunct || '';
         }
+        return match;
+    });
 
-        let res = null;
-        let text = '';
-        let data = null;
+    remainingText = remainingText
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
 
-        // Ưu tiên 1: Gửi qua message_action.php dạng JSON (miễn nhiễm bộ lọc WAF multipart 403 của InfinityFree)
+    return {
+        text: remainingText,
+        imageUrls: imageUrls
+    };
+}
+
+/**
+ * Gửi một tin nhắn đơn lẻ (chữ hoặc ảnh hoặc cả hai)
+ */
+async function doSendSingleMessage(content, attachmentUrl = null) {
+    if (!AppState.activeConvId) return null;
+
+    const payload = {
+        action: 'send_message',
+        conversation_id: AppState.activeConvId,
+        content: content || ''
+    };
+    if (attachmentUrl) {
+        payload.attachment_url = attachmentUrl;
+    }
+
+    let res = null;
+    let text = '';
+    let data = null;
+
+    // Ưu tiên 1: Gửi qua message_action.php dạng JSON
+    try {
+        res = await fetch('../../api/message_action.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        text = await res.text();
         try {
-            res = await fetch('../../api/message_action.php', {
+            data = JSON.parse(text);
+        } catch (pe) {
+            const sIdx = text.indexOf('{');
+            const eIdx = text.lastIndexOf('}');
+            if (sIdx !== -1 && eIdx !== -1) {
+                try { data = JSON.parse(text.substring(sIdx, eIdx + 1)); } catch (e) { }
+            }
+        }
+    } catch (netErr) {
+        console.warn('Gửi qua message_action.php gặp sự cố mạng:', netErr);
+    }
+
+    // Fail-safe tầng 2: Nếu WAF chặn hoặc phản hồi lỗi, dùng sync_polling.php dạng JSON
+    if (!data || (!data.success && (res?.status === 403 || text.includes('403 Forbidden') || text.includes('blocking you')))) {
+        try {
+            res = await fetch('../../api/sync_polling.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -968,84 +1043,101 @@ async function sendMessage(attachmentUrl = null) {
                 const sIdx = text.indexOf('{');
                 const eIdx = text.lastIndexOf('}');
                 if (sIdx !== -1 && eIdx !== -1) {
-                    try {
-                        data = JSON.parse(text.substring(sIdx, eIdx + 1));
-                    } catch (e) { }
+                    try { data = JSON.parse(text.substring(sIdx, eIdx + 1)); } catch (e) { }
                 }
             }
-        } catch (netErr) {
-            console.warn('Gửi qua message_action.php gặp sự cố mạng:', netErr);
+        } catch (fbErr) {
+            console.error('Fallback sync_polling thất bại:', fbErr);
         }
+    }
 
-        // Fail-safe tầng 2: Nếu WAF chặn hoặc phản hồi lỗi, dùng sync_polling.php dạng JSON
-        if (!data || (!data.success && (res?.status === 403 || text.includes('403 Forbidden') || text.includes('blocking you')))) {
-            try {
-                res = await fetch('../../api/sync_polling.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                text = await res.text();
-                try {
-                    data = JSON.parse(text);
-                } catch (pe) {
-                    const sIdx = text.indexOf('{');
-                    const eIdx = text.lastIndexOf('}');
-                    if (sIdx !== -1 && eIdx !== -1) {
-                        try {
-                            data = JSON.parse(text.substring(sIdx, eIdx + 1));
-                        } catch (e) { }
-                    }
-                }
-            } catch (fbErr) {
-                console.error('Fallback sync_polling thất bại:', fbErr);
+    if (data && data.success && data.data) {
+        appendMessageBubble(data.data, true);
+        if (AppState.conversationsCache[AppState.activeConvId]) {
+            const cache = AppState.conversationsCache[AppState.activeConvId];
+            if (!cache.messages) cache.messages = [];
+            if (!cache.messages.some(m => m.id === data.data.id)) {
+                cache.messages.push(data.data);
             }
         }
 
-        if (data && data.success && data.data) {
-            appendMessageBubble(data.data, true);
-            // Cập nhật tin nhắn vừa gửi vào Cache để khi chuyển khách không bị mất
-            if (AppState.conversationsCache[AppState.activeConvId]) {
-                const cache = AppState.conversationsCache[AppState.activeConvId];
-                if (!cache.messages) cache.messages = [];
-                if (!cache.messages.some(m => m.id === data.data.id)) {
-                    cache.messages.push(data.data);
-                }
-            }
-            // Bổ trợ kép: Trình duyệt gửi trực tiếp tới Render Gateway để khách nhận ngay lập tức
-            const activeConv = AppState.activeConversation ||
-                (AppState.cachedConversations ? AppState.cachedConversations[AppState.activeConvId] : null) ||
-                AppState.conversationsCache[AppState.activeConvId]?.conversation;
-            const targetChannel = (activeConv?.channel || '').toUpperCase();
-            if (targetChannel === 'WEBCHAT' && window.APP_CONFIG?.RENDER_GATEWAY_URL && activeConv?.external_sender_id) {
-                const gatewayUrl = window.APP_CONFIG.RENDER_GATEWAY_URL.replace(/\/+$/, '');
-                fetch(`${gatewayUrl}/api/webchat/reply`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        customer_id: activeConv.external_sender_id,
-                        content: content,
-                        attachment_url: attachmentUrl || data.data.attachment_url || null,
-                        staff_name: data.data.staff_name || window.APP_CONFIG.CURRENT_FULLNAME || 'Nhân viên tư vấn',
-                        staff_avatar: data.data.staff_avatar || window.APP_CONFIG.CURRENT_AVATAR || ''
-                    })
-                }).catch(e => console.warn('Browser direct reply push warning:', e));
-            }
+        // Bổ trợ kép: Trình duyệt gửi trực tiếp tới Render Gateway để khách nhận ngay lập tức
+        const activeConv = AppState.activeConversation ||
+            (AppState.cachedConversations ? AppState.cachedConversations[AppState.activeConvId] : null) ||
+            AppState.conversationsCache[AppState.activeConvId]?.conversation;
+        const targetChannel = (activeConv?.channel || '').toUpperCase();
+        if (targetChannel === 'WEBCHAT' && window.APP_CONFIG?.RENDER_GATEWAY_URL && activeConv?.external_sender_id) {
+            const gatewayUrl = window.APP_CONFIG.RENDER_GATEWAY_URL.replace(/\/+$/, '');
+            fetch(`${gatewayUrl}/api/webchat/reply`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    customer_id: activeConv.external_sender_id,
+                    content: content || '',
+                    attachment_url: attachmentUrl || data.data.attachment_url || null,
+                    staff_name: data.data.staff_name || window.APP_CONFIG.CURRENT_FULLNAME || 'Nhân viên tư vấn',
+                    staff_avatar: data.data.staff_avatar || window.APP_CONFIG.CURRENT_AVATAR || ''
+                })
+            }).catch(e => console.warn('Browser direct reply push warning:', e));
+        }
 
-            updateSeenIndicator();
-            scrollChatToBottom();
-            runSyncPolling();
+        updateSeenIndicator();
+        scrollChatToBottom();
+        return data.data;
+    } else {
+        throw new Error(data ? data.message : ('Lỗi máy chủ khi gửi: ' + text.substring(0, 100)));
+    }
+}
+
+/**
+ * Nhân viên gửi tin nhắn (Tự động tách riêng tin nhắn Text và tin nhắn Ảnh từ template Google Sheet)
+ */
+async function sendMessage(attachmentUrl = null) {
+    if (!AppState.activeConvId || AppState.isViewOnly || AppState.isSending) return;
+
+    const input = document.getElementById('chatInput');
+    const rawContent = input ? input.value : '';
+
+    if (!rawContent.trim() && !attachmentUrl) return;
+
+    AppState.isSending = true;
+    if (input) input.value = '';
+    const previewBar = document.getElementById('shortcutPreviewBar');
+    if (previewBar) previewBar.style.display = 'none';
+
+    try {
+        if (attachmentUrl) {
+            // Upload ảnh thủ công qua nút kẹp ghim
+            await doSendSingleMessage(rawContent.trim(), attachmentUrl);
         } else {
-            input.value = content;
-            alert(data ? data.message : ('Lỗi máy chủ khi gửi: ' + text.substring(0, 100)));
+            // Bóc tách URL ảnh trong nội dung (từ biến Google Sheet hoặc do dán link ảnh vào)
+            const extracted = extractImageUrlsFromText(rawContent);
+            const textPart = extracted.text;
+            const hasImages = extracted.imageUrls && extracted.imageUrls.length > 0;
+            const imgAttachment = hasImages ? extracted.imageUrls.join(',') : null;
+
+            if (textPart && hasImages) {
+                // Có cả chữ và ảnh: Tách thành 1 tin text + 1 tin ảnh riêng biệt
+                await doSendSingleMessage(textPart, null);
+                // Giãn cách ngắn 150ms để bảo toàn thứ tự tin nhắn
+                await new Promise(r => setTimeout(r, 150));
+                await doSendSingleMessage('', imgAttachment);
+            } else if (hasImages) {
+                // Chỉ có ảnh, không có chữ
+                await doSendSingleMessage('', imgAttachment);
+            } else {
+                // Tin nhắn chữ thông thường
+                await doSendSingleMessage(rawContent.trim(), null);
+            }
         }
+        runSyncPolling();
     } catch (err) {
-        console.error('Lỗi gửi tin nhắn:', err);
-        input.value = content;
-        alert('Lỗi kết nối khi gửi tin nhắn: ' + err.message);
+        console.error('Lỗi quy trình gửi tin nhắn:', err);
+        if (input && rawContent) input.value = rawContent;
+        alert(err.message || 'Lỗi kết nối khi gửi tin nhắn.');
     } finally {
         AppState.isSending = false;
-        input.focus();
+        if (input) input.focus();
     }
 }
 
@@ -1339,7 +1431,8 @@ function applyTemplateWithSheetRow(tpl, row) {
     let compiled = tpl.content || '';
     // Tự động thay thế toàn bộ các biến [tên_cột] có trong nội dung mẫu tin
     Object.keys(row).forEach(col => {
-        const val = (row[col] !== undefined && row[col] !== null) ? String(row[col]) : '';
+        let val = (row[col] !== undefined && row[col] !== null) ? String(row[col]) : '';
+        val = normalizeImageUrl(val);
         const re = new RegExp('\\[' + escapeRegExp(col.trim()) + '\\]', 'gi');
         compiled = compiled.replace(re, val);
     });
@@ -1473,7 +1566,8 @@ function tryResolveShortcutSync(inputVal) {
     if (matchedRow) {
         let compiled = matchedTpl.content;
         Object.keys(matchedRow).forEach(col => {
-            const val = matchedRow[col] !== undefined ? String(matchedRow[col]) : '';
+            let val = matchedRow[col] !== undefined ? String(matchedRow[col]) : '';
+            val = normalizeImageUrl(val);
             const re = new RegExp('\\[' + escapeRegExp(col.trim()) + '\\]', 'gi');
             compiled = compiled.replace(re, val);
         });

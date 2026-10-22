@@ -503,12 +503,14 @@
                 font-size: 13.5px !important;
                 line-height: 1.45 !important;
                 word-break: break-word !important;
+                white-space: pre-wrap !important;
                 box-sizing: border-box !important;
                 position: relative !important;
                 max-width: 100% !important;
             }
             .omni-bubble-content {
                 word-break: break-word !important;
+                white-space: pre-wrap !important;
             }
 
             .omni-msg.customer .omni-bubble {
