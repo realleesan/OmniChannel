@@ -1151,24 +1151,41 @@ let currentPickerRows = [];
 async function selectSuggestTemplate(tpl) {
     if (!tpl) return;
 
-    const hasVars = /\[([^\]]+)\]/.test(tpl.content || '');
+    // Kiểm tra xem mẫu tin có sử dụng biến ở shortcut hoặc content không
+    const hasVarsInShortcut = /\[([^\]]+)\]/.test(tpl.shortcut || '');
+    const hasVarsInContent = /\[([^\]]+)\]/.test(tpl.content || '');
 
-    // Nếu mẫu tin nhắn có chứa biến động [...]
-    if (hasVars) {
+    if (hasVarsInShortcut || hasVarsInContent) {
+        // Biến khóa: ưu tiên biến ở shortcut (ví dụ: /[STT] -> STT), nếu không có thì lấy biến đầu tiên trong content
+        let keyVar = null;
+        const shortcutMatch = (tpl.shortcut || '').match(/\[([^\]]+)\]/);
+        if (shortcutMatch) {
+            keyVar = shortcutMatch[1].trim();
+        } else {
+            const contentMatch = (tpl.content || '').match(/\[([^\]]+)\]/);
+            if (contentMatch) keyVar = contentMatch[1].trim();
+        }
+
+        // Tự động nhận diện sheet_name nếu template chưa lưu sheet_name
+        let targetSheetName = tpl.sheet_name || '';
+        if (!targetSheetName && keyVar) {
+            targetSheetName = getSheetOfVariable(keyVar) || '';
+        }
+
         let targetRows = null;
-        let targetCols = AppState.sheetColumns || [];
+        let targetCols = [];
 
-        // Nếu template gắn với một sheet cụ thể
-        if (tpl.sheet_name) {
-            if (AppState.sheetsCache && AppState.sheetsCache[tpl.sheet_name] && AppState.sheetsCache[tpl.sheet_name].length > 0) {
-                targetRows = AppState.sheetsCache[tpl.sheet_name];
+        // Nếu xác định được sheet cụ thể
+        if (targetSheetName) {
+            if (AppState.sheetsCache && AppState.sheetsCache[targetSheetName] && AppState.sheetsCache[targetSheetName].length > 0) {
+                targetRows = AppState.sheetsCache[targetSheetName];
             } else {
                 try {
-                    const res = await fetch(`../../api/google_sheet_action.php?action=get_data&sheet_name=${encodeURIComponent(tpl.sheet_name)}`);
+                    const res = await fetch(`../../api/google_sheet_action.php?action=get_data&sheet_name=${encodeURIComponent(targetSheetName)}`);
                     const d = await res.json();
                     if (d && d.success && Array.isArray(d.rows)) {
                         if (!AppState.sheetsCache) AppState.sheetsCache = {};
-                        AppState.sheetsCache[tpl.sheet_name] = d.rows;
+                        AppState.sheetsCache[targetSheetName] = d.rows;
                         targetRows = d.rows;
                     }
                 } catch (err) {
@@ -1176,7 +1193,7 @@ async function selectSuggestTemplate(tpl) {
                 }
             }
 
-            const foundSheet = (AppState.sheetSheetsList || []).find(s => s.name === tpl.sheet_name);
+            const foundSheet = (AppState.sheetSheetsList || []).find(s => s.name === targetSheetName);
             if (foundSheet && Array.isArray(foundSheet.columns) && foundSheet.columns.length > 0) {
                 targetCols = foundSheet.columns;
             }
@@ -1190,17 +1207,16 @@ async function selectSuggestTemplate(tpl) {
 
         if (targetRows && targetRows.length > 0) {
             pendingTemplateForSheetPicker = tpl;
-            showSheetRowPicker(targetRows, targetCols, tpl.sheet_name);
+            showSheetRowPicker(targetRows, targetCols, targetSheetName, keyVar);
             return;
         }
     }
 
-    // Nếu không có biến hoặc chưa có sheet: điền trực tiếp nội dung mẫu tin
+    // Nếu không có biến hoặc chưa có dữ liệu: điền trực tiếp nội dung mẫu tin
     const input = document.getElementById('chatInput');
     if (input) {
         input.value = tpl.content;
         input.focus();
-        // Đặt con trỏ ở cuối văn bản
         input.selectionStart = input.selectionEnd = input.value.length;
     }
     closeShortcutSuggestPopup();
@@ -1208,7 +1224,7 @@ async function selectSuggestTemplate(tpl) {
 
 let sheetPickerSelectedIndex = 0;
 
-function showSheetRowPicker(rows, cols, sheetName) {
+function showSheetRowPicker(rows, cols, sheetName, keyVar) {
     const picker = document.getElementById('suggestSheetPicker');
     const listContainer = document.getElementById('suggestSheetRowsList');
     const templatesList = document.getElementById('suggestTemplatesList');
@@ -1220,48 +1236,60 @@ function showSheetRowPicker(rows, cols, sheetName) {
     picker.style.display = 'block';
 
     currentPickerRows = rows || [];
-    const displayCols = (cols && cols.length > 0) ? cols : (AppState.sheetColumns || []);
     sheetPickerSelectedIndex = 0;
 
     if (headerTitle) {
-        if (sheetName) {
-            headerTitle.innerHTML = `<i class="fa-solid fa-file-excel" style="color:#10B981;"></i> Chọn từ <strong>${escapeHtml(sheetName)}</strong> để điền dữ liệu:`;
+        if (keyVar) {
+            headerTitle.innerHTML = `<i class="fa-solid fa-table" style="color:var(--primary);"></i> Chọn giá trị <strong>[${escapeHtml(keyVar)}]</strong> ${sheetName ? `(${escapeHtml(sheetName)})` : ''} để điền mẫu:`;
+        } else if (sheetName) {
+            headerTitle.innerHTML = `<i class="fa-solid fa-table" style="color:var(--primary);"></i> Chọn dòng dữ liệu từ <strong>${escapeHtml(sheetName)}</strong>:`;
         } else {
-            headerTitle.innerHTML = `<i class="fa-solid fa-file-excel" style="color:#10B981;"></i> Chọn sản phẩm từ Google Sheet để điền dữ liệu:`;
+            headerTitle.innerHTML = `<i class="fa-solid fa-table" style="color:var(--primary);"></i> Chọn dữ liệu để điền mẫu:`;
         }
     }
 
     let html = '';
-    currentPickerRows.slice(0, 30).forEach((row, idx) => {
-        // Tìm cột ảnh nếu có
-        let imgUrl = null;
-        for (const col of displayCols) {
-            const val = String(row[col] || '');
-            if (isImageUrlString(val)) {
-                imgUrl = val;
-                break;
+    currentPickerRows.slice(0, 50).forEach((row, idx) => {
+        // 1. Tìm giá trị của biến keyVar trong dòng
+        let varVal = '';
+        if (keyVar) {
+            for (const k of Object.keys(row)) {
+                if (k.trim().toLowerCase() === keyVar.toLowerCase()) {
+                    varVal = row[k];
+                    break;
+                }
             }
+            if (varVal === '' || varVal === undefined) {
+                varVal = row[keyVar] !== undefined ? row[keyVar] : `Dòng ${idx + 1}`;
+            }
+        } else {
+            varVal = row['id'] || row['ID'] || row['mã'] || row['Mã'] || row['stt'] || row['STT'] || (idx + 1);
         }
 
-        // Tìm nhãn chính (id / sản phẩm / tên / title)
-        const rowId = row['id'] || row['ID'] || row['mã'] || row['Mã'] || row['stt'] || (idx + 1);
-        const nameVal = row['sản phẩm'] || row['Sản phẩm'] || row['tên'] || row['name'] || row[displayCols[1]] || '';
-        const priceVal = row['giá'] || row['Giá'] || row['price'] || '';
-
-        const proxyThumbUrl = (imgUrl && (imgUrl.includes('docs.google.com') || imgUrl.includes('sheets-images') || imgUrl.includes('googleusercontent.com')))
-            ? `../../api/google_sheet_action.php?action=proxy_image&url=${encodeURIComponent(imgUrl)}`
-            : imgUrl;
+        // 2. Tóm tắt các thông tin cùng dòng (bỏ keyVar và bỏ cột ảnh URL)
+        const previewEntries = [];
+        Object.keys(row).forEach(k => {
+            if (keyVar && k.trim().toLowerCase() === keyVar.toLowerCase()) return;
+            const valStr = String(row[k] || '').trim();
+            if (valStr && !isImageUrlString(valStr)) {
+                previewEntries.push(`<span style="color:#64748B;">${escapeHtml(k)}:</span> <strong>${escapeHtml(valStr)}</strong>`);
+            }
+        });
+        const previewSummary = previewEntries.slice(0, 3).join(' &bull; ');
 
         html += `
-            <div class="suggest-sheet-row-card ${idx === 0 ? 'is-selected' : ''}" 
+            <div class="suggest-sheet-row-card" 
                  id="pickerRow_${idx}" 
-                 onclick="applyTemplateWithSheetRowByIndex(${idx})">
-                <div class="suggest-sheet-row-main">
-                    ${imgUrl ? `<img src="${escapeHtml(proxyThumbUrl)}" loading="lazy" class="suggest-sheet-row-thumb" alt="Ảnh">` : ''}
-                    <span class="suggest-sheet-row-badge">#${escapeHtml(String(rowId))}</span>
-                    <span class="suggest-sheet-row-text">${escapeHtml(String(nameVal))}</span>
+                 onclick="applyTemplateWithSheetRowByIndex(${idx})"
+                 style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid #F1F5F9;cursor:pointer;">
+                <div class="suggest-sheet-row-main" style="display:flex;align-items:center;gap:10px;flex:1;overflow:hidden;">
+                    <span class="suggest-sheet-row-badge" style="font-size:12px;font-weight:700;color:var(--primary);background:#EEF2FF;padding:3px 9px;border-radius:4px;border:1px solid #C7D2FE;white-space:nowrap;">
+                        ${keyVar ? `[${escapeHtml(keyVar)}] = ` : ''}#${escapeHtml(String(varVal))}
+                    </span>
+                    <span class="suggest-sheet-row-text" style="font-size:12px;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                        ${previewSummary}
+                    </span>
                 </div>
-                ${priceVal ? `<div class="suggest-sheet-row-meta"><strong style="color:#059669;">${escapeHtml(String(priceVal))}</strong></div>` : ''}
             </div>
         `;
     });
@@ -1270,7 +1298,7 @@ function showSheetRowPicker(rows, cols, sheetName) {
 }
 
 function navigateSheetPicker(direction) {
-    const rows = (currentPickerRows || []).slice(0, 30);
+    const rows = (currentPickerRows || []).slice(0, 50);
     if (rows.length === 0) return;
 
     sheetPickerSelectedIndex += direction;
@@ -1314,9 +1342,9 @@ function applyTemplateWithSheetRow(tpl, row) {
     if (!tpl || !row) return;
 
     let compiled = tpl.content || '';
-    // Thay thế toàn bộ các biến [tên_cột]
+    // Tự động thay thế toàn bộ các biến [tên_cột] có trong nội dung mẫu tin
     Object.keys(row).forEach(col => {
-        const val = row[col] !== undefined ? String(row[col]) : '';
+        const val = (row[col] !== undefined && row[col] !== null) ? String(row[col]) : '';
         const re = new RegExp('\\[' + escapeRegExp(col.trim()) + '\\]', 'gi');
         compiled = compiled.replace(re, val);
     });
@@ -1329,7 +1357,7 @@ function applyTemplateWithSheetRow(tpl, row) {
     }
 
     closeShortcutSuggestPopup();
-    showToast('⚡ Đã điền dữ liệu Google Sheet vào tin nhắn!', 'success');
+    showToast('⚡ Đã điền mẫu tin nhắn thành công!', 'success');
 }
 
 /**
@@ -2714,6 +2742,35 @@ function getGroupedSheetVariables() {
     }];
 }
 
+function getSheetOfVariable(varName) {
+    if (!varName) return null;
+    const cleanVar = String(varName).replace(/^\[/, '').replace(/\]$/, '').trim().toLowerCase();
+    const grouped = getGroupedSheetVariables();
+    for (const s of grouped) {
+        if (s.columns && s.columns.some(c => String(c).trim().toLowerCase() === cleanVar)) {
+            return s.name;
+        }
+    }
+    return null;
+}
+
+async function ensureSheetConfigLoaded() {
+    if (AppState.sheetSheetsList && AppState.sheetSheetsList.length > 0) return;
+    try {
+        const res = await fetch('../../api/google_sheet_action.php?action=get_config');
+        const data = await res.json();
+        if (data && data.success && data.config) {
+            AppState.sheetConfig = data.config;
+            AppState.sheetSheetsList = data.config.sheets || [];
+            if (data.config.columns && (!AppState.sheetColumns || AppState.sheetColumns.length === 0)) {
+                AppState.sheetColumns = data.config.columns;
+            }
+        }
+    } catch (e) {
+        console.warn('Lỗi tải cấu hình sheets ngầm:', e);
+    }
+}
+
 function getColumnsForSheet(sheetName) {
     if (sheetName && AppState.sheetSheetsList) {
         const found = AppState.sheetSheetsList.find(s => s.name === sheetName);
@@ -2743,6 +2800,7 @@ async function openManageTemplatesModal() {
     const modal = document.getElementById('modalManageTemplates');
     if (modal) modal.style.display = 'flex';
 
+    await ensureSheetConfigLoaded();
     await loadTemplatesList();
 }
 
@@ -2810,6 +2868,19 @@ async function loadTemplatesList() {
     }
 }
 
+function getCurrentSheetBindingForEdit(id) {
+    const shortcutInput = document.getElementById(`editTplShortcut_${id}`);
+    const contentInput = document.getElementById(`editTplContent_${id}`);
+    const allText = (shortcutInput?.value || '') + ' ' + (contentInput?.value || '');
+    const matches = allText.match(/\[([^\]]+)\]/g) || [];
+
+    for (const m of matches) {
+        const sh = getSheetOfVariable(m);
+        if (sh) return sh;
+    }
+    return null;
+}
+
 function renderManageTemplatesList(templates) {
     const container = document.getElementById('templateManageListContainer');
     if (!container) return;
@@ -2830,16 +2901,17 @@ function renderManageTemplatesList(templates) {
     list.forEach(t => {
         const isEditing = (editingTemplateId === t.id);
         if (isEditing) {
+            const boundSheet = t.sheet_name || getCurrentSheetBindingForEdit(t.id);
             html += `
                 <div class="template-manage-row is-editing" id="tplRow_${t.id}">
                     <div style="width:100%;display:flex;flex-direction:column;gap:8px;">
                         <div style="display:flex;gap:8px;">
                             <div style="flex:1;">
-                                <label style="font-size:11px;font-weight:700;color:#475569;">Tiêu đề</label>
+                                <label style="font-size:11px;font-weight:700;color:#475569;">Tiêu đề <span style="color:#EF4444;">*</span></label>
                                 <input type="text" id="editTplTitle_${t.id}" value="${escapeHtml(t.title || '')}" class="form-input" style="height:32px;font-size:12.5px;padding:4px 8px;">
                             </div>
                             <div style="width:160px;">
-                                <label style="font-size:11px;font-weight:700;color:#475569;">Viết tắt</label>
+                                <label style="font-size:11px;font-weight:700;color:#475569;">Viết tắt <span style="color:#EF4444;">*</span></label>
                                 <input type="text" id="editTplShortcut_${t.id}" value="${escapeHtml(t.shortcut)}" class="form-input" style="height:32px;font-size:12.5px;padding:4px 8px;font-family:monospace;"
                                        oninput="handleValidateEditShortcut(this.value, ${t.id})">
                             </div>
@@ -2848,24 +2920,34 @@ function renderManageTemplatesList(templates) {
                             <i class="fa-solid fa-triangle-exclamation"></i> <span>Viết tắt này đã được dùng!</span>
                         </div>
                         <div>
-                            <label style="font-size:11px;font-weight:700;color:#475569;">Nội dung mẫu tin</label>
+                            <label style="font-size:11px;font-weight:700;color:#475569;">Nội dung mẫu tin <span style="color:#EF4444;">*</span></label>
                             <textarea id="editTplContent_${t.id}" class="form-textarea" rows="3" style="font-size:12.5px;padding:6px 8px;">${escapeHtml(t.content)}</textarea>
                         </div>
                         <div style="margin-top:2px;">
-                            <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:6px;">Chèn biến từ Google Sheet:</div>
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                                <span style="font-size:11px;font-weight:600;color:#64748B;">Chèn biến từ Google Sheet:</span>
+                                ${boundSheet ? `<span style="font-size:11px;color:#4338CA;font-weight:700;"><i class="fa-solid fa-link"></i> Đang liên kết: ${escapeHtml(boundSheet)}</span>` : ''}
+                            </div>
                             <div id="editTplVarChips_${t.id}" style="display:flex;flex-direction:column;gap:8px;">
-                                ${groupedSheets.map(s => `
-                                    <div>
-                                        <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:4px;">${escapeHtml(s.name)}</div>
+                                ${groupedSheets.map(s => {
+                                    const isCurrentBound = (!boundSheet || boundSheet.toLowerCase() === s.name.toLowerCase());
+                                    const opStyle = isCurrentBound ? '' : 'opacity:0.35;filter:grayscale(80%);';
+                                    return `
+                                    <div style="${opStyle}">
+                                        <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+                                            <i class="fa-solid fa-table" style="color:${isCurrentBound ? '#4F46E5' : '#94A3B8'};"></i>
+                                            <span>${escapeHtml(s.name)}</span>
+                                        </div>
                                         <div style="display:flex;flex-wrap:wrap;gap:5px;">
                                             ${(s.columns || []).map(col => `
-                                                <button type="button" class="draggable-chip-var" style="cursor:pointer;padding:3px 8px;font-size:11px;" onclick="insertVarToEditModal(${t.id}, '[${escapeHtml(col)}]')">
+                                                <button type="button" class="draggable-chip-var" style="cursor:pointer;padding:3px 8px;font-size:11px;" onclick="insertVarToEditModal(${t.id}, '[${escapeHtml(col)}]', '${escapeHtml(s.name)}')">
                                                     [${escapeHtml(col)}]
                                                 </button>
                                             `).join('')}
                                         </div>
                                     </div>
-                                `).join('')}
+                                    `;
+                                }).join('')}
                             </div>
                         </div>
                         <div style="display:flex;justify-content:flex-end;gap:6px;padding-top:6px;">
@@ -2935,12 +3017,19 @@ function cancelEditTemplate() {
     renderManageTemplatesList();
 }
 
-function insertVarToEditModal(id, varName) {
+function insertVarToEditModal(id, varName, sheetName) {
+    const boundSheet = getCurrentSheetBindingForEdit(id);
+    if (boundSheet && sheetName && boundSheet.toLowerCase() !== sheetName.toLowerCase()) {
+        alert(`Một mẫu tin chỉ được dùng các biến trong cùng một trang tính Google Sheet ("${boundSheet}")!\nKhông thể chèn thêm biến từ trang tính "${sheetName}".`);
+        return;
+    }
+
     const textarea = document.getElementById(`editTplContent_${id}`);
     if (textarea) {
         insertTextAtCursor(textarea, ' ' + varName + ' ');
         textarea.focus();
     }
+    renderManageTemplatesList();
 }
 
 function handleValidateEditShortcut(val, id) {
@@ -2968,19 +3057,53 @@ async function saveEditTemplate(id) {
     const title = titleInput ? titleInput.value.trim() : '';
     let shortcut = shortcutInput ? shortcutInput.value.trim() : '';
     const content = contentInput ? contentInput.value.trim() : '';
-    const sheetName = '';
 
-    if (!shortcut || !content) {
-        alert('Viết tắt và nội dung không được để trống');
+    if (!title) {
+        alert('Tiêu đề không được để trống!');
+        titleInput?.focus();
+        return;
+    }
+    if (!shortcut) {
+        alert('Viết tắt không được để trống!');
+        shortcutInput?.focus();
+        return;
+    }
+    if (!content) {
+        alert('Nội dung mẫu tin không được để trống!');
+        contentInput?.focus();
         return;
     }
 
-    // Kiểm tra trùng viết tắt ở client
-    const isDup = (AppState.templates || []).some(t => t.id !== id && (t.shortcut || '').trim().toLowerCase() === shortcut.toLowerCase());
-    if (isDup) {
-        alert(`Viết tắt "${shortcut}" đã được sử dụng bởi mẫu tin khác. Vui lòng chọn viết tắt khác!`);
+    const cleanTitle = title.toLowerCase();
+    const cleanShortcut = '/' + shortcut.replace(/^\/+/, '').toLowerCase();
+    const cleanContent = content.toLowerCase();
+
+    // 1. Kiểm tra trùng viết tắt
+    const dupShortcut = (AppState.templates || []).find(t => t.id !== id && (t.shortcut || '').replace(/^\/+/, '').trim().toLowerCase() === cleanShortcut.replace(/^\/+/, ''));
+    if (dupShortcut) {
+        alert(`Viết tắt "${shortcut}" đã được sử dụng bởi mẫu tin khác (Mẫu: "${dupShortcut.title || dupShortcut.shortcut}"). Vui lòng chọn viết tắt khác!`);
+        shortcutInput?.focus();
         return;
     }
+
+    // 2. Kiểm tra trùng tiêu đề
+    const dupTitle = (AppState.templates || []).find(t => t.id !== id && (t.title || '').trim().toLowerCase() === cleanTitle);
+    if (dupTitle) {
+        alert(`Tiêu đề "${title}" đã được sử dụng bởi mẫu tin khác. Vui lòng chọn tiêu đề khác!`);
+        titleInput?.focus();
+        return;
+    }
+
+    // 3. Kiểm tra trùng nội dung
+    const dupContent = (AppState.templates || []).find(t => t.id !== id && (t.content || '').trim().toLowerCase() === cleanContent);
+    if (dupContent) {
+        alert(`Nội dung mẫu tin này trùng lặp với mẫu tin "${dupContent.title || dupContent.shortcut}". Mỗi mẫu tin phải có nội dung riêng biệt!`);
+        contentInput?.focus();
+        return;
+    }
+
+    // Xác định đúng trang tính liên kết
+    const sheetName = getCurrentSheetBindingForEdit(id) || '';
 
     try {
         const payload = {
@@ -3038,7 +3161,35 @@ async function deleteTemplateItem(id, title) {
 // MODAL TẠO MẪU TIN NHẮN MỚI
 // --------------------------------------------------------
 
-function openCreateTemplateFromManage() {
+let currentCreateTplSheet = null;
+
+function getCurrentSheetBindingForCreate() {
+    const shortcut = document.getElementById('newTplShortcut')?.value || '';
+    const content = document.getElementById('newTplContent')?.value || '';
+    const allText = shortcut + ' ' + content;
+    const matches = allText.match(/\[([^\]]+)\]/g) || [];
+
+    if (matches.length === 0) {
+        currentCreateTplSheet = null;
+        return null;
+    }
+
+    for (const m of matches) {
+        const sh = getSheetOfVariable(m);
+        if (sh) {
+            currentCreateTplSheet = sh;
+            return sh;
+        }
+    }
+    return currentCreateTplSheet;
+}
+
+function clearCreateSheetBinding() {
+    currentCreateTplSheet = null;
+    renderCreateTemplateVarChips();
+}
+
+async function openCreateTemplateFromManage() {
     isOpenedFromManageTemplateModal = true;
     closeManageTemplatesModal();
 
@@ -3059,6 +3210,8 @@ function openCreateTemplateFromManage() {
     if (contentEl) contentEl.value = '';
     if (errMsg) errMsg.style.display = 'none';
 
+    currentCreateTplSheet = null;
+    await ensureSheetConfigLoaded();
     renderCreateTemplateVarChips();
     if (titleEl) titleEl.focus();
 }
@@ -3081,20 +3234,38 @@ function renderCreateTemplateVarChips() {
     const container = document.getElementById('tplCreateVarChipsContainer');
     if (!container) return;
 
+    const boundSheet = getCurrentSheetBindingForCreate();
     const grouped = getGroupedSheetVariables();
+
     let html = '';
+    if (boundSheet) {
+        html += `
+            <div style="background:#EEF2FF;border:1px solid #C7D2FE;color:#3730A3;padding:6px 12px;border-radius:6px;font-size:12px;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                <div><i class="fa-solid fa-link"></i> Đang liên kết: <strong>${escapeHtml(boundSheet)}</strong> (1 mẫu chỉ dùng biến của 1 trang tính)</div>
+                <button type="button" onclick="clearCreateSheetBinding()" style="background:none;border:none;color:#4F46E5;font-weight:700;font-size:11px;cursor:pointer;">Đổi trang tính</button>
+            </div>
+        `;
+    }
+
     grouped.forEach(s => {
         if (!s.columns || s.columns.length === 0) return;
+        const isCurrentBound = (!boundSheet || boundSheet.toLowerCase() === s.name.toLowerCase());
+        const opacityStyle = isCurrentBound ? '' : 'opacity:0.35;filter:grayscale(80%);';
+
         html += `
-            <div style="margin-bottom:8px;width:100%;">
-                <div style="font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;">${escapeHtml(s.name)}</div>
+            <div style="margin-bottom:8px;width:100%;${opacityStyle}">
+                <div style="font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+                    <i class="fa-solid fa-table" style="color:${isCurrentBound ? '#4F46E5' : '#94A3B8'};"></i>
+                    <span>${escapeHtml(s.name)}</span>
+                    ${boundSheet && boundSheet.toLowerCase() === s.name.toLowerCase() ? '<span style="font-size:10px;background:#C7D2FE;color:#3730A3;padding:1px 6px;border-radius:3px;font-weight:600;">Đang chọn</span>' : ''}
+                </div>
                 <div style="display:flex;flex-wrap:wrap;gap:6px;">
                     ${s.columns.map(col => `
                         <div class="draggable-chip-var" 
-                             draggable="true" 
-                             ondragstart="handleVarDragStart(event, '[${escapeHtml(col)}]')"
-                             onclick="insertVarToCreateModal('[${escapeHtml(col)}]')"
-                             title="Bấm để chèn hoặc Kéo thả vào ô nội dung/viết tắt">
+                             draggable="${isCurrentBound}" 
+                             ondragstart="handleVarDragStart(event, '[${escapeHtml(col)}]', '${escapeHtml(s.name)}')"
+                             onclick="insertVarToCreateModal('[${escapeHtml(col)}]', '${escapeHtml(s.name)}')"
+                             title="${isCurrentBound ? 'Bấm để chèn hoặc Kéo thả vào ô nội dung/viết tắt' : 'Không thể chọn (Khác trang tính đã liên kết)'}">
                             [${escapeHtml(col)}]
                         </div>
                     `).join('')}
@@ -3110,8 +3281,15 @@ function renderCreateTemplateVarChips() {
 // KÉO THẢ BIẾN ĐỘNG (HTML5 DRAG & DROP API)
 // --------------------------------------------------------
 
-function handleVarDragStart(event, varName) {
+function handleVarDragStart(event, varName, sheetName) {
+    const boundSheet = getCurrentSheetBindingForCreate();
+    if (boundSheet && sheetName && boundSheet.toLowerCase() !== sheetName.toLowerCase()) {
+        event.preventDefault();
+        alert(`Một mẫu tin chỉ được dùng các biến trong cùng một trang tính Google Sheet ("${boundSheet}")!\nKhông thể kéo biến từ trang tính "${sheetName}".`);
+        return;
+    }
     event.dataTransfer.setData('text/plain', varName);
+    event.dataTransfer.setData('sheet-name', sheetName || '');
     event.dataTransfer.effectAllowed = 'copy';
 }
 
@@ -3136,22 +3314,42 @@ function handleVarDrop(event, targetId) {
     el.classList.remove('input-drag-over');
 
     const varName = event.dataTransfer.getData('text/plain');
+    const sheetName = event.dataTransfer.getData('sheet-name');
     if (!varName) return;
+
+    const boundSheet = getCurrentSheetBindingForCreate();
+    if (boundSheet && sheetName && boundSheet.toLowerCase() !== sheetName.toLowerCase()) {
+        alert(`Một mẫu tin chỉ được dùng các biến trong cùng một trang tính Google Sheet ("${boundSheet}")!\nKhông thể chèn biến từ trang tính "${sheetName}".`);
+        return;
+    }
 
     insertTextAtCursor(el, ' ' + varName + ' ');
     el.focus();
+
+    if (sheetName) {
+        currentCreateTplSheet = sheetName;
+    }
+    renderCreateTemplateVarChips();
 
     if (targetId === 'newTplShortcut') {
         handleValidateNewShortcut(el.value);
     }
 }
 
-function insertVarToCreateModal(varName) {
+function insertVarToCreateModal(varName, sheetName) {
+    const boundSheet = getCurrentSheetBindingForCreate();
+    if (boundSheet && sheetName && boundSheet.toLowerCase() !== sheetName.toLowerCase()) {
+        alert(`Một mẫu tin chỉ được dùng các biến trong cùng một trang tính Google Sheet ("${boundSheet}")!\nKhông thể chèn thêm biến từ trang tính "${sheetName}".`);
+        return;
+    }
+
     const contentEl = document.getElementById('newTplContent');
     if (contentEl) {
         insertTextAtCursor(contentEl, ' ' + varName + ' ');
         contentEl.focus();
     }
+    currentCreateTplSheet = sheetName || boundSheet;
+    renderCreateTemplateVarChips();
 }
 
 function insertTextAtCursor(inputEl, text) {
@@ -3193,20 +3391,53 @@ async function saveNewTemplateRecord() {
     const title = titleEl ? titleEl.value.trim() : '';
     let shortcut = shortcutEl ? shortcutEl.value.trim() : '';
     const content = contentEl ? contentEl.value.trim() : '';
-    const sheetName = '';
 
-    if (!title || !shortcut || !content) {
-        alert('Vui lòng điền đầy đủ Tiêu đề, Viết tắt và Nội dung mẫu tin');
+    if (!title) {
+        alert('Vui lòng nhập Tiêu đề gợi nhớ!');
+        titleEl?.focus();
+        return;
+    }
+    if (!shortcut) {
+        alert('Vui lòng nhập Viết tắt!');
+        shortcutEl?.focus();
+        return;
+    }
+    if (!content) {
+        alert('Vui lòng nhập Nội dung mẫu tin!');
+        contentEl?.focus();
         return;
     }
 
-    // Kiểm tra trùng lặp
-    const isDup = (AppState.templates || []).some(t => (t.shortcut || '').trim().toLowerCase() === shortcut.toLowerCase());
-    if (isDup) {
-        alert(`Viết tắt "${shortcut}" đã tồn tại trong hệ thống. Vui lòng chọn viết tắt khác!`);
-        toggleShortcutError(true);
+    const cleanTitle = title.toLowerCase();
+    const cleanShortcut = '/' + shortcut.replace(/^\/+/, '').toLowerCase();
+    const cleanContent = content.toLowerCase();
+
+    // 1. Kiểm tra trùng viết tắt
+    const dupShortcut = (AppState.templates || []).find(t => (t.shortcut || '').replace(/^\/+/, '').trim().toLowerCase() === cleanShortcut.replace(/^\/+/, ''));
+    if (dupShortcut) {
+        alert(`Viết tắt "${shortcut}" đã tồn tại trong hệ thống (Mẫu: "${dupShortcut.title || dupShortcut.shortcut}"). Vui lòng chọn viết tắt khác!`);
+        shortcutEl?.focus();
         return;
     }
+
+    // 2. Kiểm tra trùng tiêu đề
+    const dupTitle = (AppState.templates || []).find(t => (t.title || '').trim().toLowerCase() === cleanTitle);
+    if (dupTitle) {
+        alert(`Tiêu đề "${title}" đã được sử dụng bởi mẫu tin khác. Vui lòng chọn tiêu đề khác!`);
+        titleEl?.focus();
+        return;
+    }
+
+    // 3. Kiểm tra trùng nội dung
+    const dupContent = (AppState.templates || []).find(t => (t.content || '').trim().toLowerCase() === cleanContent);
+    if (dupContent) {
+        alert(`Nội dung mẫu tin này trùng lặp với mẫu tin "${dupContent.title || dupContent.shortcut}". Mỗi mẫu tin phải có nội dung riêng biệt!`);
+        contentEl?.focus();
+        return;
+    }
+
+    // Xác định đúng sheetName được dùng
+    const sheetName = getCurrentSheetBindingForCreate() || '';
 
     try {
         const payload = {

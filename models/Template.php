@@ -49,12 +49,61 @@ class Template {
         return (bool)$stmt->fetch();
     }
 
+    public function checkDuplicates($shortcut, $title, $content, $excludeId = null) {
+        $shortcut = '/' . ltrim(trim($shortcut), '/');
+        $title = trim($title);
+        $content = trim($content);
+
+        // 1. Kiểm tra phím tắt
+        $sql = "SELECT id FROM templates WHERE LOWER(shortcut) = LOWER(:shortcut)";
+        $params = [':shortcut' => $shortcut];
+        if ($excludeId) {
+            $sql .= " AND id != :id";
+            $params[':id'] = (int)$excludeId;
+        }
+        $sql .= " LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        if ($stmt->fetch()) {
+            throw new Exception("Viết tắt '{$shortcut}' đã được sử dụng bởi mẫu tin khác");
+        }
+
+        // 2. Kiểm tra tiêu đề
+        if (!empty($title)) {
+            $sql = "SELECT id FROM templates WHERE LOWER(title) = LOWER(:title)";
+            $params = [':title' => $title];
+            if ($excludeId) {
+                $sql .= " AND id != :id";
+                $params[':id'] = (int)$excludeId;
+            }
+            $sql .= " LIMIT 1";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            if ($stmt->fetch()) {
+                throw new Exception("Tiêu đề '{$title}' đã được sử dụng bởi mẫu tin khác");
+            }
+        }
+
+        // 3. Kiểm tra nội dung
+        if (!empty($content)) {
+            $sql = "SELECT id FROM templates WHERE LOWER(content) = LOWER(:content)";
+            $params = [':content' => $content];
+            if ($excludeId) {
+                $sql .= " AND id != :id";
+                $params[':id'] = (int)$excludeId;
+            }
+            $sql .= " LIMIT 1";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            if ($stmt->fetch()) {
+                throw new Exception("Nội dung mẫu tin này đã trùng với một mẫu tin sẵn có");
+            }
+        }
+    }
+
     public function create($shortcut, $title, $content, $userId, $variablesJson = null, $sheetName = null) {
         $shortcut = '/' . ltrim(trim($shortcut), '/');
-        
-        if ($this->checkShortcutExists($shortcut)) {
-            throw new Exception("Phím tắt '{$shortcut}' đã được sử dụng bởi mẫu tin khác");
-        }
+        $this->checkDuplicates($shortcut, $title, $content);
 
         $stmt = $this->db->prepare("
             INSERT INTO templates (shortcut, title, content, variables_json, sheet_name, created_by_user_id, created_at)
@@ -72,10 +121,7 @@ class Template {
 
     public function update($id, $shortcut, $title, $content, $variablesJson = null, $sheetName = null) {
         $shortcut = '/' . ltrim(trim($shortcut), '/');
-
-        if ($this->checkShortcutExists($shortcut, $id)) {
-            throw new Exception("Phím tắt '{$shortcut}' đã được sử dụng bởi mẫu tin khác");
-        }
+        $this->checkDuplicates($shortcut, $title, $content, $id);
 
         $stmt = $this->db->prepare("
             UPDATE templates 
