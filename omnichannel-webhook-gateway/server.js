@@ -230,10 +230,14 @@ app.get(['/public/widget/webchat.js', '/widget/webchat.js', '/webchat.js'], (req
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
 
-    // Phục vụ trực tiếp từ tệp gốc duy nhất của dự án: public/widget/webchat.js
-    const rootPath = path.resolve(__dirname, '../public/widget/webchat.js');
-    if (fs.existsSync(rootPath)) {
-        return res.sendFile(rootPath);
+    const candidatePaths = [
+        path.resolve(__dirname, 'public/widget/webchat.js'),
+        path.resolve(__dirname, '../public/widget/webchat.js')
+    ];
+    for (const p of candidatePaths) {
+        if (fs.existsSync(p)) {
+            return res.sendFile(p);
+        }
     }
     res.status(404).send('// webchat.js not found');
 });
@@ -242,6 +246,11 @@ const widgetStaticPath = path.join(__dirname, '../public/widget');
 if (fs.existsSync(widgetStaticPath)) {
     app.use('/public/widget', express.static(widgetStaticPath));
     app.use('/widget', express.static(widgetStaticPath));
+}
+const localWidgetStaticPath = path.join(__dirname, 'public/widget');
+if (fs.existsSync(localWidgetStaticPath)) {
+    app.use('/public/widget', express.static(localWidgetStaticPath));
+    app.use('/widget', express.static(localWidgetStaticPath));
 }
 
 // Khởi tạo phiên Webchat
@@ -306,16 +315,24 @@ const http = require('http');
 function fetchRemoteImageStream(targetUrl, maxRedirects = 5) {
     return new Promise((resolve, reject) => {
         if (maxRedirects <= 0) return reject(new Error('Quá nhiều redirect'));
-        const client = targetUrl.startsWith('https') ? https : http;
+        let parsed;
+        try {
+            parsed = new URL(targetUrl);
+        } catch (e) {
+            return reject(new Error('Invalid URL: ' + targetUrl));
+        }
+        const client = parsed.protocol === 'https:' ? https : http;
         
         client.get(targetUrl, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
             }
         }, (res) => {
             // Xử lý chuyển hướng 301, 302, 307
             if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-                return resolve(fetchRemoteImageStream(res.headers.location, maxRedirects - 1));
+                const nextUrl = new URL(res.headers.location, targetUrl).toString();
+                return resolve(fetchRemoteImageStream(nextUrl, maxRedirects - 1));
             }
             if (res.statusCode !== 200) {
                 return reject(new Error('Upstream error: ' + res.statusCode));
@@ -331,13 +348,21 @@ app.get('/api/proxy-image', async (req, res) => {
 
     try {
         const targetUrl = decodeURIComponent(rawUrl);
-        const remoteStream = await fetchRemoteImageStream(targetUrl);
+        let remoteStream = null;
+        try {
+            remoteStream = await fetchRemoteImageStream(targetUrl);
+        } catch (fetchErr) {
+            // Nếu fetch trực tiếp từ nguồn (Google Sheets) bị lỗi (như token phiên hết hạn),
+            // thử fallback lấy từ bộ đệm của CRM host
+            const crmFallbackUrl = 'https://omnichannel.gt.tc/api/google_sheet_action.php?action=proxy_image&url=' + encodeURIComponent(targetUrl);
+            remoteStream = await fetchRemoteImageStream(crmFallbackUrl);
+        }
 
         const contentType = remoteStream.headers['content-type'] || 'image/jpeg';
         res.setHeader('Content-Type', contentType);
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.setHeader('Cache-Control', 'public, max-age=31536000');
 
         remoteStream.pipe(res);
     } catch (err) {

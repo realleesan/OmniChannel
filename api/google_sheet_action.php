@@ -16,6 +16,12 @@ $action = $_POST['action'] ?? $_GET['action'] ?? 'get_status';
 // --------------------------------------------------------
 if ($action === 'proxy_image') {
     while (ob_get_level() > 0) { @ob_end_clean(); }
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Methods: GET, OPTIONS');
+    header('Access-Control-Allow-Headers: *');
+    header('Cross-Origin-Resource-Policy: cross-origin');
+    if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { exit; }
+
     $imgUrl = $_GET['url'] ?? '';
     if (empty($imgUrl) || !filter_var($imgUrl, FILTER_VALIDATE_URL)) {
         header('HTTP/1.1 400 Bad Request');

@@ -7,12 +7,14 @@
 
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Headers: *');
 header('Content-Type: application/json; charset=utf-8');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
+
+while (ob_get_level() > 0) { @ob_end_clean(); }
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../models/Conversation.php';
@@ -25,10 +27,11 @@ if (!empty($customerId)) {
         $convModel->setCustomerSeenByExternalId($customerId, 1);
         echo json_encode(['success' => true, 'message' => 'Đã ghi nhận khách hàng đã xem']);
         exit;
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         exit;
     }
 }
 
 echo json_encode(['success' => false, 'message' => 'Thiếu customer_id']);
+

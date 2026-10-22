@@ -1697,13 +1697,14 @@
         return trimmed.split(',').map(u => u.trim()).filter(Boolean);
     }
 
-    // Helper: Bọc link ảnh Google qua proxy có bộ đệm cache vĩnh viễn của CRM
+    // Helper: Bọc link ảnh Google qua proxy an toàn của Node.js Gateway (tránh lỗi CORS và NotSameSite khi nhúng đa miền)
     function toDisplayImageUrl(url) {
         if (!url) return '';
         const u = String(url).trim();
         if (u.includes('proxy-image') || u.includes('proxy_image.php') || u.includes('action=proxy_image')) return u;
         if (u.includes('docs.google.com') || u.includes('sheets-images') || u.includes('googleusercontent.com') || u.includes('drive.google.com')) {
-            return `https://omnichannel.gt.tc/api/google_sheet_action.php?action=proxy_image&url=${encodeURIComponent(u)}`;
+            const gatewayBase = endpointUrl.replace(/\/api\/webchat\/?$/, '');
+            return `${gatewayBase}/api/proxy-image?url=${encodeURIComponent(u)}`;
         }
         return u;
     }
