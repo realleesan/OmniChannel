@@ -3392,16 +3392,10 @@ body {
     display: flex;
     flex-direction: column;
     gap: 3px;
-    transition: all 0.12s ease;
-    border-left: 3px solid transparent;
+    transition: background 0.15s ease;
 }
 
-.suggest-item:hover, .suggest-item.is-selected {
-    background: #F1F5F9;
-    border-left-color: var(--primary);
-}
-
-.suggest-item.is-selected {
+.suggest-item:hover {
     background: #EEF2FF;
 }
 

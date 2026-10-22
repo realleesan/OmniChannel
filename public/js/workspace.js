@@ -924,7 +924,8 @@ async function sendMessage(attachmentUrl = null) {
 
     AppState.isSending = true;
     input.value = '';
-    document.getElementById('shortcutPreviewBar').style.display = 'none';
+    const previewBar = document.getElementById('shortcutPreviewBar');
+    if (previewBar) previewBar.style.display = 'none';
 
     try {
         const payload = {
@@ -1045,71 +1046,14 @@ let pendingTemplateForSheetPicker = null;
 let shortcutDebounceTimer = null;
 
 function handleChatKeyDown(e) {
-    const suggestPopup = document.getElementById('templateSuggestPopup');
-    const isSuggestOpen = (suggestPopup && suggestPopup.style.display !== 'none');
-    const sheetPicker = document.getElementById('suggestSheetPicker');
-    const isPickerOpen = (sheetPicker && sheetPicker.style.display !== 'none');
-    const input = document.getElementById('chatInput');
-    const val = input.value;
-
     // 1. Phím Escape: Đóng mọi popup gợi ý
     if (e.key === 'Escape') {
         closeShortcutSuggestPopup();
         return;
     }
 
-    // 2. Điều hướng phím mũi tên khi Popup gợi ý đang mở
-    if (isSuggestOpen) {
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            if (isPickerOpen) {
-                navigateSheetPicker(1);
-            } else {
-                navigateSuggestList(1);
-            }
-            return;
-        }
-
-        if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            if (isPickerOpen) {
-                navigateSheetPicker(-1);
-            } else {
-                navigateSuggestList(-1);
-            }
-            return;
-        }
-
-        // Phím Enter hoặc Tab: Chọn mục đang trỏ
-        if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey) {
-            if (isPickerOpen) {
-                e.preventDefault();
-                selectActiveSheetPickerRow();
-                return;
-            } else if (suggestSelectedIndex >= 0 && activeSuggestTemplates[suggestSelectedIndex]) {
-                e.preventDefault();
-                selectSuggestTemplate(activeSuggestTemplates[suggestSelectedIndex]);
-                return;
-            }
-        }
-    }
-
-    // 3. Phím Enter khi người dùng tự gõ nhanh "/sp 3" hoặc "/id=3" hoặc "/chao"
+    // 2. Phím Enter thông thường: gửi tin nhắn
     if (e.key === 'Enter' && !e.shiftKey) {
-        const trimmed = val.trim();
-        if (trimmed.startsWith('/')) {
-            // Thử giải phóng trực tiếp phím tắt
-            const resolved = tryResolveShortcutSync(trimmed);
-            if (resolved) {
-                e.preventDefault();
-                input.value = resolved;
-                closeShortcutSuggestPopup();
-                showToast('⚡ Đã điền mẫu tin nhắn thành công!', 'info');
-                return;
-            }
-        }
-
-        // Gửi tin nhắn thông thường
         e.preventDefault();
         sendMessage();
     }
@@ -1142,18 +1086,7 @@ function processShortcutInput(val) {
         return;
     }
 
-    // Kiểm tra xem có giải phóng trực tiếp được không (ví dụ: "/sp 3" với tham số)
-    const directResolved = tryResolveShortcutSync(clean);
-    if (directResolved) {
-        window.CURRENT_RESOLVED_TEMPLATE = directResolved;
-        if (previewBar) {
-            previewBar.style.display = 'flex';
-            document.getElementById('shortcutPreviewText').innerHTML =
-                `<i class="fa-solid fa-bolt" style="color:#10B981;"></i> <strong>Đã nhận diện:</strong> ${escapeHtml(directResolved.substring(0, 75))}...`;
-        }
-    } else {
-        if (previewBar) previewBar.style.display = 'none';
-    }
+    if (previewBar) previewBar.style.display = 'none';
 
     // Lọc danh sách mẫu tin phù hợp từ AppState.templates
     const query = clean.substring(1).toLowerCase().trim(); // bỏ dấu /
@@ -1172,15 +1105,12 @@ function processShortcutInput(val) {
     }
 
     if (activeSuggestTemplates.length > 0) {
-        suggestSelectedIndex = 0;
+        suggestSelectedIndex = -1; // Không chọn item đầu tiên, không bôi xanh sẵn
         renderSuggestTemplatesList(activeSuggestTemplates);
         if (popup) popup.style.display = 'flex';
         hideSheetRowPicker();
     } else {
         closeShortcutSuggestPopup();
-        if (clean.length > 1) {
-            fetchResolvedShortcut(clean);
-        }
     }
 }
 
@@ -1190,19 +1120,13 @@ function renderSuggestTemplatesList(templates) {
 
     let html = '';
     templates.forEach((t, idx) => {
-        const isSelected = (idx === suggestSelectedIndex);
-        const hasVars = /\[([^\]]+)\]/.test(t.content || '') || /\[([^\]]+)\]/.test(t.shortcut || '');
-        const varMatches = (t.content || '').match(/\[([^\]]+)\]/g) || [];
-        const uniqueVars = [...new Set(varMatches)];
-
         html += `
-            <div class="suggest-item ${isSelected ? 'is-selected' : ''}" 
+            <div class="suggest-item" 
                  id="suggestItem_${idx}" 
                  onclick="selectSuggestTemplateByIndex(${idx})">
                 <div class="suggest-item-top">
                     <span class="suggest-item-shortcut">${escapeHtml(t.shortcut)}</span>
                     <span class="suggest-item-title">${escapeHtml(t.title || 'Mẫu tin')}</span>
-                    ${hasVars ? `<span class="suggest-item-vars-tag"><i class="fa-solid fa-wand-magic-sparkles"></i> Biến: ${uniqueVars.slice(0, 3).join(', ')}</span>` : ''}
                 </div>
                 <div class="suggest-item-snippet">${escapeHtml(t.content || '')}</div>
             </div>
@@ -1213,23 +1137,7 @@ function renderSuggestTemplatesList(templates) {
 }
 
 function navigateSuggestList(direction) {
-    if (!activeSuggestTemplates || activeSuggestTemplates.length === 0) return;
-
-    suggestSelectedIndex += direction;
-    if (suggestSelectedIndex < 0) {
-        suggestSelectedIndex = activeSuggestTemplates.length - 1;
-    } else if (suggestSelectedIndex >= activeSuggestTemplates.length) {
-        suggestSelectedIndex = 0;
-    }
-
-    document.querySelectorAll('#suggestTemplatesList .suggest-item').forEach((el, idx) => {
-        el.classList.toggle('is-selected', idx === suggestSelectedIndex);
-    });
-
-    const activeEl = document.getElementById(`suggestItem_${suggestSelectedIndex}`);
-    if (activeEl) {
-        activeEl.scrollIntoView({ block: 'nearest' });
-    }
+    // Không dùng phím mũi tên điều hướng gợi ý nữa
 }
 
 function selectSuggestTemplateByIndex(idx) {

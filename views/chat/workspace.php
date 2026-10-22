@@ -31,7 +31,7 @@ if (!$currentUser) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OmniChat - Bàn làm việc tư vấn viên</title>
-    <link rel="stylesheet" href="../../public/css/style.css">
+    <link rel="stylesheet" href="../../public/css/style.css?v=<?= time() ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -270,9 +270,7 @@ if (!$currentUser) {
             <div class="template-suggest-popup" id="templateSuggestPopup" style="display:none;">
                 <div class="suggest-popup-header">
                     <div class="suggest-header-title">
-                        <i class="fa-solid fa-bolt" style="color:var(--primary);"></i>
                         <span>Mẫu Trả Lời Nhanh</span>
-                        <span class="suggest-hint-kbd">↑↓ phím mũi tên &bull; Enter chọn</span>
                     </div>
                     <button type="button" class="btn-close-suggest" onclick="closeShortcutSuggestPopup()">&times;</button>
                 </div>
@@ -288,14 +286,6 @@ if (!$currentUser) {
                     </div>
                     <div class="suggest-sheet-rows-list" id="suggestSheetRowsList"></div>
                 </div>
-            </div>
-
-            <!-- Thanh preview phím tắt / trực tiếp khi đang gõ -->
-            <div class="template-shortcut-preview" id="shortcutPreviewBar" style="display:none;">
-                <span id="shortcutPreviewText"><i class="fa-solid fa-bolt"></i> Gợi ý: Gõ <strong>/</strong> để chọn mẫu câu trả lời nhanh</span>
-                <button type="button" class="btn-apply-shortcut" onclick="applyShortcutDirectly()">
-                    <span>Điền mẫu</span> <i class="fa-solid fa-arrow-turn-down"></i>
-                </button>
             </div>
 
             <div class="chat-input-wrapper">
