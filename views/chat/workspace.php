@@ -745,50 +745,52 @@ if (!$currentUser) {
 
 <!-- Modal Chỉnh Sửa Hồ Sơ Khách Hàng (8 trường chuẩn) -->
 <div class="modal-overlay" id="modalEditCustomerProfile" style="display:none;z-index:100100;">
-    <div class="modal-content" style="max-width: 520px; width: 92%;">
-        <div class="modal-header">
-            <h3 class="modal-title" style="margin:0;font-size:16px;">Chỉnh Sửa Thông Tin Khách Hàng</h3>
+    <div class="modal-content" style="max-width: 520px; width: 94%; border-radius: 14px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); overflow: hidden;">
+        <div class="modal-header" style="padding: 16px 22px; border-bottom: 1px solid #E2E8F0; background: #FFFFFF;">
+            <h3 class="modal-title" style="margin:0; font-size:16px; font-weight:700; color:#0F172A; display:flex; align-items:center; gap:8px;">
+                <i class="fa-solid fa-pen-to-square" style="color:var(--primary); font-size:15px;"></i> Chỉnh Sửa Thông Tin Khách Hàng
+            </h3>
             <button type="button" class="modal-close-btn" onclick="closeEditCustomerProfileModal()">&times;</button>
         </div>
-        <div class="modal-body" style="padding:16px 20px; max-height: 75vh; overflow-y: auto;">
-            <form id="formEditCustomerProfile" onsubmit="event.preventDefault(); handleSaveCustomerProfileModal();">
-                <div class="form-group" style="margin-bottom:12px;">
-                    <label class="form-label">Họ và tên:</label>
-                    <input type="text" class="form-control" id="modalInputRealName" placeholder="Nhập họ và tên...">
+        <div class="modal-body" style="padding: 18px 22px; max-height: 72vh; overflow-y: auto;">
+            <form id="formEditCustomerProfile" onsubmit="event.preventDefault(); handleSaveCustomerProfileModal();" style="display:flex; flex-direction:column; gap:12px;">
+                <div class="form-group">
+                    <label class="form-label" style="font-weight:600; color:#334155;">Họ và tên:</label>
+                    <input type="text" class="form-input" id="modalInputRealName" placeholder="Nhập họ và tên thật của khách...">
                 </div>
-                <div class="form-group" style="margin-bottom:12px;">
-                    <label class="form-label">Số điện thoại:</label>
-                    <input type="text" class="form-control" id="modalInputPhone" placeholder="Nhập số điện thoại...">
+                <div class="form-group">
+                    <label class="form-label" style="font-weight:600; color:#334155;">Số điện thoại:</label>
+                    <input type="text" class="form-input" id="modalInputPhone" placeholder="Nhập số điện thoại...">
                 </div>
-                <div class="form-group" style="margin-bottom:12px;">
-                    <label class="form-label">Địa chỉ:</label>
-                    <input type="text" class="form-control" id="modalInputAddress" placeholder="Nhập địa chỉ giao hàng...">
+                <div class="form-group">
+                    <label class="form-label" style="font-weight:600; color:#334155;">Địa chỉ:</label>
+                    <input type="text" class="form-input" id="modalInputAddress" placeholder="Nhập địa chỉ giao hàng...">
                 </div>
-                <div class="form-group" style="margin-bottom:12px;">
-                    <label class="form-label">Số đo:</label>
-                    <input type="text" class="form-control" id="modalInputBodyMeasurements" placeholder="Ví dụ: Size L, cao 1m70, nặng 65kg...">
+                <div class="form-group">
+                    <label class="form-label" style="font-weight:600; color:#334155;">Số đo:</label>
+                    <input type="text" class="form-input" id="modalInputBodyMeasurements" placeholder="Ví dụ: Size L, cao 1m70, nặng 65kg...">
                 </div>
-                <div class="form-group" style="margin-bottom:12px;">
-                    <label class="form-label">Sản phẩm quan tâm:</label>
-                    <textarea class="form-control" id="modalInputCustomerNeeds" rows="2" placeholder="Sản phẩm hoặc nhu cầu khách quan tâm..."></textarea>
+                <div class="form-group">
+                    <label class="form-label" style="font-weight:600; color:#334155;">Sản phẩm quan tâm:</label>
+                    <textarea class="form-textarea" id="modalInputCustomerNeeds" rows="2" placeholder="Sản phẩm hoặc nhu cầu khách quan tâm..."></textarea>
                 </div>
-                <div class="form-group" style="margin-bottom:12px;">
-                    <label class="form-label">Đơn hàng từng mua:</label>
-                    <textarea class="form-control" id="modalInputRecentPurchases" rows="2" placeholder="Đơn hàng hoặc sản phẩm đã từng chốt..."></textarea>
+                <div class="form-group">
+                    <label class="form-label" style="font-weight:600; color:#334155;">Đơn hàng từng mua:</label>
+                    <textarea class="form-textarea" id="modalInputRecentPurchases" rows="2" placeholder="Đơn hàng hoặc sản phẩm đã từng chốt..."></textarea>
                 </div>
-                <div class="form-group" style="margin-bottom:12px;">
-                    <label class="form-label">Ghi chú:</label>
-                    <textarea class="form-control" id="modalInputNotes" rows="2" placeholder="Ghi chú về khách hàng..."></textarea>
+                <div class="form-group">
+                    <label class="form-label" style="font-weight:600; color:#334155;">Ghi chú:</label>
+                    <textarea class="form-textarea" id="modalInputNotes" rows="2" placeholder="Ghi chú về khách hàng..."></textarea>
                 </div>
-                <div class="form-group" style="margin-bottom:4px;">
-                    <label class="form-label">Tóm tắt hội thoại:</label>
-                    <textarea class="form-control" id="modalInputSummary" rows="2" placeholder="Tóm tắt ngắn nội dung cuộc trò chuyện..."></textarea>
+                <div class="form-group">
+                    <label class="form-label" style="font-weight:600; color:#334155;">Tóm tắt hội thoại:</label>
+                    <textarea class="form-textarea" id="modalInputSummary" rows="2" placeholder="Tóm tắt ngắn nội dung cuộc trò chuyện..."></textarea>
                 </div>
             </form>
         </div>
-        <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;padding:12px 20px;">
-            <button type="button" class="tab-btn" onclick="closeEditCustomerProfileModal()">Hủy</button>
-            <button type="button" class="btn-send-message" id="btnSaveCustomerProfileModal" onclick="handleSaveCustomerProfileModal()">
+        <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center; padding:14px 22px; border-top: 1px solid #E2E8F0; background:#FAFBFD;">
+            <button type="button" class="tab-btn" onclick="closeEditCustomerProfileModal()" style="padding: 8px 18px; border-radius: 8px; font-weight:600;">Hủy</button>
+            <button type="button" class="btn-send-message" id="btnSaveCustomerProfileModal" onclick="handleSaveCustomerProfileModal()" style="padding: 8px 22px; border-radius: 8px; font-weight:700;">
                 Lưu Thay Đổi
             </button>
         </div>

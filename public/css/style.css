@@ -2392,19 +2392,29 @@ body {
     color: #334155;
 }
 
-.form-input, .form-textarea {
+.form-input, .form-textarea, .form-control {
     width: 100%;
     padding: 9px 12px;
     border: 1px solid var(--border);
     border-radius: 8px;
     font-size: 13.5px;
+    font-family: inherit;
     outline: none;
     transition: all 0.2s;
+    background: #FFFFFF;
+    color: #1E293B;
+    box-sizing: border-box;
 }
 
-.form-input:focus, .form-textarea:focus {
+.form-input:focus, .form-textarea:focus, .form-control:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px var(--primary-ring);
+}
+
+.form-textarea, textarea.form-control {
+    resize: vertical;
+    min-height: 52px;
+    line-height: 1.45;
 }
 
 .variable-insert-bar {

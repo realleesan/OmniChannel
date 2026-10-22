@@ -1575,12 +1575,13 @@ function renderProfileSidebar(profile, conv, assignedLabels) {
     // Lưu lại profile hiện tại vào AppState để Modal dễ dùng
     AppState.currentCustomerProfile = profile;
 
-    const customerName = profile.real_name || profile.customer_name || (conv && conv.sender_name) || 'Khách Hàng';
+    // Tên tài khoản kênh: Giữ nguyên theo tài khoản kênh trò chuyện (conv.sender_name), không lấy real_name
+    const channelAccountName = (conv && conv.sender_name) || (AppState.activeConversation && AppState.activeConversation.sender_name) || profile.customer_name || 'Khách Hàng';
     const profileCustNameEl = document.getElementById('profileCustomerName');
-    if (profileCustNameEl) profileCustNameEl.innerText = customerName;
+    if (profileCustNameEl) profileCustNameEl.innerText = channelAccountName;
 
     const rightCustAvtEl = document.getElementById('rightCustomerAvatar');
-    if (rightCustAvtEl) rightCustAvtEl.innerText = customerName.charAt(0).toUpperCase();
+    if (rightCustAvtEl) rightCustAvtEl.innerText = channelAccountName.charAt(0).toUpperCase();
 
     if (conv) {
         const rightAvatarChannelIcon = document.getElementById('rightAvatarChannelIcon');
@@ -1677,7 +1678,7 @@ async function handleUpdateCustomerProfile() {
 
         if (data.success && data.data && data.data.profile) {
             if (btn) btn.innerText = 'ĐÃ CẬP NHẬT XONG!';
-            renderProfileSidebar(data.data.profile, { id: AppState.activeConvId });
+            renderProfileSidebar(data.data.profile, AppState.activeConversation);
 
             // Hiệu ứng highlight các trường vừa được AI phát hiện
             const extracted = data.data.extracted || {};
@@ -1828,14 +1829,8 @@ async function handleSaveCustomerProfileModal() {
         const data = await res.json();
 
         if (data.success && data.data && data.data.profile) {
-            renderProfileSidebar(data.data.profile, { id: AppState.activeConvId });
+            renderProfileSidebar(data.data.profile, AppState.activeConversation);
             closeEditCustomerProfileModal();
-
-            // Nếu đổi tên thật thì đồng bộ luôn header hội thoại
-            if (realName) {
-                const headSender = document.getElementById('activeSenderName');
-                if (headSender) headSender.innerText = realName;
-            }
         } else {
             alert(data.message || 'Lỗi lưu hồ sơ khách hàng.');
         }
