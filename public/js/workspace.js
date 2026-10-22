@@ -822,7 +822,7 @@ function buildMediaGridHtml(urls, senderName, displayTime, msgId, isStaff) {
 
         itemsHtml += `
             <div class="omni-media-item" onclick="openLightboxFromGrid('${msgId}', ${i})" title="Bấm để xem ảnh phóng to">
-                <img src="${escapeHtml(u)}" alt="Ảnh tin nhắn" loading="lazy">
+                <img src="${escapeHtml(u)}" alt="Ảnh tin nhắn" loading="lazy" referrerpolicy="no-referrer">
                 ${isLastMore ? `<div class="omni-media-overlay-more">+${moreCount}</div>` : ''}
             </div>
         `;
@@ -3834,7 +3834,7 @@ function ensureLightboxModalInDom() {
                 <i class="fa-solid fa-chevron-left"></i>
             </button>
             <div class="lightbox-main-container">
-                <img id="lightboxMainImg" class="lightbox-main-img" src="" alt="Ảnh phóng to">
+                <img id="lightboxMainImg" class="lightbox-main-img" src="" alt="Ảnh phóng to" referrerpolicy="no-referrer">
             </div>
             <button type="button" class="lightbox-nav-btn" id="lightboxNextBtn" onclick="navigateLightbox(1)" title="Ảnh tiếp (→ hoặc ↓)">
                 <i class="fa-solid fa-chevron-right"></i>
@@ -3923,7 +3923,7 @@ function renderLightboxThumbs() {
     strip.style.display = 'flex';
     strip.innerHTML = urls.map((u, idx) => `
         <div class="lightbox-thumb-item ${idx === currentLightboxState.currentIndex ? 'active' : ''}" onclick="selectLightboxIndex(${idx})">
-            <img src="${escapeHtml(u)}" alt="Thumb ${idx + 1}">
+            <img src="${escapeHtml(u)}" alt="Thumb ${idx + 1}" referrerpolicy="no-referrer">
         </div>
     `).join('');
 }

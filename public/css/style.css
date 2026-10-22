@@ -1341,7 +1341,8 @@ body {
 /* Message Bubbles */
 .message-item {
     display: flex;
-    max-width: 72%;
+    max-width: 65%;
+    width: fit-content;
     margin-bottom: 8px;
 }
 
@@ -1378,9 +1379,20 @@ body {
 .message-bubble-wrap {
     display: flex;
     flex-direction: column;
+    max-width: 100%;
+}
+
+.message-item.customer .message-bubble-wrap {
+    align-items: flex-start;
+}
+
+.message-item.staff .message-bubble-wrap {
+    align-items: flex-end;
 }
 
 .message-bubble {
+    width: fit-content;
+    max-width: 100%;
     padding: 10px 14px;
     border-radius: var(--radius-lg);
     font-size: 13.5px;
