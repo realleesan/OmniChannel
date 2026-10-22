@@ -675,7 +675,7 @@ if (!$currentUser) {
             <div class="form-group">
                 <label class="form-label">Viết tắt <span style="color:#EF4444;">*</span></label>
                 <input type="text" id="newTplShortcut" class="form-input" placeholder="Ví dụ: sp hoặc id" 
-                       oninput="handleValidateNewShortcut(this.value)"
+                       oninput="handleCreateTemplateInputChange(); handleValidateNewShortcut(this.value);"
                        ondragover="handleVarDragOver(event, this)"
                        ondragleave="handleVarDragLeave(this)"
                        ondrop="handleVarDrop(event, 'newTplShortcut')">
@@ -690,6 +690,7 @@ if (!$currentUser) {
                 <label class="form-label">Nội dung mẫu tin <span style="color:#EF4444;">*</span></label>
                 <textarea id="newTplContent" class="form-textarea" rows="4" 
                           placeholder="Ví dụ: Sản phẩm [Tên sản phẩm] có giá [Giá bán] ạ... Kéo thả hoặc click các biến bên dưới để chèn tự động."
+                          oninput="handleCreateTemplateInputChange()"
                           ondragover="handleVarDragOver(event, this)"
                           ondragleave="handleVarDragLeave(this)"
                           ondrop="handleVarDrop(event, 'newTplContent')"></textarea>
@@ -711,6 +712,22 @@ if (!$currentUser) {
             <button type="button" class="btn-send-message" id="btnSubmitNewTemplate" onclick="saveNewTemplateRecord()">
                 <i class="fa-solid fa-floppy-disk"></i> Lưu Mẫu Tin
             </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Hỏi Chọn Bảng Tính Khi Biến Trùng Nhiều Bảng -->
+<div class="modal-overlay" id="modalChooseSheetForVar" style="display:none;z-index:100100;">
+    <div class="modal-content" style="max-width: 420px; width: 90%;">
+        <div class="modal-header">
+            <h3 class="modal-title" style="margin:0;font-size:15px;" id="modalChooseSheetTitle">Chọn Bảng Tính</h3>
+            <button type="button" class="modal-close-btn" onclick="closeChooseSheetModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding:16px;">
+            <p style="font-size:13px;color:#334155;margin-top:0;margin-bottom:12px;" id="modalChooseSheetDesc">
+                Biến này tồn tại ở nhiều bảng tính. Vui lòng chọn bảng tính bạn muốn áp dụng:
+            </p>
+            <div id="modalChooseSheetButtonsList" style="display:flex;flex-direction:column;gap:8px;"></div>
         </div>
     </div>
 </div>
