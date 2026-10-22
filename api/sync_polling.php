@@ -61,6 +61,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($postAction === 'create_template' || $postAction === 'update_template' || $postAction === 'delete_template' || $postAction === 'get_templates' || strpos($postAction, 'template') !== false || strpos($postAction, 'tpl') !== false) {
         require __DIR__ . '/template_action.php';
         exit;
+    } elseif ($postAction === 'upload_attachment') {
+        require __DIR__ . '/message_action.php';
+        exit;
     }
 }
 

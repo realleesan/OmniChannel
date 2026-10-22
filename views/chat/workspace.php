@@ -290,6 +290,8 @@ if (!$currentUser) {
             </div>
 
             <div class="chat-input-wrapper">
+                <!-- Thanh preview các ảnh đính kèm từ template hoặc chọn thủ công -->
+                <div class="chat-attached-previews" id="chatAttachedPreviews" style="display:none;"></div>
                 <textarea id="chatInput" class="chat-textarea" rows="2" placeholder="Nhập tin nhắn tư vấn... (Gõ / để dùng mẫu trả lời nhanh, Enter để gửi)" onkeydown="handleChatKeyDown(event)" onkeyup="handleShortcutDetect(event)"></textarea>
 
                 <div class="input-actions-group">

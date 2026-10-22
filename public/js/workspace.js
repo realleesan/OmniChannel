@@ -927,6 +927,44 @@ function scrollChatToBottom() {
 /**
  * Chuẩn hóa URL ảnh (hỗ trợ cả công thức =IMAGE() của Google Sheet và link Google Drive)
  */
+// Danh sách các ảnh đang đính kèm chờ gửi (từ template Google Sheet hoặc ghim tệp)
+let pendingAttachedImages = [];
+
+function renderAttachedPreviews() {
+    const container = document.getElementById('chatAttachedPreviews');
+    if (!container) return;
+
+    if (!pendingAttachedImages || pendingAttachedImages.length === 0) {
+        container.style.display = 'none';
+        container.innerHTML = '';
+        return;
+    }
+
+    container.style.display = 'flex';
+    container.innerHTML = pendingAttachedImages.map((imgUrl, idx) => `
+        <div class="chat-preview-item" title="Ảnh đính kèm sẽ được gửi riêng biệt">
+            <img src="${escapeHtml(imgUrl)}" alt="Preview">
+            <button type="button" class="chat-preview-remove-btn" onclick="removePendingAttachedImage(${idx})" title="Gỡ ảnh này">&times;</button>
+        </div>
+    `).join('');
+}
+
+function removePendingAttachedImage(idx) {
+    if (idx >= 0 && idx < pendingAttachedImages.length) {
+        pendingAttachedImages.splice(idx, 1);
+        renderAttachedPreviews();
+    }
+}
+
+function clearPendingAttachedImages() {
+    pendingAttachedImages = [];
+    renderAttachedPreviews();
+}
+
+/**
+ * Chuẩn hóa URL ảnh (hỗ trợ cả công thức =IMAGE(), link Google Sheets RT và link Google Drive)
+ * Tự động chuyển qua proxy /api/proxy_image.php để không bị lỗi NotSameSite hay chặn Referer
+ */
 function normalizeImageUrl(url) {
     if (!url) return '';
     let u = String(url).trim();
@@ -936,12 +974,18 @@ function normalizeImageUrl(url) {
     }
     const driveFileMatch = u.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i);
     if (driveFileMatch) {
-        return `https://drive.google.com/thumbnail?id=${driveFileMatch[1]}&sz=w1200`;
+        u = `https://drive.google.com/thumbnail?id=${driveFileMatch[1]}&sz=w1200`;
     }
     const driveIdMatch = u.match(/drive\.google\.com\/(?:open|uc)\?(?:[^&]*&)*id=([a-zA-Z0-9_-]+)/i);
     if (driveIdMatch) {
-        return `https://drive.google.com/thumbnail?id=${driveIdMatch[1]}&sz=w1200`;
+        u = `https://drive.google.com/thumbnail?id=${driveIdMatch[1]}&sz=w1200`;
     }
+
+    // Nếu là ảnh từ Google Docs/Sheets/Drive/GoogleUserContent bị chặn CORB/NotSameSite, bọc qua proxy_image.php
+    if (u.includes('docs.google.com/sheets-images-rt') || u.includes('googleusercontent.com') || u.includes('drive.google.com')) {
+        return `../../api/proxy_image.php?url=${encodeURIComponent(u)}`;
+    }
+
     return u;
 }
 
@@ -961,6 +1005,7 @@ function extractImageUrlsFromText(text) {
         if (u.includes('docs.google.com/sheets-images-rt')) return true;
         if (u.includes('googleusercontent.com')) return true;
         if (u.includes('drive.google.com') && (u.includes('thumbnail') || u.includes('export=view') || u.includes('id=') || u.includes('/file/d/'))) return true;
+        if (u.includes('proxy_image.php')) return true;
         if (/\.(png|jpe?g|gif|webp|svg|bmp)(\?.*)?$/i.test(url)) return true;
         if ((u.includes('imgur.com') || u.includes('cloudinary.com') || u.includes('/images/') || u.includes('/img/')) && (/\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i.test(url) || u.includes('image'))) return true;
         return false;
@@ -1098,42 +1143,53 @@ async function sendMessage(attachmentUrl = null) {
     const input = document.getElementById('chatInput');
     const rawContent = input ? input.value : '';
 
-    if (!rawContent.trim() && !attachmentUrl) return;
+    // Lấy các ảnh đang chờ gửi từ thanh preview
+    const queuedImages = [...pendingAttachedImages];
+    if (attachmentUrl) {
+        queuedImages.push(...parseAttachmentUrls(attachmentUrl));
+    }
+
+    if (!rawContent.trim() && queuedImages.length === 0) return;
 
     AppState.isSending = true;
     if (input) input.value = '';
+    clearPendingAttachedImages();
     const previewBar = document.getElementById('shortcutPreviewBar');
     if (previewBar) previewBar.style.display = 'none';
 
     try {
-        if (attachmentUrl) {
-            // Upload ảnh thủ công qua nút kẹp ghim
-            await doSendSingleMessage(rawContent.trim(), attachmentUrl);
-        } else {
-            // Bóc tách URL ảnh trong nội dung (từ biến Google Sheet hoặc do dán link ảnh vào)
-            const extracted = extractImageUrlsFromText(rawContent);
-            const textPart = extracted.text;
-            const hasImages = extracted.imageUrls && extracted.imageUrls.length > 0;
-            const imgAttachment = hasImages ? extracted.imageUrls.join(',') : null;
-
-            if (textPart && hasImages) {
-                // Có cả chữ và ảnh: Tách thành 1 tin text + 1 tin ảnh riêng biệt
-                await doSendSingleMessage(textPart, null);
-                // Giãn cách ngắn 150ms để bảo toàn thứ tự tin nhắn
-                await new Promise(r => setTimeout(r, 150));
-                await doSendSingleMessage('', imgAttachment);
-            } else if (hasImages) {
-                // Chỉ có ảnh, không có chữ
-                await doSendSingleMessage('', imgAttachment);
-            } else {
-                // Tin nhắn chữ thông thường
-                await doSendSingleMessage(rawContent.trim(), null);
-            }
+        // Bóc tách thêm nếu trong nội dung gõ tay có chứa URL ảnh
+        const extracted = extractImageUrlsFromText(rawContent);
+        const textPart = extracted.text;
+        if (extracted.imageUrls && extracted.imageUrls.length > 0) {
+            extracted.imageUrls.forEach(u => {
+                if (!queuedImages.includes(u)) queuedImages.push(u);
+            });
         }
+
+        const hasImages = queuedImages.length > 0;
+        const imgAttachment = hasImages ? queuedImages.join(',') : null;
+
+        if (textPart && hasImages) {
+            // Có cả chữ và ảnh: Gửi tin nhắn chữ trước, sau đó gửi ảnh
+            await doSendSingleMessage(textPart, null);
+            await new Promise(r => setTimeout(r, 150));
+            await doSendSingleMessage('', imgAttachment);
+        } else if (hasImages) {
+            // Chỉ gửi ảnh
+            await doSendSingleMessage('', imgAttachment);
+        } else {
+            // Chỉ gửi chữ
+            await doSendSingleMessage(textPart || rawContent.trim(), null);
+        }
+
         runSyncPolling();
     } catch (err) {
         console.error('Lỗi quy trình gửi tin nhắn:', err);
         if (input && rawContent) input.value = rawContent;
+        // Khôi phục lại ảnh nếu lỗi gửi
+        pendingAttachedImages = queuedImages;
+        renderAttachedPreviews();
         alert(err.message || 'Lỗi kết nối khi gửi tin nhắn.');
     } finally {
         AppState.isSending = false;
@@ -1437,6 +1493,18 @@ function applyTemplateWithSheetRow(tpl, row) {
         compiled = compiled.replace(re, val);
     });
 
+    // Tách các URL ảnh ra khỏi văn bản để đưa vào khung preview nhỏ phía trên ô nhập liệu
+    const extracted = extractImageUrlsFromText(compiled);
+    if (extracted.imageUrls && extracted.imageUrls.length > 0) {
+        extracted.imageUrls.forEach(img => {
+            if (!pendingAttachedImages.includes(img)) {
+                pendingAttachedImages.push(img);
+            }
+        });
+        renderAttachedPreviews();
+        compiled = extracted.text;
+    }
+
     const input = document.getElementById('chatInput');
     if (input) {
         input.value = compiled;
@@ -1615,8 +1683,20 @@ async function fetchResolvedShortcut(shortcut) {
 
 function applyShortcutDirectly() {
     if (window.CURRENT_RESOLVED_TEMPLATE) {
+        let compiled = window.CURRENT_RESOLVED_TEMPLATE;
+        const extracted = extractImageUrlsFromText(compiled);
+        if (extracted.imageUrls && extracted.imageUrls.length > 0) {
+            extracted.imageUrls.forEach(img => {
+                if (!pendingAttachedImages.includes(img)) {
+                    pendingAttachedImages.push(img);
+                }
+            });
+            renderAttachedPreviews();
+            compiled = extracted.text;
+        }
+
         const input = document.getElementById('chatInput');
-        input.value = window.CURRENT_RESOLVED_TEMPLATE;
+        input.value = compiled;
         document.getElementById('shortcutPreviewBar').style.display = 'none';
         closeShortcutSuggestPopup();
         input.focus();
@@ -1633,23 +1713,55 @@ async function handleAttachmentUpload(input) {
     files.forEach(f => formData.append('files[]', f));
 
     try {
-        const res = await fetch('../../api/message_action.php', {
-            method: 'POST',
-            body: formData
-        });
-        const text = await res.text();
+        let res = null;
+        let text = '';
         let data = null;
+
+        // Ưu tiên 1: Upload qua message_action.php
         try {
-            data = JSON.parse(text);
-        } catch (e) {
-            const sIdx = text.indexOf('{');
-            const eIdx = text.lastIndexOf('}');
-            if (sIdx !== -1 && eIdx !== -1) data = JSON.parse(text.substring(sIdx, eIdx + 1));
+            res = await fetch('../../api/message_action.php', {
+                method: 'POST',
+                body: formData
+            });
+            text = await res.text();
+            try { data = JSON.parse(text); } catch (e) {
+                const sIdx = text.indexOf('{');
+                const eIdx = text.lastIndexOf('}');
+                if (sIdx !== -1 && eIdx !== -1) data = JSON.parse(text.substring(sIdx, eIdx + 1));
+            }
+        } catch (netErr) {
+            console.warn('Lỗi mạng khi tải ảnh qua message_action.php:', netErr);
+        }
+
+        // Kênh dự phòng 2: Nếu bị WAF 403 Forbidden, tự động fallback sang sync_polling.php
+        if (!data || (!data.success && (res?.status === 403 || text.includes('403 Forbidden') || text.includes('blocking you')))) {
+            const fallbackFormData = new FormData();
+            fallbackFormData.append('action', 'upload_attachment');
+            files.forEach(f => fallbackFormData.append('files[]', f));
+
+            res = await fetch('../../api/sync_polling.php', {
+                method: 'POST',
+                body: fallbackFormData
+            });
+            text = await res.text();
+            try { data = JSON.parse(text); } catch (e) {
+                const sIdx = text.indexOf('{');
+                const eIdx = text.lastIndexOf('}');
+                if (sIdx !== -1 && eIdx !== -1) data = JSON.parse(text.substring(sIdx, eIdx + 1));
+            }
         }
 
         if (data && data.success && (data.data.attachment_url || data.data.url)) {
             const finalAttachment = data.data.attachment_url || data.data.url;
-            sendMessage(finalAttachment);
+            // Đưa ảnh vào danh sách preview chờ gửi hoặc gửi kèm luôn
+            const urls = parseAttachmentUrls(finalAttachment);
+            urls.forEach(u => {
+                if (!pendingAttachedImages.includes(u)) {
+                    pendingAttachedImages.push(u);
+                }
+            });
+            renderAttachedPreviews();
+            showToast('Đã đính kèm ảnh thành công!', 'success');
         } else {
             alert(data ? data.message : 'Lỗi tải ảnh');
         }
