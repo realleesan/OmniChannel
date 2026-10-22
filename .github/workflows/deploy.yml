@@ -30,6 +30,7 @@ jobs:
           APP_ENV=production
           RENDER_GATEWAY_URL=${{ secrets.RENDER_GATEWAY_URL }}
           GATEWAY_SECRET_KEY=${{ secrets.GATEWAY_SECRET_KEY }}
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
           EOF
 
       - name: 📂 Sync files via FTP

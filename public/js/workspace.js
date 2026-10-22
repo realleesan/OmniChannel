@@ -90,12 +90,25 @@ function formatChatTime(dateInput) {
     }
 }
 
+function startAdaptivePolling() {
+    if (AppState.pollingInterval) clearInterval(AppState.pollingInterval);
+    const delay = document.hidden ? 18000 : 4000;
+    AppState.pollingInterval = setInterval(runSyncPolling, delay);
+}
+
+document.addEventListener('visibilitychange', () => {
+    startAdaptivePolling();
+    if (!document.hidden) {
+        runSyncPolling();
+    }
+});
+
 function initWorkspace() {
     // 1. Tải danh sách hội thoại lần đầu
     fetchConversations(true);
 
-    // 2. Kích hoạt chu kỳ Polling AJAX định kỳ 2.5 giây
-    AppState.pollingInterval = setInterval(runSyncPolling, 2500);
+    // 2. Kích hoạt chu kỳ Polling AJAX thích ứng (4s khi mở tab, 18s khi ẩn tab để chống quá tải)
+    startAdaptivePolling();
 
     // 3. Khởi tạo & nạp dữ liệu Google Sheets
     initGoogleSheets();
@@ -1649,13 +1662,13 @@ async function handleUpdateCustomerProfile() {
     }
 
     try {
-        const formData = new FormData();
-        formData.append('action', 'ai_extract_profile');
-        formData.append('conversation_id', AppState.activeConvId);
+        const params = new URLSearchParams();
+        params.append('action', 'ai_extract_profile');
+        params.append('conversation_id', AppState.activeConvId);
 
         const res = await fetch('../../api/customer_action.php', {
             method: 'POST',
-            body: formData
+            body: params
         });
         const data = await res.json();
 
@@ -1772,9 +1785,9 @@ async function handleSaveCustomerProfileModal() {
     }
 
     try {
-        const formData = new FormData();
-        formData.append('action', 'update_crm_profile');
-        formData.append('conversation_id', AppState.activeConvId);
+        const params = new URLSearchParams();
+        params.append('action', 'update_crm_profile');
+        params.append('conversation_id', AppState.activeConvId);
 
         const realName = document.getElementById('modalInputRealName')?.value?.trim() || '';
         const phone = document.getElementById('modalInputPhone')?.value?.trim() || '';
@@ -1785,18 +1798,18 @@ async function handleSaveCustomerProfileModal() {
         const notes = document.getElementById('modalInputNotes')?.value?.trim() || '';
         const summary = document.getElementById('modalInputSummary')?.value?.trim() || '';
 
-        formData.append('real_name', realName);
-        formData.append('phone', phone);
-        formData.append('address', address);
-        formData.append('body_measurements', bodyMeasurements);
-        formData.append('customer_needs', needs);
-        formData.append('recent_purchases', recentPurchases);
-        formData.append('notes', notes);
-        formData.append('conversation_summary', summary);
+        params.append('real_name', realName);
+        params.append('phone', phone);
+        params.append('address', address);
+        params.append('body_measurements', bodyMeasurements);
+        params.append('customer_needs', needs);
+        params.append('recent_purchases', recentPurchases);
+        params.append('notes', notes);
+        params.append('conversation_summary', summary);
 
         const res = await fetch('../../api/customer_action.php', {
             method: 'POST',
-            body: formData
+            body: params
         });
         const data = await res.json();
 
@@ -1825,20 +1838,14 @@ async function handleSaveCustomerProfileModal() {
 
 async function handleShiftChange(status) {
     try {
-        const formData = new FormData();
-        formData.append('action', 'toggle_shift');
-        formData.append('status', status);
+        const params = new URLSearchParams();
+        params.append('action', 'toggle_shift');
+        params.append('status', status);
 
-        let res = await fetch('../../api/message_action.php', {
+        const res = await fetch('../../api/sync_polling.php', {
             method: 'POST',
-            body: formData
+            body: params
         });
-        if (res.status === 403) {
-            res = await fetch('../../api/sync_polling.php', {
-                method: 'POST',
-                body: formData
-            });
-        }
         const text = await res.text();
         let data = null;
         try {
