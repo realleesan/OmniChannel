@@ -162,3 +162,98 @@ function requireLogin() {
         exit;
     }
 }
+
+/**
+ * Tự động tải và chuyển đổi URL ảnh từ Google Sheets / liên kết ngoài
+ * thành file ảnh tĩnh vật lý lưu vĩnh viễn trên máy chủ host (public/uploads/sheet_images/xxx.jpg)
+ */
+function localizeMediaUrl($urlInput) {
+    if (empty($urlInput)) return '';
+    $urls = is_array($urlInput) ? $urlInput : explode(',', (string)$urlInput);
+    $localizedList = [];
+
+    $uploadDir = __DIR__ . '/../public/uploads/sheet_images/';
+    if (!is_dir($uploadDir)) {
+        @mkdir($uploadDir, 0777, true);
+    }
+
+    foreach ($urls as $rawUrl) {
+        $u = trim($rawUrl);
+        if (empty($u)) continue;
+
+        // Nếu đã là link ảnh tĩnh cục bộ của hệ thống -> giữ nguyên
+        if (strpos($u, '/public/uploads/') !== false) {
+            $localizedList[] = $u;
+            continue;
+        }
+
+        // Kiểm tra xem có phải ảnh từ Google Sheets hoặc liên kết ngoài cần lưu không
+        $isGoogleSheetImg = (
+            strpos($u, 'docs.google.com') !== false ||
+            strpos($u, 'sheets-images') !== false ||
+            strpos($u, 'googleusercontent.com') !== false ||
+            strpos($u, 'drive.google.com') !== false
+        );
+
+        if (!$isGoogleSheetImg) {
+            $localizedList[] = $u;
+            continue;
+        }
+
+        // Sinh mã ID duy nhất theo URL hoặc ID ảnh Google Sheets
+        $cacheId = md5($u);
+        if (preg_match('#sheets-images-rt/([^=?/]+)#', $u, $m)) {
+            $cacheId = 'gs_' . md5($m[1]);
+        } else {
+            $cacheId = 'img_' . md5($u);
+        }
+
+        $localFilename = $cacheId . '.jpg';
+        $localFilePath = $uploadDir . $localFilename;
+        $localWebUrl = rtrim(BASE_URL, '/') . '/public/uploads/sheet_images/' . $localFilename;
+
+        // 1. Nếu file tĩnh đã tồn tại trên máy chủ và hợp lệ -> Dùng ngay
+        if (file_exists($localFilePath) && filesize($localFilePath) > 100) {
+            $localizedList[] = $localWebUrl;
+            continue;
+        }
+
+        // 2. Nếu đã có file cache trước đây -> Copy sang file ảnh tĩnh .jpg
+        $legacyCacheFile = $uploadDir . $cacheId . '.cache';
+        if (file_exists($legacyCacheFile) && filesize($legacyCacheFile) > 100) {
+            @copy($legacyCacheFile, $localFilePath);
+            if (file_exists($localFilePath) && filesize($localFilePath) > 100) {
+                $localizedList[] = $localWebUrl;
+                continue;
+            }
+        }
+
+        // 3. Tải trực tiếp dữ liệu ảnh về lưu vào file tĩnh vật lý
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $u);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 6);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        $imgBinary = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode === 200 && !empty($imgBinary) && strlen($imgBinary) > 100) {
+            @file_put_contents($localFilePath, $imgBinary);
+            $localizedList[] = $localWebUrl;
+        } else {
+            $localizedList[] = $u;
+        }
+    }
+
+    if (is_array($urlInput)) {
+        return $localizedList;
+    }
+    return implode(',', $localizedList);
+}
+

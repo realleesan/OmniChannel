@@ -78,6 +78,11 @@ class ChatController {
                 $this->convModel->assignToUser($conversationId, $userId);
             }
 
+            // UC3.1: Tự động tải và lưu ảnh ngoại (Google Sheets template) thành file tĩnh vật lý trên máy chủ
+            if (!empty($attachmentUrl)) {
+                $attachmentUrl = localizeMediaUrl($attachmentUrl);
+            }
+
             $messageId = $this->msgModel->create($conversationId, 'STAFF', $userId, $content, $attachmentUrl);
 
             // Đẩy tin phản hồi của nhân viên sang Render Gateway để Widget Webchat nhận ngay

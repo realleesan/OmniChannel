@@ -584,6 +584,13 @@ try {
                 $sName = $s['sheet_name'];
                 $rowIndex = 1;
                 foreach ($s['data'] as $row) {
+                    if (is_array($row)) {
+                        foreach ($row as $colKey => $colVal) {
+                            if (is_string($colVal) && (strpos($colVal, 'docs.google.com') !== false || strpos($colVal, 'sheets-images') !== false || strpos($colVal, 'googleusercontent.com') !== false)) {
+                                $row[$colKey] = localizeMediaUrl($colVal);
+                            }
+                        }
+                    }
                     $insertRowStmt->execute([
                         ':cid'   => $configId,
                         ':sname' => $sName,
