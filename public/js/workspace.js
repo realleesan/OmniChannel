@@ -2249,14 +2249,8 @@ document.addEventListener('touchstart', unlockAudioContext, { passive: true });
  */
 function playNotificationSound() {
     try {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (!AudioCtx) return;
-        if (!globalAudioCtx) {
-            globalAudioCtx = new AudioCtx();
-        }
-        if (globalAudioCtx.state === 'suspended') {
-            globalAudioCtx.resume().catch(() => {});
-            return; // Đợi user gesture tiếp theo, tránh ném lỗi đỏ console
+        if (!globalAudioCtx || globalAudioCtx.state !== 'running') {
+            return; // Chỉ phát âm thanh sau khi người dùng đã click tương tác trên trang
         }
         const ctx = globalAudioCtx;
         const now = ctx.currentTime;

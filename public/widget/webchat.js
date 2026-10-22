@@ -1236,9 +1236,6 @@
         saveSession();
         if (session.customerId) {
             apiCall('read', { customer_id: session.customerId, conversation_id: session.conversationId }).catch(e => {});
-            try {
-                fetch('https://omnichannel.gt.tc/api/customer_read.php?customer_id=' + encodeURIComponent(session.customerId), { mode: 'cors' }).catch(e => {});
-            } catch (e) {}
         }
     }
 
