@@ -4308,7 +4308,17 @@ async function loadGoogleSheetStatus(checkRemote = false) {
     try {
         const url = `../../api/google_sheet_action.php?action=get_status&check_remote=${checkRemote ? '1' : '0'}`;
         const res = await fetch(url);
-        const data = await res.json();
+        const text = await res.text();
+        let data = null;
+        try {
+            data = JSON.parse(text);
+        } catch (pe) {
+            const sIdx = text.indexOf('{');
+            const eIdx = text.lastIndexOf('}');
+            if (sIdx !== -1 && eIdx !== -1) {
+                try { data = JSON.parse(text.substring(sIdx, eIdx + 1)); } catch (e2) {}
+            }
+        }
 
         if (data && data.success) {
             AppState.sheetConfig = data.config;

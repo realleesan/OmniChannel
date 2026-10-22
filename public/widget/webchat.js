@@ -1689,6 +1689,17 @@
         return trimmed.split(',').map(u => u.trim()).filter(Boolean);
     }
 
+    // Helper: Bọc link ảnh Google qua proxy của server CRM để tránh bị chặn NotSameSite / Referrer
+    function toDisplayImageUrl(url) {
+        if (!url) return '';
+        const u = String(url).trim();
+        if (u.includes('proxy_image.php')) return u;
+        if (u.includes('docs.google.com/sheets-images-rt') || u.includes('googleusercontent.com') || u.includes('drive.google.com')) {
+            return `https://omnichannel.gt.tc/api/proxy_image.php?url=${encodeURIComponent(u)}`;
+        }
+        return u;
+    }
+
     // Helper: Xây dựng HTML Grid ảnh thông minh (1, 2, 3, 4, 5+ ảnh)
     function buildWidgetMediaGrid(images, timeStr) {
         const count = images.length;
@@ -1700,11 +1711,12 @@
         let itemsHtml = '';
         const displayCount = Math.min(count, 4);
         for (let i = 0; i < displayCount; i++) {
-            const imgUrl = escapeHtml(images[i]);
+            const rawUrl = images[i];
+            const displayUrl = escapeHtml(toDisplayImageUrl(rawUrl));
             const isLastAndMore = (i === 3 && count > 4);
             itemsHtml += `
                 <div class="omni-media-item" data-idx="${i}">
-                    <img src="${imgUrl}" alt="Ảnh đính kèm" loading="lazy">
+                    <img src="${displayUrl}" alt="Ảnh đính kèm" loading="lazy" referrerpolicy="no-referrer">
                     ${isLastAndMore ? `<div class="omni-media-more">+${count - 4}</div>` : ''}
                 </div>
             `;
@@ -1757,10 +1769,14 @@
 
     function renderWidgetLightbox() {
         const total = widgetGallery.images.length;
-        const currentUrl = widgetGallery.images[widgetGallery.currentIndex];
+        const rawUrl = widgetGallery.images[widgetGallery.currentIndex];
+        const currentUrl = toDisplayImageUrl(rawUrl);
 
         const img = document.getElementById('omniWLightboxImg');
-        if (img) img.src = currentUrl;
+        if (img) {
+            img.src = currentUrl;
+            img.setAttribute('referrerpolicy', 'no-referrer');
+        }
 
         const counter = document.getElementById('omniWLightboxCounter');
         if (counter) counter.textContent = `Ảnh ${widgetGallery.currentIndex + 1} / ${total}`;
@@ -1797,7 +1813,7 @@
                 strip.style.display = 'flex';
                 strip.innerHTML = widgetGallery.images.map((url, idx) => `
                     <div class="omni-w-thumb ${idx === widgetGallery.currentIndex ? 'active' : ''}" data-idx="${idx}">
-                        <img src="${url}" alt="">
+                        <img src="${toDisplayImageUrl(url)}" alt="" referrerpolicy="no-referrer">
                     </div>
                 `).join('');
                 strip.querySelectorAll('.omni-w-thumb').forEach(thumb => {
