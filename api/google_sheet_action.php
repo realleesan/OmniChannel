@@ -22,6 +22,37 @@ if ($action === 'proxy_image') {
         exit('Invalid image URL');
     }
 
+    // Thư mục lưu cache vĩnh viễn ảnh Google Sheet trên host
+    $cacheDir = __DIR__ . '/../public/uploads/sheet_images';
+    if (!is_dir($cacheDir)) {
+        @mkdir($cacheDir, 0777, true);
+    }
+    
+    // Tách mã ID duy nhất của ảnh Google Sheets để cache vĩnh viễn (bỏ qua token phiên ?key=)
+    $cacheKey = md5($imgUrl);
+    if (preg_match('#sheets-images-rt/([^=?/]+)#', $imgUrl, $m)) {
+        $cacheKey = 'gs_' . md5($m[1]);
+    }
+    $cacheFile = $cacheDir . '/' . $cacheKey . '.cache';
+
+    // Nếu đã có cache trên ổ đĩa, phục vụ trực tiếp ngay lập tức
+    if (file_exists($cacheFile) && filesize($cacheFile) > 0) {
+        $mime = 'image/jpeg';
+        if (function_exists('finfo_open')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            if ($finfo) {
+                $detected = finfo_file($finfo, $cacheFile);
+                if ($detected) $mime = $detected;
+                finfo_close($finfo);
+            }
+        }
+        header('Content-Type: ' . $mime);
+        header('Cache-Control: public, max-age=31536000'); // Cache trình duyệt 1 năm
+        header('Access-Control-Allow-Origin: *');
+        readfile($cacheFile);
+        exit;
+    }
+
     // Chỉ cho phép proxy các ảnh từ Google Sheets hoặc Googleusercontent
     $allowedHosts = ['docs.google.com', 'googleusercontent.com'];
     $parsedHost = parse_url($imgUrl, PHP_URL_HOST);
@@ -52,12 +83,16 @@ if ($action === 'proxy_image') {
     curl_close($ch);
 
     if ($httpCode === 200 && !empty($imageData)) {
+        // Lưu ảnh vĩnh viễn trên host để không bao giờ bị hết hạn token
+        @file_put_contents($cacheFile, $imageData);
+
         header('Content-Type: ' . ($contentType ?: 'image/jpeg'));
-        header('Cache-Control: public, max-age=86400'); // Cache 1 ngày
+        header('Cache-Control: public, max-age=31536000');
         header('Access-Control-Allow-Origin: *');
         echo $imageData;
     } else {
         header('HTTP/1.1 404 Not Found');
+        exit('Token phiên ảnh Google đã hết hạn. Vui lòng bấm Đồng bộ lại từ Google Sheet để nạp phiên mới.');
     }
     exit;
 }

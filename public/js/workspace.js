@@ -4039,12 +4039,12 @@ function renderSheetDataTable(rows) {
                         const imgTitle = escapeHtml(row['Tên sản phẩm'] || row['Mã sản phẩm'] || col);
                         // Sử dụng Backend Proxy để vượt qua chính sách CORP/SameSite của Google Docs
                         const displayUrl = (val.includes('docs.google.com') || val.includes('sheets-images') || val.includes('googleusercontent.com'))
-                            ? `/api/google_sheet_action.php?action=proxy_image&url=${encodeURIComponent(val)}`
+                            ? `../../api/google_sheet_action.php?action=proxy_image&url=${encodeURIComponent(val)}`
                             : val;
                         return `
                             <td style="text-align:center;">
                                 <div class="sheet-thumb-wrapper">
-                                    <img src="${escapeHtml(displayUrl)}" class="sheet-thumb-img" title="Bấm để phóng to ảnh" onclick="openLightboxFromSingleUrl('${escapeHtml(displayUrl)}', 'Ảnh: ${imgTitle}')" onerror="this.onerror=null;this.parentElement.innerHTML='<span class=\\'cell-image-badge\\' title=\\'Không thể tải ảnh trực tiếp\\'><i class=\\'fa-regular fa-image\\'></i> Lỗi ảnh</span>';">
+                                    <img src="${escapeHtml(displayUrl)}" class="sheet-thumb-img" title="Bấm để phóng to ảnh" onclick="openLightboxFromSingleUrl('${escapeHtml(displayUrl)}', 'Ảnh: ${imgTitle}')" onerror="this.onerror=null;this.parentElement.innerHTML='<span class=\\'cell-image-badge\\' title=\\'Ảnh Google Sheet đã hết hạn phiên token, hãy bấm Đồng bộ lại\\'><i class=\\'fa-solid fa-arrows-rotate\\'></i> Cần đồng bộ</span>';">
                                 </div>
                             </td>
                         `;
