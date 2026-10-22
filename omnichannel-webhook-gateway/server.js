@@ -467,12 +467,31 @@ app.post('/api/webchat/reply', (req, res) => {
     }
 
     // Chống trùng lặp tin nhắn nếu cả PHP backend và Browser frontend cùng đẩy trong 6 giây
-    const isDuplicate = webchatSessions[customer_id].messages.some(m => 
-        m.sender_type === 'STAFF' && 
-        m.content === content && 
-        m.attachment_url === (attachment_url || null) &&
-        (Date.now() - (m.id || 0)) < 6000
-    );
+    const isDuplicate = webchatSessions[customer_id].messages.some(m => {
+        if (m.sender_type !== 'STAFF') return false;
+        if ((Date.now() - (m.id || 0)) >= 6000) return false;
+
+        // Trùng tin nhắn văn bản
+        if (content && m.content === content) return true;
+
+        // Trùng tin nhắn gửi ảnh (chỉ gửi ảnh hoặc có đính kèm ảnh)
+        if (!content && !m.content && (attachment_url && m.attachment_url)) return true;
+        if (attachment_url && m.attachment_url) {
+            if (attachment_url === m.attachment_url) return true;
+            if (attachment_url.includes(m.attachment_url) || m.attachment_url.includes(attachment_url)) return true;
+            // Một trong 2 tin là ảnh tĩnh đã localized và tin kia là URL gốc Google Sheets
+            if ((attachment_url.includes('/sheet_images/') || m.attachment_url.includes('/sheet_images/')) &&
+                (attachment_url.includes('sheets-images') || m.attachment_url.includes('sheets-images') || attachment_url.includes('docs.google.com') || m.attachment_url.includes('docs.google.com'))) {
+                // Ưu tiên giữ lại link tĩnh máy chủ
+                if (attachment_url.includes('/sheet_images/')) {
+                    m.attachment_url = attachment_url;
+                }
+                return true;
+            }
+        }
+
+        return false;
+    });
     if (isDuplicate) {
         return res.json({ success: true, message: 'Đã tiếp nhận (bỏ qua trùng lặp)' });
     }

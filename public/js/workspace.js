@@ -1120,7 +1120,8 @@ async function doSendSingleMessage(content, attachmentUrl = null) {
             }
         }
 
-        // Bổ trợ kép: Trình duyệt gửi trực tiếp tới Render Gateway để khách nhận ngay lập tức
+        // Bổ trợ kép: Trình duyệt đồng bộ tới Render Gateway nếu cần (ưu tiên URL ảnh tĩnh đã được backend xử lý)
+        const finalAttachmentUrl = (data && data.data && data.data.attachment_url) ? data.data.attachment_url : attachmentUrl;
         const activeConv = AppState.activeConversation ||
             (AppState.cachedConversations ? AppState.cachedConversations[AppState.activeConvId] : null) ||
             AppState.conversationsCache[AppState.activeConvId]?.conversation;
@@ -1133,7 +1134,7 @@ async function doSendSingleMessage(content, attachmentUrl = null) {
                 body: JSON.stringify({
                     customer_id: activeConv.external_sender_id,
                     content: content || '',
-                    attachment_url: attachmentUrl || data.data.attachment_url || null,
+                    attachment_url: finalAttachmentUrl || null,
                     staff_name: data.data.staff_name || window.APP_CONFIG.CURRENT_FULLNAME || 'Nhân viên tư vấn',
                     staff_avatar: data.data.staff_avatar || window.APP_CONFIG.CURRENT_AVATAR || ''
                 })
