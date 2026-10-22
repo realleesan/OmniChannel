@@ -991,9 +991,9 @@ function normalizeImageUrl(url) {
 function toDisplayImageUrl(url) {
     if (!url) return '';
     const u = String(url).trim();
-    if (u.includes('proxy-image') || u.includes('proxy_image.php')) return u;
-    if (u.includes('docs.google.com/sheets-images-rt') || u.includes('googleusercontent.com') || u.includes('drive.google.com')) {
-        return `https://omnichannel-gateway.onrender.com/api/proxy-image?url=${encodeURIComponent(u)}`;
+    if (u.includes('proxy-image') || u.includes('proxy_image.php') || u.includes('action=proxy_image')) return u;
+    if (u.includes('docs.google.com') || u.includes('sheets-images') || u.includes('googleusercontent.com') || u.includes('drive.google.com')) {
+        return `../../api/google_sheet_action.php?action=proxy_image&url=${encodeURIComponent(u)}`;
     }
     return u;
 }

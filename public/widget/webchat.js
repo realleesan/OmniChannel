@@ -494,19 +494,30 @@
             .omni-bubble-wrap {
                 display: flex !important;
                 flex-direction: column !important;
+                width: fit-content !important;
                 max-width: 100% !important;
             }
 
+            .omni-msg.staff .omni-bubble-wrap {
+                align-items: flex-start !important;
+            }
+
+            .omni-msg.customer .omni-bubble-wrap {
+                align-items: flex-end !important;
+            }
+
             .omni-bubble {
+                display: inline-block !important;
+                width: fit-content !important;
+                max-width: 100% !important;
                 padding: 10px 14px !important;
                 border-radius: 14px !important;
                 font-size: 13.5px !important;
                 line-height: 1.45 !important;
                 word-break: break-word !important;
-                white-space: pre-wrap !important;
+                white-space: normal !important;
                 box-sizing: border-box !important;
                 position: relative !important;
-                max-width: 100% !important;
             }
             .omni-bubble-content {
                 word-break: break-word !important;
@@ -1226,7 +1237,7 @@
         if (session.customerId) {
             apiCall('read', { customer_id: session.customerId, conversation_id: session.conversationId }).catch(e => {});
             try {
-                fetch('http://omnichannel.gt.tc/api/customer_read.php?customer_id=' + encodeURIComponent(session.customerId), { mode: 'cors' }).catch(e => {});
+                fetch('https://omnichannel.gt.tc/api/customer_read.php?customer_id=' + encodeURIComponent(session.customerId), { mode: 'cors' }).catch(e => {});
             } catch (e) {}
         }
     }
@@ -1689,13 +1700,13 @@
         return trimmed.split(',').map(u => u.trim()).filter(Boolean);
     }
 
-    // Helper: Bọc link ảnh Google qua proxy Render Gateway để tránh bị chặn NotSameSite / Referrer
+    // Helper: Bọc link ảnh Google qua proxy có bộ đệm cache vĩnh viễn của CRM
     function toDisplayImageUrl(url) {
         if (!url) return '';
         const u = String(url).trim();
-        if (u.includes('proxy-image') || u.includes('proxy_image.php')) return u;
-        if (u.includes('docs.google.com/sheets-images-rt') || u.includes('googleusercontent.com') || u.includes('drive.google.com')) {
-            return `https://omnichannel-gateway.onrender.com/api/proxy-image?url=${encodeURIComponent(u)}`;
+        if (u.includes('proxy-image') || u.includes('proxy_image.php') || u.includes('action=proxy_image')) return u;
+        if (u.includes('docs.google.com') || u.includes('sheets-images') || u.includes('googleusercontent.com') || u.includes('drive.google.com')) {
+            return `https://omnichannel.gt.tc/api/google_sheet_action.php?action=proxy_image&url=${encodeURIComponent(u)}`;
         }
         return u;
     }
