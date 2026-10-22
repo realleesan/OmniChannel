@@ -52,21 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newStatus = trim($jsonData['status'] ?? $_POST['status'] ?? 'ONLINE');
         $res = $authController->toggleStatus($newStatus);
         jsonResponse($res['success'], ['status' => $res['status']], 'Đã cập nhật ca trực', 200);
-    } elseif ($postAction === 'update_label') {
-        require_once __DIR__ . '/../models/Label.php';
-        $labelModel = new Label();
-        $id = (int)($jsonData['id'] ?? $_POST['id'] ?? 0);
-        $name = trim($jsonData['name'] ?? $_POST['name'] ?? '');
-        $color = trim($jsonData['color'] ?? $_POST['color'] ?? '#3B82F6');
-        $res = $labelModel->update($id, $name, $color);
-        echo json_encode($res);
-        exit;
-    } elseif ($postAction === 'delete_label') {
-        require_once __DIR__ . '/../models/Label.php';
-        $labelModel = new Label();
-        $id = (int)($_POST['id'] ?? 0);
-        $res = $labelModel->delete($id);
-        echo json_encode($res);
+    } elseif ($postAction === 'toggle_label' || $postAction === 'toggle' || $postAction === 'create_label' || $postAction === 'update_label' || $postAction === 'delete_label' || strpos($postAction, 'label') !== false) {
+        require __DIR__ . '/label_action.php';
         exit;
     } elseif ($postAction === 'save_settings' || $postAction === 'save_config' || $postAction === 'sync_data' || $postAction === 'sync' || $postAction === 'gsheet_sync' || $postAction === 'gsheet_save_config') {
         require __DIR__ . '/google_sheet_action.php';
@@ -77,8 +64,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-if (in_array(($_GET['action'] ?? ''), ['get_templates', 'get_template_list', 'check_shortcut', 'tpl_list'])) {
-    require __DIR__ . '/template_action.php';
+if (in_array(($_GET['action'] ?? ''), ['get_templates', 'get_template_list', 'check_shortcut', 'tpl_list', 'get_labels'])) {
+    if (($_GET['action'] ?? '') === 'get_labels') {
+        require __DIR__ . '/label_action.php';
+    } else {
+        require __DIR__ . '/template_action.php';
+    }
     exit;
 }
 

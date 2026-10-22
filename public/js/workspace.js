@@ -1340,12 +1340,16 @@ function showSheetRowPicker(rows, cols, sheetName) {
         const nameVal = row['sản phẩm'] || row['Sản phẩm'] || row['tên'] || row['name'] || row[displayCols[1]] || '';
         const priceVal = row['giá'] || row['Giá'] || row['price'] || '';
 
+        const proxyThumbUrl = (imgUrl && (imgUrl.includes('docs.google.com') || imgUrl.includes('sheets-images') || imgUrl.includes('googleusercontent.com')))
+            ? `../../api/google_sheet_action.php?action=proxy_image&url=${encodeURIComponent(imgUrl)}`
+            : imgUrl;
+
         html += `
             <div class="suggest-sheet-row-card ${idx === 0 ? 'is-selected' : ''}" 
                  id="pickerRow_${idx}" 
                  onclick="applyTemplateWithSheetRowByIndex(${idx})">
                 <div class="suggest-sheet-row-main">
-                    ${imgUrl ? `<img src="${escapeHtml(imgUrl)}" class="suggest-sheet-row-thumb" alt="Ảnh">` : ''}
+                    ${imgUrl ? `<img src="${escapeHtml(proxyThumbUrl)}" loading="lazy" class="suggest-sheet-row-thumb" alt="Ảnh">` : ''}
                     <span class="suggest-sheet-row-badge">#${escapeHtml(String(rowId))}</span>
                     <span class="suggest-sheet-row-text">${escapeHtml(String(nameVal))}</span>
                 </div>
@@ -2512,6 +2516,39 @@ function cancelEditLabel() {
     renderManageLabelsList();
 }
 
+async function requestLabelApi(payload) {
+    // Ưu tiên 1: Gửi qua sync_polling.php dạng JSON (miễn nhiễm với WAF 403 của InfinityFree)
+    try {
+        const res = await fetch('../../api/sync_polling.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data) return data;
+        }
+    } catch (e) {
+        console.warn('Lỗi gửi nhãn qua sync_polling:', e);
+    }
+
+    // Ưu tiên 2: Gửi qua label_action.php dạng JSON
+    try {
+        const res = await fetch('../../api/label_action.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+            return await res.json();
+        }
+    } catch (e) {
+        console.warn('Lỗi gửi nhãn qua label_action:', e);
+    }
+
+    return null;
+}
+
 async function saveEditLabel(id) {
     const nameInput = document.getElementById(`editLabelName_${id}`);
     const colorInput = document.getElementById(`editLabelColor_${id}`);
@@ -2524,22 +2561,14 @@ async function saveEditLabel(id) {
     }
 
     try {
-        const formData = new FormData();
-        formData.append('action', 'update');
-        formData.append('id', id);
-        formData.append('name', name);
-        formData.append('color', color);
+        const payload = {
+            action: 'update_label',
+            id: id,
+            name: name,
+            color: color
+        };
 
-        let res = await fetch('../../api/label_action.php', { method: 'POST', body: formData });
-        let data = null;
-        if (res.ok) {
-            data = await res.json();
-        }
-        if (!data || !data.success) {
-            formData.set('action', 'update_label');
-            res = await fetch('../../api/sync_polling.php', { method: 'POST', body: formData });
-            data = await res.json();
-        }
+        const data = await requestLabelApi(payload);
 
         if (data && data.success) {
             editingLabelId = null;
@@ -2567,20 +2596,12 @@ async function deleteLabelItem(id, name) {
     }
 
     try {
-        const formData = new FormData();
-        formData.append('action', 'delete');
-        formData.append('id', id);
+        const payload = {
+            action: 'delete_label',
+            id: id
+        };
 
-        let res = await fetch('../../api/label_action.php', { method: 'POST', body: formData });
-        let data = null;
-        if (res.ok) {
-            data = await res.json();
-        }
-        if (!data || !data.success) {
-            formData.set('action', 'delete_label');
-            res = await fetch('../../api/sync_polling.php', { method: 'POST', body: formData });
-            data = await res.json();
-        }
+        const data = await requestLabelApi(payload);
 
         if (data && data.success) {
             AppState.allLabels = (AppState.allLabels || []).filter(l => l.id != id);
@@ -2652,16 +2673,16 @@ async function saveNewLabel() {
     }
 
     try {
-        const formData = new FormData();
-        formData.append('action', 'create');
-        formData.append('name', name);
-        formData.append('color', color);
-        formData.append('icon', 'fa-solid fa-tag');
+        const payload = {
+            action: 'create_label',
+            name: name,
+            color: color,
+            icon: 'fa-solid fa-tag'
+        };
 
-        const res = await fetch('../../api/label_action.php', { method: 'POST', body: formData });
-        const data = await res.json();
+        const data = await requestLabelApi(payload);
 
-        if (data.success) {
+        if (data && data.success) {
             // Nạp ngay danh sách nhãn mới vào AppState để modal danh sách hiển thị lập tức!
             if (data.all_labels) {
                 AppState.allLabels = data.all_labels;
@@ -2676,7 +2697,7 @@ async function saveNewLabel() {
             closeCreateLabelModal();
             runSyncPolling();
         } else {
-            alert(data.message || 'Lỗi tạo nhãn');
+            alert(data?.message || 'Lỗi tạo nhãn');
         }
     } catch (err) {
         console.error('Lỗi tạo nhãn:', err);
@@ -2736,15 +2757,15 @@ async function toggleConversationLabel(labelId) {
     }
 
     try {
-        const formData = new FormData();
-        formData.append('action', 'toggle');
-        formData.append('conversation_id', AppState.activeConvId);
-        formData.append('label_id', labelId);
+        const payload = {
+            action: 'toggle_label',
+            conversation_id: AppState.activeConvId,
+            label_id: labelId
+        };
 
-        const res = await fetch('../../api/label_action.php', { method: 'POST', body: formData });
-        const data = await res.json();
+        const data = await requestLabelApi(payload);
 
-        if (data.success) {
+        if (data && data.success) {
             AppState.assignedLabels = data.assigned_labels || [];
             renderAssignedLabels(AppState.assignedLabels);
             if (AppState.conversationsCache[AppState.activeConvId]) {
@@ -2752,7 +2773,7 @@ async function toggleConversationLabel(labelId) {
             }
             runSyncPolling();
         } else {
-            alert(data.message || 'Lỗi thao tác nhãn');
+            alert(data?.message || 'Lỗi thao tác nhãn');
         }
     } catch (err) {
         console.error('Lỗi gắn/hủy nhãn:', err);

@@ -4,7 +4,9 @@
  * Xử lý tạo nhãn mới, gán/gỡ nhãn cho cuộc hội thoại
  */
 
-header('Content-Type: application/json; charset=utf-8');
+if (!headers_sent()) {
+    header('Content-Type: application/json; charset=utf-8');
+}
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../models/Label.php';
 
@@ -18,7 +20,12 @@ if (session_status() === PHP_SESSION_ACTIVE) {
     session_write_close();
 }
 
-$action = $_POST['action'] ?? $_GET['action'] ?? '';
+if (!isset($jsonData) || empty($jsonData)) {
+    $rawInput = file_get_contents('php://input');
+    $jsonData = json_decode($rawInput, true) ?: [];
+}
+
+$action = $jsonData['action'] ?? $_POST['action'] ?? $_GET['action'] ?? '';
 $labelModel = new Label();
 
 require_once __DIR__ . '/../models/Conversation.php';
@@ -26,14 +33,16 @@ $convModel = new Conversation();
 
 switch ($action) {
     case 'get_all':
+    case 'get_labels':
         $labels = $labelModel->getAll();
         echo json_encode(['success' => true, 'labels' => $labels]);
         break;
 
     case 'create':
-        $name = trim($_POST['name'] ?? '');
-        $color = trim($_POST['color'] ?? '#3B82F6');
-        $icon = trim($_POST['icon'] ?? 'fa-solid fa-tag');
+    case 'create_label':
+        $name = trim($jsonData['name'] ?? $_POST['name'] ?? '');
+        $color = trim($jsonData['color'] ?? $_POST['color'] ?? '#3B82F6');
+        $icon = trim($jsonData['icon'] ?? $_POST['icon'] ?? 'fa-solid fa-tag');
 
         $result = $labelModel->create($name, $color, $icon, $userId);
         if ($result['success']) {
@@ -43,8 +52,9 @@ switch ($action) {
         break;
 
     case 'toggle':
-        $conversationId = (int)($_POST['conversation_id'] ?? 0);
-        $labelId = (int)($_POST['label_id'] ?? 0);
+    case 'toggle_label':
+        $conversationId = (int)($jsonData['conversation_id'] ?? $_POST['conversation_id'] ?? 0);
+        $labelId = (int)($jsonData['label_id'] ?? $_POST['label_id'] ?? 0);
 
         if ($conversationId <= 0 || $labelId <= 0) {
             echo json_encode(['success' => false, 'message' => 'Dữ liệu không hợp lệ']);
@@ -63,9 +73,10 @@ switch ($action) {
         break;
 
     case 'update':
-        $id = (int)($_POST['id'] ?? 0);
-        $name = trim($_POST['name'] ?? '');
-        $color = trim($_POST['color'] ?? '#3B82F6');
+    case 'update_label':
+        $id = (int)($jsonData['id'] ?? $_POST['id'] ?? 0);
+        $name = trim($jsonData['name'] ?? $_POST['name'] ?? '');
+        $color = trim($jsonData['color'] ?? $_POST['color'] ?? '#3B82F6');
 
         if ($id <= 0 || empty($name)) {
             echo json_encode(['success' => false, 'message' => 'Dữ liệu sửa nhãn không hợp lệ']);
@@ -77,7 +88,8 @@ switch ($action) {
         break;
 
     case 'delete':
-        $id = (int)($_POST['id'] ?? 0);
+    case 'delete_label':
+        $id = (int)($jsonData['id'] ?? $_POST['id'] ?? 0);
         if ($id <= 0) {
             echo json_encode(['success' => false, 'message' => 'ID nhãn không hợp lệ']);
             exit;
