@@ -6,6 +6,7 @@
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../models/User.php';
+require_once __DIR__ . '/../models/Conversation.php';
 
 class AuthController {
     private User $userModel;
@@ -51,6 +52,9 @@ class AuthController {
         
         $this->userModel->updateStatus($user['id'], 'ONLINE');
 
+        // Có nhân viên vào ca: quét & chia đều các khách đang ở trạng thái Chưa gán
+        $this->redistributeUnassigned();
+
         return ['success' => true, 'user' => $user];
     }
 
@@ -77,7 +81,22 @@ class AuthController {
             $status = 'ONLINE';
         }
         $this->userModel->updateStatus($userId, $status);
+
+        if ($status === 'ONLINE') {
+            $this->redistributeUnassigned();
+        }
         return ['success' => true, 'status' => $status];
+    }
+
+    /**
+     * Phân bổ đều các hội thoại Chưa gán cho nhân viên đang ONLINE (không làm hỏng luồng chính nếu lỗi)
+     */
+    private function redistributeUnassigned() {
+        try {
+            (new Conversation())->distributeUnassignedConversations();
+        } catch (Throwable $e) {
+            error_log('redistributeUnassigned error: ' . $e->getMessage());
+        }
     }
 
     public function getCurrentUser() {

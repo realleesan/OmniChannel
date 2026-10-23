@@ -166,6 +166,14 @@ if (!file_exists(__DIR__ . '/.schema_fixed_user_active')) {
 // Cập nhật nhịp đập hoạt động thực tế (Heartbeat) của nhân viên đang mở giao diện làm việc
 if ($userId && $userStatus === 'ONLINE') {
     $userModel->updateLastActive($userId);
+
+    // Lưới an toàn: còn khách "Chưa gán" mà đã có nhân viên trực -> tự động chia đều ngay
+    // (truy vấn kiểm tra rất nhẹ; có GET_LOCK nên nhiều nhân viên polling cùng lúc không bị chồng chéo)
+    try {
+        $convModel->distributeUnassignedConversations();
+    } catch (Throwable $e) {
+        error_log('sync_polling distribute error: ' . $e->getMessage());
+    }
 }
 
 // Hỗ trợ cập nhật khách hàng đã xem (Customer Seen)

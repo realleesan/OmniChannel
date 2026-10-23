@@ -322,6 +322,110 @@ class Conversation {
     }
 
     /**
+     * Kiểm tra nhanh còn hội thoại "Chưa gán" đang mở hay không (truy vấn rất nhẹ, dùng cho polling)
+     */
+    public function hasUnassignedOpenConversations() {
+        try {
+            $stmt = $this->db->query("SELECT 1 FROM conversations WHERE assigned_user_id IS NULL AND status != 'CLOSED' LIMIT 1");
+            return (bool)$stmt->fetchColumn();
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
+     * QUÉT & PHÂN BỔ LẠI hội thoại "Chưa gán"
+     * Khi khách nhắn đến lúc toàn bộ nhân viên vắng mặt, hội thoại nằm ở trạng thái Chưa gán.
+     * Ngay khi có nhân viên ONLINE (đăng nhập / bật ca / polling), hệ thống chia đều các hội thoại này:
+     *  - Ưu tiên khách chờ lâu nhất trước (last_message_at tăng dần)
+     *  - Mỗi lượt gán cho nhân viên đang có ít hội thoại mở nhất (cân bằng tải, hòa thì theo id)
+     *  - Dùng GET_LOCK để nhiều nhân viên polling cùng lúc không phân bổ chồng chéo
+     *  - UPDATE có điều kiện assigned_user_id IS NULL để không ghi đè hội thoại vừa được nhận thủ công
+     *
+     * @return int Số hội thoại đã được phân bổ
+     */
+    public function distributeUnassignedConversations() {
+        if (!$this->hasUnassignedOpenConversations()) {
+            return 0;
+        }
+
+        $lockAcquired = false;
+        try {
+            $lockAcquired = (bool)$this->db->query("SELECT GET_LOCK('omni_distribute_unassigned', 0)")->fetchColumn();
+            if (!$lockAcquired) {
+                return 0; // Một tiến trình khác đang phân bổ
+            }
+        } catch (Throwable $e) {
+            $lockAcquired = false; // MySQL không hỗ trợ lock: vẫn chạy, đã có UPDATE có điều kiện bảo vệ
+        }
+
+        $assignedCount = 0;
+        try {
+            // 1. Loại bỏ nhân viên mất kết nối (>60s không heartbeat) và cập nhật tải thực tế
+            $userModel = new User();
+            $userModel->findAgentForAssignment();
+
+            // 2. Danh sách nhân viên ONLINE kèm số hội thoại mở đang phụ trách
+            $agents = $this->db->query("
+                SELECT id, current_chat_count
+                FROM users
+                WHERE status = 'ONLINE'
+                ORDER BY current_chat_count ASC, id ASC
+            ")->fetchAll(PDO::FETCH_ASSOC);
+
+            if (empty($agents)) {
+                return 0;
+            }
+
+            $loads = [];
+            foreach ($agents as $ag) {
+                $loads[(int)$ag['id']] = (int)$ag['current_chat_count'];
+            }
+
+            // 3. Hội thoại chưa gán, khách chờ lâu nhất xếp trước
+            $unassigned = $this->db->query("
+                SELECT id
+                FROM conversations
+                WHERE assigned_user_id IS NULL AND status != 'CLOSED'
+                ORDER BY last_message_at ASC, id ASC
+            ")->fetchAll(PDO::FETCH_COLUMN);
+
+            $upd = $this->db->prepare("UPDATE conversations SET assigned_user_id = :uid WHERE id = :id AND assigned_user_id IS NULL");
+
+            foreach ($unassigned as $convId) {
+                // Chọn nhân viên tải thấp nhất (hòa thì id nhỏ hơn)
+                $targetId = null;
+                $minLoad = PHP_INT_MAX;
+                foreach ($loads as $uid => $load) {
+                    if ($load < $minLoad || ($load === $minLoad && $uid < $targetId)) {
+                        $minLoad = $load;
+                        $targetId = $uid;
+                    }
+                }
+                if ($targetId === null) break;
+
+                $upd->execute([':uid' => $targetId, ':id' => (int)$convId]);
+                if ($upd->rowCount() > 0) {
+                    $loads[$targetId]++;
+                    $assignedCount++;
+                }
+            }
+
+            if ($assignedCount > 0) {
+                $userModel->syncChatCounts();
+            }
+        } catch (Throwable $e) {
+            error_log('distributeUnassignedConversations error: ' . $e->getMessage());
+        } finally {
+            if ($lockAcquired) {
+                try { $this->db->query("SELECT RELEASE_LOCK('omni_distribute_unassigned')"); } catch (Throwable $e) {}
+            }
+        }
+
+        return $assignedCount;
+    }
+
+    /**
      * Tìm kiếm toàn diện chuẩn phong cách Zalo: Phân tách Khách hàng và Tin nhắn
      */
     public function searchZalo($keyword, $currentUserId) {
