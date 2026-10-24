@@ -90,79 +90,80 @@ class ZaloManager {
 
             const api = await zalo.loginQR(
                 {
-                    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
                     qrPath: tempQrPath
                 },
-                async (event) => {
+                async (eventOrPath) => {
                     const currentSession = this.pendingSessions.get(sessionId);
                     if (!currentSession) return;
 
-                    console.log(`[ZaloManager][${sessionId}] Callback Event Type:`, event.type);
+                    console.log(`[ZaloManager][${sessionId}] Callback received:`, typeof eventOrPath);
 
-                    switch (event.type) {
-                        case LoginQRCallbackEventType.QRCodeGenerated: {
-                            currentSession.status = 'WAITING_SCAN';
-                            
-                            // 1. Thử lấy từ event.data.image nếu zca-js đã trả sẵn
-                            let qrBase64 = null;
-                            if (event.data && event.data.image) {
-                                qrBase64 = event.data.image;
-                                if (!qrBase64.startsWith('data:image')) {
-                                    qrBase64 = `data:image/png;base64,${qrBase64}`;
-                                }
+                    // TH1: Callback nhận trực tiếp đường dẫn file ảnh qrPath (string)
+                    if (typeof eventOrPath === 'string') {
+                        currentSession.status = 'WAITING_SCAN';
+                        const filePath = eventOrPath || tempQrPath;
+                        if (fs.existsSync(filePath)) {
+                            try {
+                                const buffer = fs.readFileSync(filePath);
+                                currentSession.qrCode = `data:image/png;base64,${buffer.toString('base64')}`;
+                                console.log(`[ZaloManager][${sessionId}] Đã nạp ảnh QR từ đường dẫn file: ${filePath}`);
+                            } catch (e) {}
+                        }
+                        return;
+                    }
+
+                    // TH2: Callback nhận vào một object event (LoginQRCallbackEventType)
+                    const event = eventOrPath || {};
+                    const eventType = event.type;
+
+                    const isGenerated = (eventType === LoginQRCallbackEventType?.QRCodeGenerated || eventType === 0 || eventType === 'QRCodeGenerated');
+                    const isScanned   = (eventType === LoginQRCallbackEventType?.QRCodeScanned || eventType === 1 || eventType === 'QRCodeScanned');
+                    const isConfirmed = (eventType === LoginQRCallbackEventType?.GotLoginInfo || eventType === 3 || eventType === 'GotLoginInfo');
+                    const isDeclined  = (eventType === LoginQRCallbackEventType?.QRCodeDeclined || eventType === 2 || eventType === 'QRCodeDeclined');
+                    const isExpired   = (eventType === LoginQRCallbackEventType?.QRCodeExpired || eventType === 4 || eventType === 'QRCodeExpired');
+
+                    if (isGenerated) {
+                        currentSession.status = 'WAITING_SCAN';
+                        let qrBase64 = null;
+                        if (event.data && event.data.image) {
+                            qrBase64 = event.data.image;
+                            if (!qrBase64.startsWith('data:image')) {
+                                qrBase64 = `data:image/png;base64,${qrBase64}`;
                             }
-
-                            // 2. Thử lưu ra file và đọc lại nếu có action saveToFile
-                            if (event.actions && typeof event.actions.saveToFile === 'function') {
-                                try {
-                                    await event.actions.saveToFile(tempQrPath);
-                                } catch (e) {}
-                            }
-
-                            // 3. Đọc từ file tempQrPath nếu có
-                            if (!qrBase64 && fs.existsSync(tempQrPath)) {
-                                try {
-                                    const buffer = fs.readFileSync(tempQrPath);
-                                    qrBase64 = `data:image/png;base64,${buffer.toString('base64')}`;
-                                } catch (e) {}
-                            }
-
-                            currentSession.qrCode = qrBase64;
-                            console.log(`[ZaloManager][${sessionId}] Đã tạo mã QR thành công.`);
-                            break;
                         }
 
-                        case LoginQRCallbackEventType.QRCodeScanned: {
-                            currentSession.status = 'SCANNED';
-                            console.log(`[ZaloManager][${sessionId}] Người dùng đã quét mã trên điện thoại, chờ xác nhận...`);
-                            break;
+                        if (event.actions && typeof event.actions.saveToFile === 'function') {
+                            try {
+                                await event.actions.saveToFile(tempQrPath);
+                            } catch (e) {}
                         }
 
-                        case LoginQRCallbackEventType.GotLoginInfo: {
-                            currentSession.status = 'CONFIRMED';
-                            console.log(`[ZaloManager][${sessionId}] Đã xác nhận đăng nhập thành công.`);
-                            break;
+                        if (!qrBase64 && fs.existsSync(tempQrPath)) {
+                            try {
+                                const buffer = fs.readFileSync(tempQrPath);
+                                qrBase64 = `data:image/png;base64,${buffer.toString('base64')}`;
+                            } catch (e) {}
                         }
 
-                        case LoginQRCallbackEventType.QRCodeDeclined: {
-                            currentSession.status = 'DECLINED';
-                            currentSession.error = 'Đăng nhập bị từ chối trên thiết bị Zalo di động.';
-                            console.warn(`[ZaloManager][${sessionId}] Người dùng từ chối đăng nhập.`);
-                            break;
+                        currentSession.qrCode = qrBase64;
+                        console.log(`[ZaloManager][${sessionId}] Đã tạo mã QR thành công.`);
+                    } else if (isScanned) {
+                        currentSession.status = 'SCANNED';
+                        console.log(`[ZaloManager][${sessionId}] Người dùng đã quét mã trên điện thoại, chờ xác nhận...`);
+                    } else if (isConfirmed) {
+                        currentSession.status = 'CONFIRMED';
+                        console.log(`[ZaloManager][${sessionId}] Đã xác nhận đăng nhập thành công.`);
+                    } else if (isDeclined) {
+                        currentSession.status = 'DECLINED';
+                        currentSession.error = 'Đăng nhập bị từ chối trên thiết bị Zalo di động.';
+                        console.warn(`[ZaloManager][${sessionId}] Người dùng từ chối đăng nhập.`);
+                    } else if (isExpired) {
+                        currentSession.status = 'EXPIRED';
+                        currentSession.error = 'Mã QR đã hết hạn, vui lòng làm mới.';
+                        console.warn(`[ZaloManager][${sessionId}] Mã QR hết hạn.`);
+                        if (event.actions && typeof event.actions.retry === 'function') {
+                            try { event.actions.retry(); } catch (e) {}
                         }
-
-                        case LoginQRCallbackEventType.QRCodeExpired: {
-                            currentSession.status = 'EXPIRED';
-                            currentSession.error = 'Mã QR đã hết hạn, vui lòng làm mới.';
-                            console.warn(`[ZaloManager][${sessionId}] Mã QR hết hạn.`);
-                            if (event.actions && typeof event.actions.retry === 'function') {
-                                try { event.actions.retry(); } catch (e) {}
-                            }
-                            break;
-                        }
-
-                        default:
-                            break;
                     }
                 }
             );
