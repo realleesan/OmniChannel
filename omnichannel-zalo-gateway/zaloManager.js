@@ -21,10 +21,27 @@ class ZaloManager {
         this.pendingSessions = new Map();
 
         this.crmWebhookUrl = process.env.CRM_WEBHOOK_URL || 'https://omnichannel.gt.tc/api/zalo_action.php';
-        this.gatewayKey = process.env.ZALO_GATEWAY_KEY || 'omnichannel_zalo_secret_2026';
+        this.gatewayKey = (process.env.ZALO_GATEWAY_KEY || 'omnichannel_zalo_secret_2026').replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
+
+        // Hàng đợi lưu trữ sự kiện tạm thời (In-memory buffer) để CRM trình duyệt kéo về (miễn nhiễm Anti-Bot)
+        this.pendingEvents = [];
 
         // Tự động dọn dẹp các session QR hết hạn (> 10 phút)
         setInterval(() => this.cleanupExpiredSessions(), 5 * 60 * 1000);
+    }
+
+    addPendingEvent(event) {
+        if (this.pendingEvents.length > 200) {
+            this.pendingEvents.shift();
+        }
+        this.pendingEvents.push({
+            ...event,
+            queued_at: Date.now()
+        });
+    }
+
+    getPendingEvents() {
+        return this.pendingEvents.splice(0, 50);
     }
 
     /**
@@ -427,6 +444,9 @@ class ZaloManager {
      * Bắn webhook sang CRM PHP
      */
     async notifyCRM(payload) {
+        // Luôn lưu vào buffer để browser CRM có thể kéo về qua polling (Bypass Anti-Bot)
+        this.addPendingEvent(payload);
+
         if (!this.crmWebhookUrl) return;
 
         const body = {

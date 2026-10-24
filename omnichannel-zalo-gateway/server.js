@@ -10,7 +10,8 @@ const zaloManager = require('./zaloManager');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
-const GATEWAY_KEY = process.env.ZALO_GATEWAY_KEY || 'omnichannel_zalo_secret_2026';
+const rawKey = process.env.ZALO_GATEWAY_KEY || 'omnichannel_zalo_secret_2026';
+const GATEWAY_KEY = rawKey.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
 
 // Middleware cơ bản
 app.use(cors());
@@ -19,7 +20,8 @@ app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 // Middleware kiểm tra bảo mật API Key
 function verifyGatewayKey(req, res, next) {
-    const providedKey = req.headers['x-gateway-key'] || req.body?.gateway_key || req.query?.key;
+    const providedKey = (req.headers['x-gateway-key'] || req.body?.gateway_key || req.query?.key || '')
+        .replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
     if (!providedKey || providedKey !== GATEWAY_KEY) {
         return res.status(401).json({
             success: false,
@@ -81,11 +83,20 @@ app.get('/api/zalo/qr/status', (req, res) => {
 });
 
 // 5. API: Lấy danh sách tài khoản Zalo đang hoạt động
-app.get('/api/zalo/accounts', verifyGatewayKey, (req, res) => {
+app.get('/api/zalo/accounts', (req, res) => {
     const accounts = zaloManager.getAccounts();
     res.status(200).json({
         success: true,
         accounts
+    });
+});
+
+// 6. API: Polling kéo sự kiện & tin nhắn Zalo về CRM (Miễn nhiễm Anti-Bot của hosting)
+app.get('/api/zalo/poll', (req, res) => {
+    const events = zaloManager.getPendingEvents();
+    res.status(200).json({
+        success: true,
+        events
     });
 });
 
