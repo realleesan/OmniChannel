@@ -39,31 +39,37 @@ class ZaloAccount {
      * Lưu hoặc cập nhật thông tin tài khoản Zalo đã kết nối
      */
     public function upsert($id, $name, $avatar = null, $configuredAt = null, $status = 'CONNECTED') {
-        $now = date('Y-m-d H:i:s');
-        $stmt = $this->db->prepare("
-            INSERT INTO zalo_accounts (id, name, avatar, status, configured_at, last_active_at, created_at)
-            VALUES (:id, :name, :avatar, :status, :configured_at, :now, :now)
-            ON DUPLICATE KEY UPDATE 
-                name = :name_update,
-                avatar = COALESCE(:avatar_update, avatar),
-                status = :status_update,
-                configured_at = COALESCE(:configured_at_update, configured_at),
-                last_active_at = :now_update
-        ");
+        try {
+            $now = date('Y-m-d H:i:s');
+            $stmt = $this->db->prepare("
+                INSERT INTO zalo_accounts (id, name, avatar, status, configured_at, last_active_at, created_at)
+                VALUES (:id, :name, :avatar, :status, :configured_at, :now1, :now2)
+                ON DUPLICATE KEY UPDATE 
+                    name = :name_update,
+                    avatar = COALESCE(:avatar_update, avatar),
+                    status = :status_update,
+                    configured_at = COALESCE(:configured_at_update, configured_at),
+                    last_active_at = :now3
+            ");
 
-        return $stmt->execute([
-            ':id'                     => (string)$id,
-            ':name'                   => $name,
-            ':avatar'                 => $avatar,
-            ':status'                 => $status,
-            ':configured_at'          => $configuredAt,
-            ':now'                    => $now,
-            ':name_update'            => $name,
-            ':avatar_update'          => $avatar,
-            ':status_update'          => $status,
-            ':configured_at_update'   => $configuredAt,
-            ':now_update'             => $now
-        ]);
+            return $stmt->execute([
+                ':id'                     => (string)$id,
+                ':name'                   => $name,
+                ':avatar'                 => $avatar,
+                ':status'                 => $status,
+                ':configured_at'          => $configuredAt,
+                ':now1'                   => $now,
+                ':now2'                   => $now,
+                ':name_update'            => $name,
+                ':avatar_update'          => $avatar,
+                ':status_update'          => $status,
+                ':configured_at_update'   => $configuredAt,
+                ':now3'                   => $now
+            ]);
+        } catch (Throwable $e) {
+            error_log('[ZaloAccount upsert error]: ' . $e->getMessage());
+            return false;
+        }
     }
 
     /**
