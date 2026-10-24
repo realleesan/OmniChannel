@@ -681,25 +681,29 @@ if (!$currentUser) {
 <div class="modal-overlay" id="modalCreateTemplate" style="display:none;">
     <div class="modal-content" style="max-width: 580px; width: 95%;">
         <div class="modal-header">
-            <h3 class="modal-title" style="margin:0;font-size:16px;">Tạo Mẫu Tin Nhắn Mới</h3>
+            <h3 class="modal-title" id="modalCreateTemplateTitle" style="margin:0;font-size:16px;">Tạo mẫu tin nhắn mới</h3>
             <button type="button" class="modal-close-btn" onclick="closeCreateTemplateModal()">&times;</button>
         </div>
         <div class="modal-body" style="padding:18px 20px;">
             <div class="form-group">
                 <label class="form-label">Tiêu đề gợi nhớ <span style="color:#EF4444;">*</span></label>
-                <input type="text" id="newTplTitle" class="form-input" placeholder="Ví dụ: Báo giá sản phẩm theo ID">
+                <input type="text" id="newTplTitle" class="form-input" placeholder="Ví dụ: Báo giá sản phẩm theo ID" oninput="clearCreateTemplateFieldError('newTplTitle')">
+                <div class="shortcut-invalid-text" id="newTplTitleError" style="display:none;">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span id="newTplTitleErrorText">Tiêu đề gợi nhớ không được để trống (tối đa 100 ký tự).</span>
+                </div>
             </div>
 
             <div class="form-group">
                 <label class="form-label">Viết tắt <span style="color:#EF4444;">*</span></label>
                 <input type="text" id="newTplShortcut" class="form-input" placeholder="Ví dụ: sp hoặc id" 
-                       oninput="handleCreateTemplateInputChange(); handleValidateNewShortcut(this.value);"
+                       oninput="handleCreateTemplateInputChange(); clearCreateTemplateFieldError('newTplShortcut');"
                        ondragover="handleVarDragOver(event, this)"
                        ondragleave="handleVarDragLeave(this)"
                        ondrop="handleVarDrop(event, 'newTplShortcut')">
                 <div class="shortcut-invalid-text" id="newShortcutInvalidMsg" style="display:none;">
                     <i class="fa-solid fa-triangle-exclamation"></i>
-                    <span id="newShortcutInvalidText">Viết tắt đã tồn tại trong hệ thống!</span>
+                    <span id="newShortcutInvalidText">Viết tắt không được để trống (tối đa 50 ký tự).</span>
                 </div>
                 <div style="font-size:11.5px;color:#64748B;margin-top:2px;">Nhập từ khóa viết tắt để gọi nhanh mẫu tin khi chat.</div>
             </div>
@@ -708,10 +712,14 @@ if (!$currentUser) {
                 <label class="form-label">Nội dung mẫu tin <span style="color:#EF4444;">*</span></label>
                 <textarea id="newTplContent" class="form-textarea" rows="4" 
                           placeholder="Ví dụ: Sản phẩm [Tên sản phẩm] có giá [Giá bán] ạ... Kéo thả hoặc click các biến bên dưới để chèn tự động."
-                          oninput="handleCreateTemplateInputChange()"
+                          oninput="handleCreateTemplateInputChange(); clearCreateTemplateFieldError('newTplContent');"
                           ondragover="handleVarDragOver(event, this)"
                           ondragleave="handleVarDragLeave(this)"
                           ondrop="handleVarDrop(event, 'newTplContent')"></textarea>
+                <div class="shortcut-invalid-text" id="newTplContentError" style="display:none;">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span id="newTplContentErrorText">Nội dung mẫu tin không được để trống.</span>
+                </div>
             </div>
 
             <!-- Khu vực chèn biến động từ Google Sheet (hiển thị từng trang tính với từng biến) -->

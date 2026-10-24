@@ -1280,19 +1280,25 @@ function processShortcutInput(val) {
         });
     }
 
-    if (activeSuggestTemplates.length > 0) {
-        suggestSelectedIndex = -1; // Không chọn item đầu tiên, không bôi xanh sẵn
-        renderSuggestTemplatesList(activeSuggestTemplates);
-        if (popup) popup.style.display = 'flex';
-        hideSheetRowPicker();
-    } else {
-        closeShortcutSuggestPopup();
-    }
+    suggestSelectedIndex = -1; // Không chọn item đầu tiên, không bôi xanh sẵn
+    renderSuggestTemplatesList(activeSuggestTemplates);
+    if (popup) popup.style.display = 'flex';
+    hideSheetRowPicker();
 }
 
 function renderSuggestTemplatesList(templates) {
     const container = document.getElementById('suggestTemplatesList');
     if (!container) return;
+
+    if (!templates || templates.length === 0) {
+        container.innerHTML = `
+            <div class="suggest-empty-state" style="padding:16px 14px;text-align:center;color:#64748B;font-size:13px;font-style:italic;display:flex;align-items:center;justify-content:center;gap:6px;">
+                <i class="fa-solid fa-magnifying-glass" style="font-size:12px;color:#94A3B8;"></i>
+                <span>Không tìm thấy mẫu tin nhắn</span>
+            </div>
+        `;
+        return;
+    }
 
     let html = '';
     templates.forEach((t, idx) => {
@@ -1773,10 +1779,23 @@ async function postJsonSafe(url, payload) {
 
 async function handleAttachmentUpload(input) {
     if (!input.files || input.files.length === 0) return;
-    const files = Array.from(input.files).filter(f => /^image\//.test(f.type));
+
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    const allFiles = Array.from(input.files);
+
+    // Rule: Lấy file từ máy tối đa 10Mb => vượt quá sẽ hiện lỗi và không cho tải lên
+    const oversizedFiles = allFiles.filter(f => f.size > MAX_FILE_SIZE);
+    if (oversizedFiles.length > 0) {
+        input.value = '';
+        const names = oversizedFiles.map(f => f.name).join(', ');
+        alert(`Dung lượng tệp vượt quá giới hạn tối đa cho phép (10MB): ${names}. Vui lòng chọn tệp nhỏ hơn 10MB.`);
+        return;
+    }
+
+    const files = allFiles.filter(f => /^image\//.test(f.type));
     if (files.length === 0) {
         input.value = '';
-        return alert('Chỉ hỗ trợ tệp ảnh.');
+        return alert('Chỉ hỗ trợ tệp định dạng hình ảnh.');
     }
 
     try {
@@ -3811,19 +3830,16 @@ async function openCreateTemplateFromManage() {
     const modal = document.getElementById('modalCreateTemplate');
     if (modal) modal.style.display = 'flex';
 
-    // Xóa trắng form
+    // Xóa trắng form và xóa toàn bộ trạng thái lỗi
     const titleEl = document.getElementById('newTplTitle');
     const shortcutEl = document.getElementById('newTplShortcut');
     const contentEl = document.getElementById('newTplContent');
-    const errMsg = document.getElementById('newShortcutInvalidMsg');
 
     if (titleEl) titleEl.value = '';
-    if (shortcutEl) {
-        shortcutEl.value = '';
-        shortcutEl.classList.remove('is-invalid');
-    }
+    if (shortcutEl) shortcutEl.value = '';
     if (contentEl) contentEl.value = '';
-    if (errMsg) errMsg.style.display = 'none';
+
+    clearAllCreateTemplateErrors();
 
     currentCreateTplSheet = null;
     await ensureSheetConfigLoaded();
@@ -3975,27 +3991,52 @@ function insertTextAtCursor(inputEl, text) {
     inputEl.selectionEnd = newPos;
 }
 
-function handleValidateNewShortcut(val) {
-    if (!val) {
-        toggleShortcutError(false);
-        return;
+function showCreateTemplateFieldError(fieldId, errorContainerId, textId, errorMsg) {
+    const inputEl = document.getElementById(fieldId);
+    const errContainer = document.getElementById(errorContainerId);
+    const errText = document.getElementById(textId);
+    if (inputEl) inputEl.classList.add('is-invalid');
+    if (errText) errText.innerText = errorMsg;
+    if (errContainer) errContainer.style.display = 'flex';
+}
+
+function clearCreateTemplateFieldError(fieldId) {
+    const inputEl = document.getElementById(fieldId);
+    if (inputEl) inputEl.classList.remove('is-invalid');
+    if (fieldId === 'newTplTitle') {
+        const err = document.getElementById('newTplTitleError');
+        if (err) err.style.display = 'none';
+    } else if (fieldId === 'newTplShortcut') {
+        const err = document.getElementById('newShortcutInvalidMsg');
+        if (err) err.style.display = 'none';
+    } else if (fieldId === 'newTplContent') {
+        const err = document.getElementById('newTplContentError');
+        if (err) err.style.display = 'none';
     }
-    const clean = val.trim();
-    const isDup = (AppState.templates || []).some(t => (t.shortcut || '').trim().toLowerCase() === clean.toLowerCase());
-    toggleShortcutError(isDup);
+}
+
+function clearAllCreateTemplateErrors() {
+    clearCreateTemplateFieldError('newTplTitle');
+    clearCreateTemplateFieldError('newTplShortcut');
+    clearCreateTemplateFieldError('newTplContent');
+    const btnSubmit = document.getElementById('btnSubmitNewTemplate');
+    if (btnSubmit) btnSubmit.disabled = false;
+}
+
+function handleValidateNewShortcut(val) {
+    // Không hiện lỗi khi đang gõ, lỗi chỉ xuất hiện khi bấm Lưu
 }
 
 function toggleShortcutError(isError) {
     const errBox = document.getElementById('newShortcutInvalidMsg');
     const inputEl = document.getElementById('newTplShortcut');
-    const btnSubmit = document.getElementById('btnSubmitNewTemplate');
-
     if (errBox) errBox.style.display = isError ? 'flex' : 'none';
     if (inputEl) inputEl.classList.toggle('is-invalid', isError);
-    if (btnSubmit) btnSubmit.disabled = isError;
 }
 
 async function saveNewTemplateRecord() {
+    clearAllCreateTemplateErrors();
+
     const titleEl = document.getElementById('newTplTitle');
     const shortcutEl = document.getElementById('newTplShortcut');
     const contentEl = document.getElementById('newTplContent');
@@ -4004,47 +4045,65 @@ async function saveNewTemplateRecord() {
     let shortcut = shortcutEl ? shortcutEl.value.trim() : '';
     const content = contentEl ? contentEl.value.trim() : '';
 
+    let hasError = false;
+    let firstErrorField = null;
+
+    // 1. Kiểm tra Tiêu đề gợi nhớ
     if (!title) {
-        alert('Vui lòng nhập Tiêu đề gợi nhớ!');
-        titleEl?.focus();
-        return;
+        showCreateTemplateFieldError('newTplTitle', 'newTplTitleError', 'newTplTitleErrorText', 'Tiêu đề gợi nhớ không được để trống (tối đa 100 ký tự).');
+        hasError = true;
+        if (!firstErrorField) firstErrorField = titleEl;
+    } else if (title.length > 100) {
+        showCreateTemplateFieldError('newTplTitle', 'newTplTitleError', 'newTplTitleErrorText', 'Tiêu đề gợi nhớ không được vượt quá 100 ký tự.');
+        hasError = true;
+        if (!firstErrorField) firstErrorField = titleEl;
+    } else {
+        const cleanTitle = title.toLowerCase();
+        const dupTitle = (AppState.templates || []).find(t => (t.title || '').trim().toLowerCase() === cleanTitle);
+        if (dupTitle) {
+            showCreateTemplateFieldError('newTplTitle', 'newTplTitleError', 'newTplTitleErrorText', `Tiêu đề "${title}" đã được sử dụng bởi mẫu tin khác. Vui lòng chọn tiêu đề khác!`);
+            hasError = true;
+            if (!firstErrorField) firstErrorField = titleEl;
+        }
     }
+
+    // 2. Kiểm tra Viết tắt
     if (!shortcut) {
-        alert('Vui lòng nhập Viết tắt!');
-        shortcutEl?.focus();
-        return;
+        showCreateTemplateFieldError('newTplShortcut', 'newShortcutInvalidMsg', 'newShortcutInvalidText', 'Viết tắt không được để trống (tối đa 50 ký tự).');
+        hasError = true;
+        if (!firstErrorField) firstErrorField = shortcutEl;
+    } else if (shortcut.length > 50) {
+        showCreateTemplateFieldError('newTplShortcut', 'newShortcutInvalidMsg', 'newShortcutInvalidText', 'Viết tắt không được vượt quá 50 ký tự.');
+        hasError = true;
+        if (!firstErrorField) firstErrorField = shortcutEl;
+    } else {
+        const cleanShortcut = '/' + shortcut.replace(/^\/+/, '').toLowerCase();
+        const dupShortcut = (AppState.templates || []).find(t => (t.shortcut || '').replace(/^\/+/, '').trim().toLowerCase() === cleanShortcut.replace(/^\/+/, ''));
+        if (dupShortcut) {
+            showCreateTemplateFieldError('newTplShortcut', 'newShortcutInvalidMsg', 'newShortcutInvalidText', `Viết tắt "${shortcut}" đã tồn tại trong hệ thống (Mẫu: "${dupShortcut.title || dupShortcut.shortcut}"). Vui lòng chọn viết tắt khác!`);
+            hasError = true;
+            if (!firstErrorField) firstErrorField = shortcutEl;
+        }
     }
+
+    // 3. Kiểm tra Nội dung mẫu tin
     if (!content) {
-        alert('Vui lòng nhập Nội dung mẫu tin!');
-        contentEl?.focus();
-        return;
+        showCreateTemplateFieldError('newTplContent', 'newTplContentError', 'newTplContentErrorText', 'Nội dung mẫu tin không được để trống.');
+        hasError = true;
+        if (!firstErrorField) firstErrorField = contentEl;
+    } else {
+        const cleanContent = content.toLowerCase();
+        const dupContent = (AppState.templates || []).find(t => (t.content || '').trim().toLowerCase() === cleanContent);
+        if (dupContent) {
+            showCreateTemplateFieldError('newTplContent', 'newTplContentError', 'newTplContentErrorText', `Nội dung mẫu tin này trùng lặp với mẫu tin "${dupContent.title || dupContent.shortcut}". Mỗi mẫu tin phải có nội dung riêng biệt!`);
+            hasError = true;
+            if (!firstErrorField) firstErrorField = contentEl;
+        }
     }
 
-    const cleanTitle = title.toLowerCase();
-    const cleanShortcut = '/' + shortcut.replace(/^\/+/, '').toLowerCase();
-    const cleanContent = content.toLowerCase();
-
-    // 1. Kiểm tra trùng viết tắt
-    const dupShortcut = (AppState.templates || []).find(t => (t.shortcut || '').replace(/^\/+/, '').trim().toLowerCase() === cleanShortcut.replace(/^\/+/, ''));
-    if (dupShortcut) {
-        alert(`Viết tắt "${shortcut}" đã tồn tại trong hệ thống (Mẫu: "${dupShortcut.title || dupShortcut.shortcut}"). Vui lòng chọn viết tắt khác!`);
-        shortcutEl?.focus();
-        return;
-    }
-
-    // 2. Kiểm tra trùng tiêu đề
-    const dupTitle = (AppState.templates || []).find(t => (t.title || '').trim().toLowerCase() === cleanTitle);
-    if (dupTitle) {
-        alert(`Tiêu đề "${title}" đã được sử dụng bởi mẫu tin khác. Vui lòng chọn tiêu đề khác!`);
-        titleEl?.focus();
-        return;
-    }
-
-    // 3. Kiểm tra trùng nội dung
-    const dupContent = (AppState.templates || []).find(t => (t.content || '').trim().toLowerCase() === cleanContent);
-    if (dupContent) {
-        alert(`Nội dung mẫu tin này trùng lặp với mẫu tin "${dupContent.title || dupContent.shortcut}". Mỗi mẫu tin phải có nội dung riêng biệt!`);
-        contentEl?.focus();
+    // Nếu có lỗi, dừng lại và focus ô lỗi đầu tiên (tất cả các ô bị lỗi đều đã được tô đỏ + thông báo rule)
+    if (hasError) {
+        firstErrorField?.focus();
         return;
     }
 

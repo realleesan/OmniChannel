@@ -1580,6 +1580,13 @@
             attachBtn.style.pointerEvents = 'none';
         }
 
+        const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+        const oversized = files.filter(f => f.size > MAX_FILE_SIZE);
+        if (oversized.length > 0) {
+            alert('Tệp đính kèm vượt quá dung lượng tối đa 10MB. Vui lòng chọn tệp nhỏ hơn!');
+            return;
+        }
+
         const uploadedUrls = [];
         for (const file of files) {
             if (!file.type.startsWith('image/')) continue;

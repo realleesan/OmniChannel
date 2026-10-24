@@ -3375,7 +3375,8 @@ body {
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25) !important;
 }
 
-.form-input.is-invalid {
+.form-input.is-invalid,
+.form-textarea.is-invalid {
     border-color: #EF4444 !important;
     background: #FEF2F2 !important;
 }
