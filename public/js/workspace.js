@@ -2013,6 +2013,9 @@ function openEditCustomerProfileModal() {
     const inNotes = document.getElementById('modalInputNotes');
     const inSummary = document.getElementById('modalInputSummary');
 
+    // Reset lỗi cũ
+    ['modalInputRealName', 'modalInputPhone', 'modalInputAddress', 'modalInputBodyMeasurements', 'modalInputCustomerNeeds', 'modalInputRecentPurchases', 'modalInputNotes', 'modalInputSummary'].forEach(clearCrmFieldError);
+
     if (inRealName) inRealName.value = p.real_name || getCleanVal('crmRealName', 'Chưa có thông tin');
     if (inPhone) inPhone.value = p.phone || getCleanVal('crmPhone', 'Chưa có thông tin');
     if (inAddress) inAddress.value = p.address || getCleanVal('crmAddress', 'Chưa có thông tin');
@@ -2026,7 +2029,60 @@ function openEditCustomerProfileModal() {
     if (inNotes) inNotes.value = p.notes || getCleanVal('crmNotes', 'Chưa có thông tin');
     if (inSummary) inSummary.value = p.conversation_summary || getCleanVal('crmSummary', 'Chưa có tóm tắt');
 
+    // Cập nhật bộ đếm ký tự
+    updateCrmCharCount('modalInputNotes', 'charCountNotes', 500);
+    updateCrmCharCount('modalInputSummary', 'charCountSummary', 500);
+
     modal.style.display = 'flex';
+}
+
+function clearCrmFieldError(fieldId) {
+    const input = document.getElementById(fieldId);
+    if (input) input.style.borderColor = '';
+    const errId = 'err' + fieldId.charAt(0).toUpperCase() + fieldId.slice(1);
+    const errEl = document.getElementById(errId);
+    if (errEl) {
+        errEl.style.display = 'none';
+        errEl.innerText = '';
+    }
+}
+
+function showCrmFieldError(fieldId, message) {
+    const input = document.getElementById(fieldId);
+    if (input) {
+        input.style.borderColor = '#EF4444';
+        input.focus();
+    }
+    const errId = 'err' + fieldId.charAt(0).toUpperCase() + fieldId.slice(1);
+    const errEl = document.getElementById(errId);
+    if (errEl) {
+        errEl.innerText = message;
+        errEl.style.display = 'block';
+    }
+}
+
+function formatRealNameInput(input) {
+    if (!input || !input.value) return;
+    let val = input.value.trim().replace(/\s+/g, ' ');
+    if (!val) return;
+    // Viết hoa chữ cái đầu mỗi từ
+    val = val.toLowerCase().replace(/(^|\s)\S/g, function(l) { return l.toUpperCase(); });
+    input.value = val;
+}
+
+function updateCrmCharCount(fieldId, counterId, maxLen) {
+    const el = document.getElementById(fieldId);
+    const counter = document.getElementById(counterId);
+    if (!el || !counter) return;
+    const len = el.value.length;
+    counter.innerText = `${len}/${maxLen}`;
+    if (len >= maxLen) {
+        counter.style.color = '#EF4444';
+        counter.style.fontWeight = 'bold';
+    } else {
+        counter.style.color = '#64748B';
+        counter.style.fontWeight = 'normal';
+    }
 }
 
 function closeEditCustomerProfileModal() {
@@ -2035,12 +2091,101 @@ function closeEditCustomerProfileModal() {
 }
 
 /**
- * Lưu 8 trường từ Modal chỉnh sửa hồ sơ khách hàng
+ * Lưu 8 trường từ Modal chỉnh sửa hồ sơ khách hàng (áp dụng bộ rule QT-03.1.09 đến QT-03.1.16)
  */
 async function handleSaveCustomerProfileModal() {
     if (!AppState.activeConvId) return;
     if (AppState.isViewOnly) {
         alert('Hội thoại đang ở chế độ chỉ xem. Bạn không có quyền chỉnh sửa.');
+        return;
+    }
+
+    // Reset lỗi
+    ['modalInputRealName', 'modalInputPhone', 'modalInputAddress', 'modalInputBodyMeasurements', 'modalInputCustomerNeeds', 'modalInputRecentPurchases', 'modalInputNotes', 'modalInputSummary'].forEach(clearCrmFieldError);
+
+    let realName = document.getElementById('modalInputRealName')?.value?.trim() || '';
+    let phone = document.getElementById('modalInputPhone')?.value?.trim() || '';
+    let address = document.getElementById('modalInputAddress')?.value?.trim() || '';
+    let bodyMeasurements = document.getElementById('modalInputBodyMeasurements')?.value?.trim() || '';
+    let needs = document.getElementById('modalInputCustomerNeeds')?.value?.trim() || '';
+    let recentPurchases = document.getElementById('modalInputRecentPurchases')?.value?.trim() || '';
+    let notes = document.getElementById('modalInputNotes')?.value?.trim() || '';
+    let summary = document.getElementById('modalInputSummary')?.value?.trim() || '';
+
+    // 1. QT-03.1.09: Validation Họ và tên (2–100 ký tự, chỉ chứa chữ cái tiếng Việt và khoảng trắng, tự viết hoa chữ cái đầu và loại bỏ khoảng trắng thừa)
+    if (realName !== '') {
+        realName = realName.replace(/\s+/g, ' ');
+        if (realName.length < 2 || realName.length > 100) {
+            showCrmFieldError('modalInputRealName', 'Họ và tên phải có độ dài từ 2 đến 100 ký tự.');
+            return;
+        }
+        const vietnameseRegex = /^[a-zA-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưạảấầẩẫậắằẳẵặẹẻẽềềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ\s]+$/u;
+        if (!vietnameseRegex.test(realName)) {
+            showCrmFieldError('modalInputRealName', 'Họ và tên chỉ được chứa chữ cái tiếng Việt và khoảng trắng.');
+            return;
+        }
+        // Tự động viết hoa chữ cái đầu
+        realName = realName.toLowerCase().replace(/(^|\s)\S/g, function(l) { return l.toUpperCase(); });
+        document.getElementById('modalInputRealName').value = realName;
+    }
+
+    // 2. QT-03.1.10: Validation Số điện thoại (đúng 10 chữ số, bắt đầu bằng số 0)
+    if (phone !== '') {
+        phone = phone.replace(/[\s\.\-]+/g, '');
+        document.getElementById('modalInputPhone').value = phone;
+        if (!/^0[0-9]{9}$/.test(phone)) {
+            showCrmFieldError('modalInputPhone', 'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0 (chuẩn di động Việt Nam).');
+            return;
+        }
+    }
+
+    // 3. QT-03.1.11: Validation Địa chỉ (tối đa 300 ký tự, cho phép chữ, số và ký tự phân cách địa chỉ /, ,, -, .)
+    if (address !== '') {
+        if (address.length > 300) {
+            showCrmFieldError('modalInputAddress', 'Địa chỉ không được vượt quá 300 ký tự.');
+            return;
+        }
+        const addressRegex = /^[a-zA-Z0-9ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưạảấầẩẫậắằẳẵặẹẻẽềềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ\s\/\,\-\.]+$/u;
+        if (!addressRegex.test(address)) {
+            showCrmFieldError('modalInputAddress', 'Địa chỉ chứa ký tự không hợp lệ. Chỉ cho phép chữ, số và ký tự phân cách (/, \',\' , -, .).');
+            return;
+        }
+    }
+
+    // 4. QT-03.1.12: Validation Số đo (tối đa 100 ký tự, cho phép chữ và số)
+    if (bodyMeasurements !== '') {
+        if (bodyMeasurements.length > 100) {
+            showCrmFieldError('modalInputBodyMeasurements', 'Số đo không được vượt quá 100 ký tự.');
+            return;
+        }
+        const bodyRegex = /^[a-zA-Z0-9ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưạảấầẩẫậắằẳẵặẹẻẽềềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ\s\/\,\-\.\:\%]+$/u;
+        if (!bodyRegex.test(bodyMeasurements)) {
+            showCrmFieldError('modalInputBodyMeasurements', 'Số đo chỉ cho phép chữ và số (tối đa 100 ký tự).');
+            return;
+        }
+    }
+
+    // 5. QT-03.1.13: Validation Sản phẩm quan tâm (tối đa 300 ký tự)
+    if (needs !== '' && needs.length > 300) {
+        showCrmFieldError('modalInputCustomerNeeds', 'Sản phẩm quan tâm không được vượt quá 300 ký tự.');
+        return;
+    }
+
+    // 6. QT-03.1.14: Validation Đơn hàng từng mua (tối đa 300 ký tự)
+    if (recentPurchases !== '' && recentPurchases.length > 300) {
+        showCrmFieldError('modalInputRecentPurchases', 'Đơn hàng từng mua không được vượt quá 300 ký tự.');
+        return;
+    }
+
+    // 7. QT-03.1.15: Validation Ghi chú (tối đa 500 ký tự)
+    if (notes !== '' && notes.length > 500) {
+        showCrmFieldError('modalInputNotes', 'Ghi chú không được vượt quá 500 ký tự.');
+        return;
+    }
+
+    // 8. QT-03.1.16: Validation Tóm tắt hội thoại (tối đa 500 ký tự)
+    if (summary !== '' && summary.length > 500) {
+        showCrmFieldError('modalInputSummary', 'Tóm tắt hội thoại không được vượt quá 500 ký tự.');
         return;
     }
 
@@ -2055,15 +2200,6 @@ async function handleSaveCustomerProfileModal() {
         const params = new URLSearchParams();
         params.append('action', 'update_crm_profile');
         params.append('conversation_id', AppState.activeConvId);
-
-        const realName = document.getElementById('modalInputRealName')?.value?.trim() || '';
-        const phone = document.getElementById('modalInputPhone')?.value?.trim() || '';
-        const address = document.getElementById('modalInputAddress')?.value?.trim() || '';
-        const bodyMeasurements = document.getElementById('modalInputBodyMeasurements')?.value?.trim() || '';
-        const needs = document.getElementById('modalInputCustomerNeeds')?.value?.trim() || '';
-        const recentPurchases = document.getElementById('modalInputRecentPurchases')?.value?.trim() || '';
-        const notes = document.getElementById('modalInputNotes')?.value?.trim() || '';
-        const summary = document.getElementById('modalInputSummary')?.value?.trim() || '';
 
         params.append('real_name', realName);
         params.append('phone', phone);

@@ -762,36 +762,50 @@ if (!$currentUser) {
         <div class="modal-body" style="padding: 18px 22px; max-height: 72vh; overflow-y: auto;">
             <form id="formEditCustomerProfile" onsubmit="event.preventDefault(); handleSaveCustomerProfileModal();" style="display:flex; flex-direction:column; gap:12px;">
                 <div class="form-group">
-                    <label class="form-label" style="font-weight:600; color:#334155;">Họ và tên:</label>
-                    <input type="text" class="form-input" id="modalInputRealName" placeholder="Nhập họ và tên thật của khách...">
+                    <label class="form-label" style="font-weight:600; color:#334155;">Họ và tên (2–100 ký tự):</label>
+                    <input type="text" class="form-input" id="modalInputRealName" maxlength="100" placeholder="Ví dụ: Nguyễn Văn An" oninput="clearCrmFieldError('modalInputRealName')" onblur="formatRealNameInput(this)">
+                    <div class="crm-field-error" id="errModalInputRealName" style="display:none; color:#EF4444; font-size:12px; margin-top:4px;"></div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" style="font-weight:600; color:#334155;">Số điện thoại:</label>
-                    <input type="text" class="form-input" id="modalInputPhone" placeholder="Nhập số điện thoại...">
+                    <label class="form-label" style="font-weight:600; color:#334155;">Số điện thoại (10 chữ số, bắt đầu số 0):</label>
+                    <input type="text" class="form-input" id="modalInputPhone" maxlength="10" placeholder="Ví dụ: 0914960029" oninput="clearCrmFieldError('modalInputPhone')">
+                    <div class="crm-field-error" id="errModalInputPhone" style="display:none; color:#EF4444; font-size:12px; margin-top:4px;"></div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" style="font-weight:600; color:#334155;">Địa chỉ:</label>
-                    <input type="text" class="form-input" id="modalInputAddress" placeholder="Nhập địa chỉ giao hàng...">
+                    <label class="form-label" style="font-weight:600; color:#334155;">Địa chỉ (tối đa 300 ký tự):</label>
+                    <input type="text" class="form-input" id="modalInputAddress" maxlength="300" placeholder="Ví dụ: 12/3A Lê Lợi, Phường Bến Nghé, Quận 1, TP.HCM" oninput="clearCrmFieldError('modalInputAddress')">
+                    <div class="crm-field-error" id="errModalInputAddress" style="display:none; color:#EF4444; font-size:12px; margin-top:4px;"></div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" style="font-weight:600; color:#334155;">Số đo:</label>
-                    <input type="text" class="form-input" id="modalInputBodyMeasurements" placeholder="Ví dụ: Size L, cao 1m70, nặng 65kg...">
+                    <label class="form-label" style="font-weight:600; color:#334155;">Số đo (tối đa 100 ký tự):</label>
+                    <input type="text" class="form-input" id="modalInputBodyMeasurements" maxlength="100" placeholder="Ví dụ: Size M, Chiều cao 160cm, Cân nặng 50kg" oninput="clearCrmFieldError('modalInputBodyMeasurements')">
+                    <div class="crm-field-error" id="errModalInputBodyMeasurements" style="display:none; color:#EF4444; font-size:12px; margin-top:4px;"></div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" style="font-weight:600; color:#334155;">Sản phẩm quan tâm:</label>
-                    <textarea class="form-textarea" id="modalInputCustomerNeeds" rows="2" placeholder="Sản phẩm hoặc nhu cầu khách quan tâm..."></textarea>
+                    <label class="form-label" style="font-weight:600; color:#334155;">Sản phẩm quan tâm (tối đa 300 ký tự):</label>
+                    <textarea class="form-textarea" id="modalInputCustomerNeeds" rows="2" maxlength="300" placeholder="Ví dụ: Đầm hoa nhí SP002 size M màu đỏ" oninput="clearCrmFieldError('modalInputCustomerNeeds')"></textarea>
+                    <div class="crm-field-error" id="errModalInputCustomerNeeds" style="display:none; color:#EF4444; font-size:12px; margin-top:4px;"></div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" style="font-weight:600; color:#334155;">Đơn hàng từng mua:</label>
-                    <textarea class="form-textarea" id="modalInputRecentPurchases" rows="2" placeholder="Đơn hàng hoặc sản phẩm đã từng chốt..."></textarea>
+                    <label class="form-label" style="font-weight:600; color:#334155;">Đơn hàng từng mua (tối đa 300 ký tự):</label>
+                    <textarea class="form-textarea" id="modalInputRecentPurchases" rows="2" maxlength="300" placeholder="Ví dụ: Đã chốt áo sơ mi SP005 ngày 20/10" oninput="clearCrmFieldError('modalInputRecentPurchases')"></textarea>
+                    <div class="crm-field-error" id="errModalInputRecentPurchases" style="display:none; color:#EF4444; font-size:12px; margin-top:4px;"></div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" style="font-weight:600; color:#334155;">Ghi chú:</label>
-                    <textarea class="form-textarea" id="modalInputNotes" rows="2" placeholder="Ghi chú về khách hàng..."></textarea>
+                    <label class="form-label" style="font-weight:600; color:#334155; display:flex; justify-content:space-between; align-items:center;">
+                        <span>Ghi chú (tối đa 500 ký tự):</span>
+                        <span id="charCountNotes" style="font-size:11.5px; color:#64748B; font-weight:normal;">0/500</span>
+                    </label>
+                    <textarea class="form-textarea" id="modalInputNotes" rows="2" maxlength="500" placeholder="Ghi chú thêm về sở thích, tính cách khách..." oninput="updateCrmCharCount('modalInputNotes', 'charCountNotes', 500); clearCrmFieldError('modalInputNotes');"></textarea>
+                    <div class="crm-field-error" id="errModalInputNotes" style="display:none; color:#EF4444; font-size:12px; margin-top:4px;"></div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" style="font-weight:600; color:#334155;">Tóm tắt hội thoại:</label>
-                    <textarea class="form-textarea" id="modalInputSummary" rows="2" placeholder="Tóm tắt ngắn nội dung cuộc trò chuyện..."></textarea>
+                    <label class="form-label" style="font-weight:600; color:#334155; display:flex; justify-content:space-between; align-items:center;">
+                        <span>Tóm tắt hội thoại (tối đa 500 ký tự):</span>
+                        <span id="charCountSummary" style="font-size:11.5px; color:#64748B; font-weight:normal;">0/500</span>
+                    </label>
+                    <textarea class="form-textarea" id="modalInputSummary" rows="2" maxlength="500" placeholder="Tóm tắt ngắn nội dung cuộc trò chuyện..." oninput="updateCrmCharCount('modalInputSummary', 'charCountSummary', 500); clearCrmFieldError('modalInputSummary');"></textarea>
+                    <div class="crm-field-error" id="errModalInputSummary" style="display:none; color:#EF4444; font-size:12px; margin-top:4px;"></div>
                 </div>
             </form>
         </div>

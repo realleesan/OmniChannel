@@ -166,7 +166,10 @@ class ChatController {
                 try {
                     $this->profileModel->getByConversationId($conversationId);
                     if (!empty($customerPhone)) {
-                        $this->profileModel->updateManual($conversationId, 'recent_purchases', 'SĐT: ' . $customerPhone);
+                        $this->profileModel->updateManual($conversationId, 'phone', $customerPhone);
+                    }
+                    if (!empty($senderName) && stripos($senderName, 'khách') !== 0) {
+                        $this->profileModel->updateManual($conversationId, 'real_name', $senderName);
                     }
                 } catch (Throwable $e) {}
             } else {
@@ -177,16 +180,16 @@ class ChatController {
                     try {
                         $this->convModel->updateSenderName($conversationId, $senderName);
                         $this->profileModel->updateManual($conversationId, 'customer_name', $senderName);
+                        if (stripos($senderName, 'khách') !== 0) {
+                            $this->profileModel->updateManual($conversationId, 'real_name', $senderName);
+                        }
                     } catch (Throwable $e) {}
                 }
 
-                // Cập nhật SĐT nếu có
+                // Cập nhật SĐT vào trường phone chuẩn
                 if (!empty($customerPhone)) {
                     try {
-                        $currentProfile = $this->profileModel->getByConversationId($conversationId);
-                        if (empty($currentProfile['recent_purchases']) || $currentProfile['recent_purchases'] === 'Chưa có thông tin' || $currentProfile['recent_purchases'] === 'Chưa có đơn hàng cũ') {
-                            $this->profileModel->updateManual($conversationId, 'recent_purchases', 'SĐT: ' . $customerPhone);
-                        }
+                        $this->profileModel->updateManual($conversationId, 'phone', $customerPhone);
                     } catch (Throwable $e) {}
                 }
 

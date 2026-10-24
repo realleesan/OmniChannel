@@ -35,6 +35,94 @@ class CustomerController {
     }
 
     public function updateCrmProfile($conversationId, array $data) {
+        $realName = isset($data['real_name']) ? trim($data['real_name']) : '';
+        $phone = isset($data['phone']) ? trim($data['phone']) : '';
+        $address = isset($data['address']) ? trim($data['address']) : '';
+        $body = isset($data['body_measurements']) ? trim($data['body_measurements']) : '';
+        $needs = isset($data['customer_needs']) ? trim($data['customer_needs']) : '';
+        $recent = isset($data['recent_purchases']) ? trim($data['recent_purchases']) : '';
+        $notes = isset($data['notes']) ? trim($data['notes']) : '';
+        $summary = isset($data['conversation_summary']) ? trim($data['conversation_summary']) : '';
+
+        // 1. QT-03.1.09: Validation Họ và tên (2–100 ký tự, chỉ chứa chữ cái tiếng Việt và khoảng trắng, tự viết hoa chữ cái đầu và bỏ khoảng trắng thừa)
+        if ($realName !== '') {
+            $realName = trim(preg_replace('/\s+/u', ' ', $realName));
+            $len = mb_strlen($realName, 'UTF-8');
+            if ($len < 2 || $len > 100) {
+                return ['success' => false, 'message' => 'Họ và tên phải có độ dài từ 2 đến 100 ký tự.'];
+            }
+            // Kiểm tra chữ cái tiếng Việt và khoảng trắng
+            if (!preg_match('/^[a-zA-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưạảấầẩẫậắằẳẵặẹẻẽềềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ\s]+$/u', $realName)) {
+                return ['success' => false, 'message' => 'Họ và tên chỉ được chứa chữ cái tiếng Việt và khoảng trắng.'];
+            }
+            // Tự động viết hoa chữ cái đầu
+            $realName = mb_convert_case($realName, MB_CASE_TITLE, "UTF-8");
+            $data['real_name'] = $realName;
+        }
+
+        // 2. QT-03.1.10: Validation Số điện thoại (đúng 10 chữ số, bắt đầu bằng số 0)
+        if ($phone !== '') {
+            $phone = preg_replace('/[\s\.\-]+/', '', $phone);
+            if (!preg_match('/^0[0-9]{9}$/', $phone)) {
+                return ['success' => false, 'message' => 'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0 (chuẩn di động Việt Nam).'];
+            }
+            $data['phone'] = $phone;
+        }
+
+        // 3. QT-03.1.11: Validation Địa chỉ (tối đa 300 ký tự, cho phép chữ, số và ký tự phân cách địa chỉ /, ,, -, .)
+        if ($address !== '') {
+            if (mb_strlen($address, 'UTF-8') > 300) {
+                return ['success' => false, 'message' => 'Địa chỉ không được vượt quá 300 ký tự.'];
+            }
+            if (!preg_match('/^[a-zA-Z0-9ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưạảấầẩẫậắằẳẵặẹẻẽềềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ\s\/\,\-\.]+$/u', $address)) {
+                return ['success' => false, 'message' => 'Địa chỉ chứa ký tự không hợp lệ. Chỉ cho phép chữ, số và ký tự phân cách (/, \',\' , -, .).'];
+            }
+            $data['address'] = $address;
+        }
+
+        // 4. QT-03.1.12: Validation Số đo (tối đa 100 ký tự, cho phép chữ và số)
+        if ($body !== '') {
+            if (mb_strlen($body, 'UTF-8') > 100) {
+                return ['success' => false, 'message' => 'Số đo không được vượt quá 100 ký tự.'];
+            }
+            if (!preg_match('/^[a-zA-Z0-9ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưạảấầẩẫậắằẳẵặẹẻẽềềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ\s\/\,\-\.\:\%]+$/u', $body)) {
+                return ['success' => false, 'message' => 'Số đo chỉ cho phép chữ và số (tối đa 100 ký tự).'];
+            }
+            $data['body_measurements'] = $body;
+        }
+
+        // 5. QT-03.1.13: Validation Sản phẩm quan tâm (tối đa 300 ký tự)
+        if ($needs !== '') {
+            if (mb_strlen($needs, 'UTF-8') > 300) {
+                return ['success' => false, 'message' => 'Sản phẩm quan tâm không được vượt quá 300 ký tự.'];
+            }
+            $data['customer_needs'] = $needs;
+        }
+
+        // 6. QT-03.1.14: Validation Đơn hàng từng mua (tối đa 300 ký tự)
+        if ($recent !== '') {
+            if (mb_strlen($recent, 'UTF-8') > 300) {
+                return ['success' => false, 'message' => 'Đơn hàng từng mua không được vượt quá 300 ký tự.'];
+            }
+            $data['recent_purchases'] = $recent;
+        }
+
+        // 7. QT-03.1.15: Validation Ghi chú (tối đa 500 ký tự)
+        if ($notes !== '') {
+            if (mb_strlen($notes, 'UTF-8') > 500) {
+                return ['success' => false, 'message' => 'Ghi chú không được vượt quá 500 ký tự.'];
+            }
+            $data['notes'] = $notes;
+        }
+
+        // 8. QT-03.1.16: Validation Tóm tắt hội thoại (tối đa 500 ký tự)
+        if ($summary !== '') {
+            if (mb_strlen($summary, 'UTF-8') > 500) {
+                return ['success' => false, 'message' => 'Tóm tắt hội thoại không được vượt quá 500 ký tự.'];
+            }
+            $data['conversation_summary'] = $summary;
+        }
+
         $success = $this->profileModel->updateCrmProfile($conversationId, $data);
         $updatedProfile = $this->profileModel->getByConversationId($conversationId);
         return [

@@ -40,6 +40,22 @@ class CustomerProfile {
                         @$this->db->exec("ALTER TABLE customer_profiles ADD COLUMN $col $def");
                     }
                 }
+
+                // Đảm bảo cột address có độ dài tối đa 300 ký tự chuẩn rule QT-03.1.11
+                @$this->db->exec("ALTER TABLE customer_profiles MODIFY address VARCHAR(300) NULL");
+
+                // Tự động chuyển các số điện thoại cũ từng bị lưu nhầm dạng 'SĐT: ...' trong recent_purchases sang cột phone
+                @$this->db->exec("
+                    UPDATE customer_profiles 
+                    SET phone = TRIM(SUBSTRING(recent_purchases, 6)),
+                        recent_purchases = NULL
+                    WHERE recent_purchases LIKE 'SĐT:%' AND (phone IS NULL OR phone = '')
+                ");
+                @$this->db->exec("
+                    UPDATE customer_profiles 
+                    SET recent_purchases = NULL
+                    WHERE recent_purchases LIKE 'SĐT:%'
+                ");
             } catch (Throwable $e) {}
         }
     }
