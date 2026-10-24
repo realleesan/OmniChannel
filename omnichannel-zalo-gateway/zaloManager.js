@@ -441,15 +441,18 @@ class ZaloManager {
                 const senderZaloId = String(message.threadId || message.data?.uidFrom || '');
                 if (!senderZaloId) return;
 
-                // Lấy tên và avatar khách hàng chuẩn xác từ API getUserInfo của zca-js
-                let customerName = message.data?.dName || 'Khách Zalo';
+                // Lấy tên gốc (zaloName) và avatar khách hàng chuẩn xác từ API getUserInfo của zca-js
+                // Ưu tiên tên gốc do chính khách tự đặt trên Zalo, không lấy biệt danh lưu trong danh bạ
+                let customerName = message.data?.zName || message.data?.dName || 'Khách Zalo';
                 let customerAvatar = message.data?.avatar || message.data?.avt || message.data?.uAvatar || '';
 
                 try {
                     const userInfo = await api.getUserInfo(senderZaloId);
                     if (userInfo) {
                         const profile = userInfo.changed_profiles?.[senderZaloId] || userInfo[senderZaloId] || userInfo;
-                        customerName = profile.displayName || profile.zaloName || profile.name || customerName;
+                        // ƯU TIÊN 1: zaloName (tên gốc chính chủ Zalo)
+                        // Fallback: name, data.zaloName, rồi mới tới displayName (biệt danh) nếu không có tên gốc
+                        customerName = profile.zaloName || profile.data?.zaloName || message.data?.zName || profile.name || profile.displayName || message.data?.dName || customerName;
                         if (profile.avatar) {
                             customerAvatar = profile.avatar;
                         } else if (profile.data?.avatar) {
