@@ -90,6 +90,17 @@ class ChatController {
                 $this->pushReplyToWebchatGateway($conv['external_sender_id'], $content, $attachmentUrl);
             }
 
+            // Đẩy tin phản hồi của nhân viên sang Dedicated Zalo Gateway để gửi về app Zalo của khách
+            if ($conv['channel'] === 'ZALO') {
+                require_once __DIR__ . '/ZaloController.php';
+                try {
+                    $zaloCtrl = new ZaloController();
+                    $zaloCtrl->forwardReplyToZalo($conversationId, $content, $attachmentUrl);
+                } catch (Throwable $e) {
+                    error_log('[Zalo Forward Error]: ' . $e->getMessage());
+                }
+            }
+
             return [
                 'success'    => true, 
                 'message_id' => $messageId,

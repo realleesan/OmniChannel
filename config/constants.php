@@ -74,6 +74,10 @@ define('BASE_URL', env('APP_URL', $detectedUrl));
 define('RENDER_GATEWAY_URL', env('RENDER_GATEWAY_URL', 'https://omnichannel-gateway.onrender.com'));
 define('GATEWAY_SECRET_KEY', env('GATEWAY_SECRET_KEY', 'omnichannel_secret_ba_2026'));
 
+// Cấu hình Dedicated Zalo Gateway URL (zca-js gateway cho Zalo Cá Nhân)
+define('ZALO_GATEWAY_URL', env('ZALO_GATEWAY_URL', 'https://omnichannel-zalo-gateway.onrender.com'));
+define('ZALO_GATEWAY_KEY', env('ZALO_GATEWAY_KEY', 'omnichannel_zalo_secret_2026'));
+
 // Định nghĩa các kênh hỗ trợ
 define('CHANNELS', [
     'WEBCHAT'  => ['name' => 'Webchat',            'icon' => 'fa-solid fa-comments',           'color' => '#10B981'],

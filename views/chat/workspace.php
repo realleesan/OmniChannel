@@ -55,6 +55,13 @@ if (!$currentUser) {
             <span class="gsheet-sync-dot" id="gsheetSyncDot" style="display:none;" title="Có dữ liệu mới cần đồng bộ"></span>
         </button>
 
+        <!-- Nút mở Modal Quản lý Zalo Cá Nhân (zca-js Gateway) -->
+        <button type="button" class="topbar-action-btn" id="btnOpenZaloModal" onclick="openZaloConfigModal()" title="Quản lý kết nối Zalo cá nhân">
+            <i class="fa-solid fa-comment-dots" style="color:#0068FF;font-size:16px;"></i>
+            <span>Zalo Cá Nhân</span>
+            <span class="zalo-status-badge" id="zaloConnectedCountBadge" style="display:none;background:#0068FF;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700;">0</span>
+        </button>
+
         <!-- Nút gạt trạng thái ca trực 1 chạm (Quick Shift Toggle) -->
         <div class="shift-toggle-btn <?= $currentUser['status'] === 'ONLINE' ? 'is-online' : 'is-offline' ?>" 
              id="shiftToggleBtn" 
@@ -188,6 +195,11 @@ if (!$currentUser) {
                             <div class="dropdown-item" id="channelOptFb" onclick="selectChannelFilter('FACEBOOK', 'Facebook')">
                                 <i class="fa-brands fa-facebook-messenger" style="color:#0084FF;"></i>
                                 <span>Facebook</span>
+                            </div>
+                            <div class="dropdown-divider"></div>
+                            <div class="dropdown-action-item" onclick="openZaloConfigModal()" style="display:flex;align-items:center;gap:8px;padding:8px 12px;color:#0068FF;cursor:pointer;font-weight:600;font-size:12px;">
+                                <i class="fa-solid fa-qrcode"></i>
+                                <span>Kết nối Zalo cá nhân</span>
                             </div>
                         </div>
                     </div>
@@ -835,10 +847,15 @@ if (!$currentUser) {
         CURRENT_AVATAR: '<?= addslashes($currentUser['avatar'] ?? '') ?>',
         CURRENT_STATUS: '<?= addslashes($currentUser['status']) ?>',
         BASE_URL: '<?= addslashes(BASE_URL) ?>',
-        RENDER_GATEWAY_URL: '<?= addslashes(RENDER_GATEWAY_URL) ?>'
+        RENDER_GATEWAY_URL: '<?= addslashes(RENDER_GATEWAY_URL) ?>',
+        ZALO_GATEWAY_URL: '<?= addslashes(defined("ZALO_GATEWAY_URL") ? ZALO_GATEWAY_URL : "https://omnichannel-zalo-gateway.onrender.com") ?>'
     };
 </script>
 <script src="../../public/js/workspace.js?v=<?= time() ?>"></script>
+
+<!-- Nhúng Modal & Script Module Zalo Cá Nhân (Tách biệt hoàn toàn) -->
+<?php include __DIR__ . '/modals/modal_zalo_config.php'; ?>
+<script src="../../public/js/zalo_channel.js?v=<?= time() ?>"></script>
 
 </body>
 </html>
