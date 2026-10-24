@@ -3389,6 +3389,12 @@ body {
     align-items: center;
     gap: 4px;
     margin-top: 4px;
+    animation: fadeInError 0.25s ease-in-out;
+}
+
+@keyframes fadeInError {
+    from { opacity: 0; transform: translateY(-3px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 /* ========================================================

@@ -669,7 +669,7 @@ if (!$currentUser) {
         <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;">
             <button type="button" class="tab-btn" onclick="closeManageTemplatesModal()">Đóng</button>
             <button type="button" class="btn-send-message" onclick="openCreateTemplateFromManage()">
-                <i class="fa-solid fa-plus"></i> Thêm mẫu tin nhắn mới
+                <i class="fa-solid fa-plus"></i> Tạo mẫu tin nhắn mới
             </button>
         </div>
     </div>

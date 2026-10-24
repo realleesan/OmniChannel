@@ -2055,6 +2055,8 @@ function openEditCustomerProfileModal() {
     modal.style.display = 'flex';
 }
 
+let crmFieldErrorTimer = null;
+
 function clearCrmFieldError(fieldId) {
     const input = document.getElementById(fieldId);
     if (input) input.style.borderColor = '';
@@ -2078,6 +2080,11 @@ function showCrmFieldError(fieldId, message) {
         errEl.innerText = message;
         errEl.style.display = 'block';
     }
+
+    if (crmFieldErrorTimer) clearTimeout(crmFieldErrorTimer);
+    crmFieldErrorTimer = setTimeout(() => {
+        ['modalInputRealName', 'modalInputPhone', 'modalInputAddress', 'modalInputBodyMeasurements', 'modalInputCustomerNeeds', 'modalInputRecentPurchases', 'modalInputNotes', 'modalInputSummary'].forEach(clearCrmFieldError);
+    }, 4000);
 }
 
 function formatRealNameInput(input) {
@@ -3848,6 +3855,7 @@ async function openCreateTemplateFromManage() {
 }
 
 function closeCreateTemplateModal() {
+    clearAllCreateTemplateErrors();
     const modal = document.getElementById('modalCreateTemplate');
     if (modal) modal.style.display = 'none';
 
@@ -4015,7 +4023,13 @@ function clearCreateTemplateFieldError(fieldId) {
     }
 }
 
+let createTemplateErrorTimer = null;
+
 function clearAllCreateTemplateErrors() {
+    if (createTemplateErrorTimer) {
+        clearTimeout(createTemplateErrorTimer);
+        createTemplateErrorTimer = null;
+    }
     clearCreateTemplateFieldError('newTplTitle');
     clearCreateTemplateFieldError('newTplShortcut');
     clearCreateTemplateFieldError('newTplContent');
@@ -4104,6 +4118,13 @@ async function saveNewTemplateRecord() {
     // Nếu có lỗi, dừng lại và focus ô lỗi đầu tiên (tất cả các ô bị lỗi đều đã được tô đỏ + thông báo rule)
     if (hasError) {
         firstErrorField?.focus();
+
+        // Tự động làm biến mất lỗi đỏ sau 4 giây
+        if (createTemplateErrorTimer) clearTimeout(createTemplateErrorTimer);
+        createTemplateErrorTimer = setTimeout(() => {
+            clearAllCreateTemplateErrors();
+        }, 4000);
+
         return;
     }
 
