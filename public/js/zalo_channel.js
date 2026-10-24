@@ -104,17 +104,22 @@
                     accounts = gwData.accounts;
 
                     // Đồng bộ ngay các tài khoản từ Gateway về CSDL CRM PHP nếu chưa có
+                    const gwKey = (window.APP_CONFIG && window.APP_CONFIG.ZALO_GATEWAY_KEY) || 'omnichannel_zalo_secret_2026';
                     for (const acc of accounts) {
                         try {
                             await fetch('../../api/zalo_action.php', {
                                 method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
+                                headers: { 
+                                    'Content-Type': 'application/json',
+                                    'X-Gateway-Key': gwKey
+                                },
                                 body: JSON.stringify({
                                     action: 'account_connected',
                                     account_id: acc.id,
                                     account_name: acc.name,
                                     account_avatar: acc.avatar,
-                                    configured_at: acc.configured_at
+                                    configured_at: acc.configured_at,
+                                    gateway_key: gwKey
                                 })
                             });
                         } catch (e) {}
@@ -421,10 +426,17 @@
 
                     // Đẩy sự kiện vào backend CRM (trình duyệt gửi cục bộ cùng domain nên không bị chặn)
                     try {
+                        const gwKey = (window.APP_CONFIG && window.APP_CONFIG.ZALO_GATEWAY_KEY) || 'omnichannel_zalo_secret_2026';
                         const syncRes = await fetch('../../api/zalo_action.php', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(event)
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'X-Gateway-Key': gwKey
+                            },
+                            body: JSON.stringify({
+                                ...event,
+                                gateway_key: gwKey
+                            })
                         });
                         const syncData = await syncRes.json();
                         console.log('[ZaloChannel] Kết quả đồng bộ sự kiện vào CRM:', syncData);

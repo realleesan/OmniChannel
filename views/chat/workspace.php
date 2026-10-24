@@ -848,7 +848,8 @@ if (!$currentUser) {
         CURRENT_STATUS: '<?= addslashes($currentUser['status']) ?>',
         BASE_URL: '<?= addslashes(BASE_URL) ?>',
         RENDER_GATEWAY_URL: '<?= addslashes(RENDER_GATEWAY_URL) ?>',
-        ZALO_GATEWAY_URL: '<?= addslashes(defined("ZALO_GATEWAY_URL") ? ZALO_GATEWAY_URL : "https://omnichannel-zalo-gateway.onrender.com") ?>'
+        ZALO_GATEWAY_URL: '<?= addslashes(defined("ZALO_GATEWAY_URL") ? ZALO_GATEWAY_URL : "https://omnichannel-zalo-gateway.onrender.com") ?>',
+        ZALO_GATEWAY_KEY: '<?= addslashes(defined("ZALO_GATEWAY_KEY") ? ZALO_GATEWAY_KEY : "omnichannel_zalo_secret_2026") ?>'
     };
 </script>
 <script src="../../public/js/workspace.js?v=<?= time() ?>"></script>

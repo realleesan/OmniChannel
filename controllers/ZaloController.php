@@ -29,8 +29,12 @@ class ZaloController {
      * Xác thực khóa bảo mật giữa Zalo Gateway và CRM
      */
     public function verifyGatewayKey($providedKey): bool {
-        $expectedKey = defined('ZALO_GATEWAY_KEY') ? ZALO_GATEWAY_KEY : 'omnichannel_zalo_secret_2026';
-        return (!empty($providedKey) && hash_equals($expectedKey, (string)$providedKey));
+        $expectedKey = defined('ZALO_GATEWAY_KEY') ? trim(ZALO_GATEWAY_KEY) : 'omnichannel_zalo_secret_2026';
+        $providedKey = trim((string)$providedKey);
+        // Làm sạch ký tự tàng hình nếu có
+        $expectedKey = preg_replace('/[\x{200B}-\x{200D}\x{FEFF}]/u', '', $expectedKey);
+        $providedKey = preg_replace('/[\x{200B}-\x{200D}\x{FEFF}]/u', '', $providedKey);
+        return (!empty($providedKey) && hash_equals($expectedKey, $providedKey));
     }
 
     /**
@@ -38,7 +42,9 @@ class ZaloController {
      */
     public function handleInboundWebhook(array $payload): array {
         $key = $payload['gateway_key'] ?? $_SERVER['HTTP_X_GATEWAY_KEY'] ?? '';
-        if (!$this->verifyGatewayKey($key)) {
+        $isLoggedInStaff = !empty($_SESSION['user_id']); // Nhân viên đang mở phiên làm việc CRM
+
+        if (!$isLoggedInStaff && !$this->verifyGatewayKey($key)) {
             return ['success' => false, 'message' => 'Không được phép: Sai hoặc thiếu Gateway Secret Key'];
         }
 
