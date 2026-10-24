@@ -2145,7 +2145,7 @@ async function handleSaveCustomerProfileModal() {
             showCrmFieldError('modalInputAddress', 'Địa chỉ không được vượt quá 300 ký tự.');
             return;
         }
-        const addressRegex = /^[a-zA-Z0-9ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưạảấầẩẫậắằẳẵặẹẻẽềềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ\s\/\,\-\.]+$/u;
+        const addressRegex = /^[a-zA-Z0-9ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưạảấầẩẫậắằẳẵặẹẻẽềềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ\s\/,.\-]+$/u;
         if (!addressRegex.test(address)) {
             showCrmFieldError('modalInputAddress', 'Địa chỉ chứa ký tự không hợp lệ. Chỉ cho phép chữ, số và ký tự phân cách (/, \',\' , -, .).');
             return;
@@ -2158,7 +2158,7 @@ async function handleSaveCustomerProfileModal() {
             showCrmFieldError('modalInputBodyMeasurements', 'Số đo không được vượt quá 100 ký tự.');
             return;
         }
-        const bodyRegex = /^[a-zA-Z0-9ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưạảấầẩẫậắằẳẵặẹẻẽềềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ\s\/\,\-\.\:\%]+$/u;
+        const bodyRegex = /^[a-zA-Z0-9ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưạảấầẩẫậắằẳẵặẹẻẽềềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ\s\/,.:%\-]+$/u;
         if (!bodyRegex.test(bodyMeasurements)) {
             showCrmFieldError('modalInputBodyMeasurements', 'Số đo chỉ cho phép chữ và số (tối đa 100 ký tự).');
             return;

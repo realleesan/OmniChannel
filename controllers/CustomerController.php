@@ -74,7 +74,7 @@ class CustomerController {
             if (mb_strlen($address, 'UTF-8') > 300) {
                 return ['success' => false, 'message' => 'Địa chỉ không được vượt quá 300 ký tự.'];
             }
-            if (!preg_match('/^[a-zA-Z0-9ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưạảấầẩẫậắằẳẵặẹẻẽềềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ\s\/\,\-\.]+$/u', $address)) {
+            if (!preg_match('/^[a-zA-Z0-9ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưạảấầẩẫậắằẳẵặẹẻẽềềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ\s\/,.\-]+$/u', $address)) {
                 return ['success' => false, 'message' => 'Địa chỉ chứa ký tự không hợp lệ. Chỉ cho phép chữ, số và ký tự phân cách (/, \',\' , -, .).'];
             }
             $data['address'] = $address;
@@ -85,7 +85,7 @@ class CustomerController {
             if (mb_strlen($body, 'UTF-8') > 100) {
                 return ['success' => false, 'message' => 'Số đo không được vượt quá 100 ký tự.'];
             }
-            if (!preg_match('/^[a-zA-Z0-9ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưạảấầẩẫậắằẳẵặẹẻẽềềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ\s\/\,\-\.\:\%]+$/u', $body)) {
+            if (!preg_match('/^[a-zA-Z0-9ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưạảấầẩẫậắằẳẵặẹẻẽềềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ\s\/,.:%\-]+$/u', $body)) {
                 return ['success' => false, 'message' => 'Số đo chỉ cho phép chữ và số (tối đa 100 ký tự).'];
             }
             $data['body_measurements'] = $body;
