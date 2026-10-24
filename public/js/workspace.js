@@ -368,7 +368,10 @@ function renderConversationsList(conversations) {
         html += `
             <div class="conversation-card ${isActive ? 'active' : ''}" data-conv-id="${conv.id}" onclick="selectConversation(${conv.id})">
                 <div class="card-avatar-wrap">
-                    <div class="card-avatar-circle">${escapeHtml(initial)}</div>
+                    ${conv.sender_avatar 
+                        ? `<img src="${escapeHtml(conv.sender_avatar)}" alt="${escapeHtml(conv.sender_name)}" class="card-avatar-circle card-avatar-img" style="width:44px;height:44px;object-fit:cover;border-radius:50%;" onerror="this.outerHTML='<div class=\\'card-avatar-circle\\'>${escapeHtml(initial)}</div>'">` 
+                        : `<div class="card-avatar-circle">${escapeHtml(initial)}</div>`
+                    }
                     <span class="card-channel-mini-badge badge-channel-${conv.channel}">
                         ${channelCfg.icon}
                     </span>
@@ -419,7 +422,13 @@ function renderChatHeader(conv) {
     if (activeSenderName) activeSenderName.innerText = conv.sender_name || 'Khách Hàng';
 
     const activeAvatar = document.getElementById('activeAvatar');
-    if (activeAvatar) activeAvatar.innerText = (conv.sender_name || 'K').charAt(0).toUpperCase();
+    if (activeAvatar) {
+        if (conv.sender_avatar) {
+            activeAvatar.innerHTML = `<img src="${escapeHtml(conv.sender_avatar)}" alt="${escapeHtml(conv.sender_name)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.outerHTML='${escapeHtml((conv.sender_name || 'K').charAt(0).toUpperCase())}'">`;
+        } else {
+            activeAvatar.innerText = (conv.sender_name || 'K').charAt(0).toUpperCase();
+        }
+    }
 
     const avatarChannelIcon = document.getElementById('activeAvatarChannelIcon');
     if (avatarChannelIcon) {
@@ -779,7 +788,10 @@ function updateSeenIndicator() {
     seenDiv.id = 'chatSeenIndicator';
     seenDiv.className = 'chat-seen-indicator';
     seenDiv.title = `${escapeHtml(custName)} đã xem`;
-    seenDiv.innerHTML = `<div class="seen-avatar-mini">${escapeHtml(initial)}</div>`;
+    const custAvt = currentConv.sender_avatar;
+    seenDiv.innerHTML = custAvt 
+        ? `<img src="${escapeHtml(custAvt)}" alt="${escapeHtml(custName)}" class="seen-avatar-mini" style="width:16px;height:16px;object-fit:cover;border-radius:50%;" onerror="this.outerHTML='<div class=\\'seen-avatar-mini\\'>${escapeHtml(initial)}</div>'">` 
+        : `<div class="seen-avatar-mini">${escapeHtml(initial)}</div>`;
 
     lastStaffMsg.after(seenDiv);
 }
@@ -903,8 +915,12 @@ function appendMessageBubble(msg, isNew = false) {
             </div>
         `;
     } else {
+        const custAvt = currentConv.sender_avatar;
+        const custAvtHtml = custAvt
+            ? `<img src="${escapeHtml(custAvt)}" class="message-customer-avatar" alt="${escapeHtml(custName)}" title="${escapeHtml(custName)}" style="width:28px;height:28px;object-fit:cover;border-radius:50%;" onerror="this.outerHTML='<div class=\\'message-customer-avatar\\' title=\\'${escapeHtml(custName)}\\'>${escapeHtml(initial)}</div>'">`
+            : `<div class="message-customer-avatar" title="${escapeHtml(custName)}">${escapeHtml(initial)}</div>`;
         div.innerHTML = `
-            <div class="message-customer-avatar" title="${escapeHtml(custName)}">${escapeHtml(initial)}</div>
+            ${custAvtHtml}
             <div class="message-bubble-wrap">
                 ${contentHtml}
                 ${mediaHtml}
@@ -1852,7 +1868,14 @@ function renderProfileSidebar(profile, conv, assignedLabels) {
     if (profileCustNameEl) profileCustNameEl.innerText = channelAccountName;
 
     const rightCustAvtEl = document.getElementById('rightCustomerAvatar');
-    if (rightCustAvtEl) rightCustAvtEl.innerText = channelAccountName.charAt(0).toUpperCase();
+    if (rightCustAvtEl) {
+        const custAvatar = (conv && conv.sender_avatar) || (AppState.activeConversation && AppState.activeConversation.sender_avatar) || '';
+        if (custAvatar) {
+            rightCustAvtEl.innerHTML = `<img src="${escapeHtml(custAvatar)}" alt="${escapeHtml(channelAccountName)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.outerHTML='${escapeHtml(channelAccountName.charAt(0).toUpperCase())}'">`;
+        } else {
+            rightCustAvtEl.innerText = channelAccountName.charAt(0).toUpperCase();
+        }
+    }
 
     if (conv) {
         const rightAvatarChannelIcon = document.getElementById('rightAvatarChannelIcon');

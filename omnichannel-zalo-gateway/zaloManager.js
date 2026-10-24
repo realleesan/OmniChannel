@@ -12,6 +12,154 @@ const fs = require('fs');
 const path = require('path');
 const { Zalo, ThreadType, LoginQRCallbackEventType } = require('zca-js');
 
+/**
+ * Trích xuất width, height, size từ file ảnh cục bộ (JPEG, PNG, GIF, WEBP)
+ * Sử dụng Buffer nguyên bản của Node.js, không phụ thuộc vào gói sharp
+ * Đáp ứng yêu cầu bắt buộc của zca-js v2.0+ khi gửi tin nhắn kèm attachments
+ */
+async function extractImageMetadata(filePath) {
+    try {
+        const data = await fs.promises.readFile(filePath);
+        const size = data.length;
+        let width = 1080;
+        let height = 1080;
+
+        // 1. Kiểm tra PNG (Header: 89 50 4E 47 0D 0A 1A 0A)
+        if (data.length > 24 && data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4E && data[3] === 0x47) {
+            width = data.readUInt32BE(16);
+            height = data.readUInt32BE(20);
+            return { width, height, size };
+        }
+
+        // 2. Kiểm tra GIF (Header: 'GIF87a' hoặc 'GIF89a')
+        if (data.length > 10 && data.toString('ascii', 0, 3) === 'GIF') {
+            width = data.readUInt16LE(6);
+            height = data.readUInt16LE(8);
+            return { width, height, size };
+        }
+
+        // 3. Kiểm tra WEBP (Header: 'RIFF'....'WEBP')
+        if (data.length > 30 && data.toString('ascii', 0, 4) === 'RIFF' && data.toString('ascii', 8, 12) === 'WEBP') {
+            const vp8 = data.toString('ascii', 12, 16);
+            if (vp8 === 'VP8 ') {
+                width = data.readUInt16LE(26) & 0x3fff;
+                height = data.readUInt16LE(28) & 0x3fff;
+                return { width, height, size };
+            } else if (vp8 === 'VP8L') {
+                const b0 = data[21], b1 = data[22], b2 = data[23], b3 = data[24];
+                width = 1 + (((b1 & 0x3f) << 8) | b0);
+                height = 1 + (((b3 & 0x0f) << 10) | (b2 << 2) | ((b1 & 0xc0) >> 6));
+                return { width, height, size };
+            } else if (vp8 === 'VP8X') {
+                width = 1 + data.readUIntLE(24, 3);
+                height = 1 + data.readUIntLE(27, 3);
+                return { width, height, size };
+            }
+        }
+
+        // 4. Kiểm tra JPEG (Header: FF D8 FF)
+        if (data.length > 4 && data[0] === 0xFF && data[1] === 0xD8) {
+            let offset = 2;
+            while (offset < data.length - 8) {
+                if (data[offset] !== 0xFF) {
+                    offset++;
+                    continue;
+                }
+                const marker = data[offset + 1];
+                if ((marker >= 0xC0 && marker <= 0xC3) || (marker >= 0xC5 && marker <= 0xC7) || (marker >= 0xC9 && marker <= 0xCB) || (marker >= 0xCD && marker <= 0xCF)) {
+                    height = data.readUInt16BE(offset + 5);
+                    width = data.readUInt16BE(offset + 7);
+                    return { width, height, size };
+                }
+                const len = data.readUInt16BE(offset + 2);
+                offset += 2 + len;
+            }
+        }
+
+        return { width, height, size };
+    } catch (e) {
+        console.warn('[ZaloManager] Lỗi trích xuất metadata ảnh:', e.message);
+        try {
+            const stat = fs.statSync(filePath);
+            return { width: 1080, height: 1080, size: stat.size };
+        } catch (err) {
+            return { width: 1080, height: 1080, size: 102400 };
+        }
+    }
+}
+
+/**
+ * Trích xuất toàn diện URL hình ảnh từ payload tin nhắn Zalo đến
+ */
+function extractMediaFromMessage(data) {
+    if (!data) return { urls: [], caption: '' };
+    const urls = [];
+    let caption = '';
+
+    function scan(obj, depth = 0) {
+        if (!obj || depth > 6) return;
+
+        if (typeof obj === 'string') {
+            const str = obj.trim();
+            // Nếu là chuỗi JSON, giải mã để quét tiếp
+            if ((str.startsWith('{') && str.endsWith('}')) || (str.startsWith('[') && str.endsWith(']'))) {
+                try {
+                    const parsed = JSON.parse(str);
+                    scan(parsed, depth + 1);
+                    return;
+                } catch (e) {}
+            }
+            // Nếu là URL ảnh
+            if (str.startsWith('http://') || str.startsWith('https://')) {
+                const isImage = /\.(jpg|jpeg|png|webp|gif)($|\?)/i.test(str) ||
+                                /zadn\.vn|zdn\.vn|zalo/i.test(str) ||
+                                /photo|image|thumb|picture/i.test(str);
+                if (isImage && !urls.includes(str)) {
+                    urls.push(str);
+                }
+            } else if (!caption && str.length > 0 && str.length < 500 && !str.includes('{') && !str.includes('"')) {
+                // Có thể là caption đính kèm ảnh
+                if (str !== '[Tin nhắn tệp/hình ảnh]' && str !== '[Hình ảnh]' && str !== '[Tin nhắn Zalo]') {
+                    caption = str;
+                }
+            }
+            return;
+        }
+
+        if (Array.isArray(obj)) {
+            for (const item of obj) {
+                scan(item, depth + 1);
+            }
+            return;
+        }
+
+        if (typeof obj === 'object') {
+            // Ưu tiên các trường chứa ảnh chất lượng cao của Zalo
+            const priorityKeys = ['originalUrl', 'hdUrl', 'href', 'normalUrl', 'url', 'thumb', 'photoUrl'];
+            for (const k of priorityKeys) {
+                if (obj[k]) {
+                    scan(obj[k], depth + 1);
+                }
+            }
+            // Quét caption hoặc title/desc
+            if (!caption && (obj.title || obj.description || obj.caption)) {
+                const c = obj.caption || obj.title || obj.description;
+                if (typeof c === 'string' && c.trim() && !c.includes('{')) {
+                    caption = c.trim();
+                }
+            }
+            for (const [k, v] of Object.entries(obj)) {
+                if (!priorityKeys.includes(k) && k !== 'title' && k !== 'description' && k !== 'caption') {
+                    scan(v, depth + 1);
+                }
+            }
+        }
+    }
+
+    scan(data);
+    return { urls, caption };
+}
+
 class ZaloManager {
     constructor() {
         // Danh sách tài khoản Zalo đang hoạt động: Map<accountId, AccountData>
@@ -102,7 +250,8 @@ class ZaloManager {
             const zalo = new Zalo({
                 selfListen: false,   // Không lắng nghe tin do chính mình gửi đi từ máy điện thoại
                 checkUpdate: false,  // Bỏ qua kiểm tra cập nhật để tăng tốc
-                logging: true        // Bật log để tiện theo dõi
+                logging: true,       // Bật log để tiện theo dõi
+                imageMetadataGetter: extractImageMetadata // Bắt buộc cho zca-js v2.0+ khi gửi ảnh
             });
 
             const api = await zalo.loginQR(
@@ -274,32 +423,44 @@ class ZaloManager {
                     return;
                 }
 
-                // Lấy nội dung tin nhắn
+                // Trích xuất toàn diện ảnh đính kèm và caption từ payload Zalo
+                const mediaRes = extractMediaFromMessage(message.data);
+                const attachmentUrl = mediaRes.urls.length > 0 ? mediaRes.urls.join(',') : '';
+
                 let contentText = '';
-                if (typeof message.data.content === 'string') {
-                    contentText = message.data.content;
-                } else if (message.data.content && typeof message.data.content === 'object') {
-                    contentText = message.data.content.title || message.data.content.description || '[Tin nhắn tệp/hình ảnh]';
+                if (typeof message.data?.content === 'string' && !attachmentUrl && !message.data.content.trim().startsWith('{')) {
+                    contentText = message.data.content.trim();
+                } else if (mediaRes.caption) {
+                    contentText = mediaRes.caption;
+                } else if (attachmentUrl) {
+                    contentText = '[Hình ảnh]';
                 } else {
                     contentText = '[Tin nhắn Zalo]';
                 }
 
-                const senderZaloId = String(message.threadId || message.data.uidFrom || '');
+                const senderZaloId = String(message.threadId || message.data?.uidFrom || '');
                 if (!senderZaloId) return;
 
-                // Lấy tên khách hàng
-                let customerName = message.data.dName || 'Khách Zalo';
-                let customerAvatar = '';
+                // Lấy tên và avatar khách hàng chuẩn xác từ API getUserInfo của zca-js
+                let customerName = message.data?.dName || 'Khách Zalo';
+                let customerAvatar = message.data?.avatar || message.data?.avt || message.data?.uAvatar || '';
 
                 try {
                     const userInfo = await api.getUserInfo(senderZaloId);
                     if (userInfo) {
-                        customerName = userInfo.displayName || userInfo.name || userInfo.data?.name || customerName;
-                        customerAvatar = userInfo.avatar || userInfo.data?.avatar || '';
+                        const profile = userInfo.changed_profiles?.[senderZaloId] || userInfo[senderZaloId] || userInfo;
+                        customerName = profile.displayName || profile.zaloName || profile.name || customerName;
+                        if (profile.avatar) {
+                            customerAvatar = profile.avatar;
+                        } else if (profile.data?.avatar) {
+                            customerAvatar = profile.data.avatar;
+                        }
                     }
-                } catch (e) {}
+                } catch (e) {
+                    console.warn(`[ZaloManager] Lỗi getUserInfo cho ${senderZaloId}:`, e.message);
+                }
 
-                console.log(`[ZaloManager][${accountId}] Tin nhắn mới từ: ${customerName} (${senderZaloId}): "${contentText}"`);
+                console.log(`[ZaloManager][${accountId}] Tin nhắn mới từ: ${customerName} (${senderZaloId}) [Avatar: ${customerAvatar ? 'Có' : 'Không'} | Ảnh: ${attachmentUrl ? 'Có' : 'Không'}]: "${contentText}"`);
 
                 // Gửi Webhook sang CRM
                 await this.notifyCRM({
@@ -310,7 +471,8 @@ class ZaloManager {
                     customer_zalo_id: senderZaloId,
                     customer_name: customerName,
                     customer_avatar: customerAvatar,
-                    message_id: String(message.data.msgId || Date.now()),
+                    attachment_url: attachmentUrl,
+                    message_id: String(message.data?.msgId || Date.now()),
                     message_text: contentText,
                     timestamp: msgTime
                 });
@@ -348,6 +510,68 @@ class ZaloManager {
     }
 
     /**
+     * Chuẩn bị file đính kèm cục bộ từ URL hoặc Base64 để truyền vào zca-js api.sendMessage
+     */
+    async prepareLocalAttachments(attachments) {
+        if (!attachments || !Array.isArray(attachments) || attachments.length === 0) {
+            return [];
+        }
+
+        const tempDir = path.join(__dirname, 'temp_media');
+        if (!fs.existsSync(tempDir)) {
+            try { fs.mkdirSync(tempDir, { recursive: true }); } catch (e) {}
+        }
+
+        const preparedFiles = [];
+
+        for (const item of attachments) {
+            try {
+                // 1. Nếu là dạng Base64 { filename, base64 }
+                if (item && typeof item === 'object' && item.base64) {
+                    const ext = path.extname(item.filename || '') || '.jpg';
+                    const tempFile = path.join(tempDir, `send_${Date.now()}_${Math.random().toString(36).substring(7)}${ext}`);
+                    const buffer = Buffer.from(item.base64, 'base64');
+                    fs.writeFileSync(tempFile, buffer);
+                    preparedFiles.push(tempFile);
+                    continue;
+                }
+
+                // 2. Nếu là chuỗi URL hoặc object có trường url
+                const targetUrl = typeof item === 'string' ? item : (item && item.url ? item.url : '');
+                if (targetUrl && (targetUrl.startsWith('http://') || targetUrl.startsWith('https://'))) {
+                    console.log(`[ZaloManager] Đang tải file ảnh đính kèm từ URL: ${targetUrl}`);
+                    const res = await fetch(targetUrl, {
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                        }
+                    });
+                    if (res.ok) {
+                        const arrayBuffer = await res.arrayBuffer();
+                        const buffer = Buffer.from(arrayBuffer);
+                        let ext = path.extname(new URL(targetUrl).pathname) || '.jpg';
+                        if (!ext || ext.length > 5) ext = '.jpg';
+                        const tempFile = path.join(tempDir, `send_${Date.now()}_${Math.random().toString(36).substring(7)}${ext}`);
+                        fs.writeFileSync(tempFile, buffer);
+                        preparedFiles.push(tempFile);
+                        continue;
+                    } else {
+                        console.warn(`[ZaloManager] Không thể tải ảnh từ URL (HTTP ${res.status}): ${targetUrl}`);
+                    }
+                }
+
+                // 3. Nếu là file local có sẵn
+                if (typeof item === 'string' && fs.existsSync(item)) {
+                    preparedFiles.push(item);
+                }
+            } catch (err) {
+                console.error('[ZaloManager] Lỗi xử lý file đính kèm:', err.message);
+            }
+        }
+
+        return preparedFiles;
+    }
+
+    /**
      * Gửi tin nhắn phản hồi từ nhân viên CRM sang Zalo khách hàng
      */
     async sendMessage(accountId, threadId, content, attachments = null) {
@@ -372,23 +596,34 @@ class ZaloManager {
             throw new Error('Không có tài khoản Zalo nào đang hoạt động trên Gateway.');
         }
 
-        console.log(`[ZaloManager] Đang gửi tin nhắn qua tài khoản [${targetAccount.name}] tới Zalo ID [${threadId}]: "${content}"`);
+        console.log(`[ZaloManager] Đang gửi tin nhắn qua tài khoản [${targetAccount.name}] tới Zalo ID [${threadId}]: "${content || ''}" (Attachments: ${attachments ? attachments.length : 0})`);
 
-        let payload = content;
-        if (attachments && Array.isArray(attachments) && attachments.length > 0) {
-            payload = {
-                msg: content || '',
-                attachments: attachments
+        const tempFiles = await this.prepareLocalAttachments(attachments);
+
+        try {
+            let payload = content;
+            if (tempFiles.length > 0) {
+                payload = {
+                    msg: content || '',
+                    attachments: tempFiles
+                };
+            }
+
+            const result = await targetAccount.api.sendMessage(payload, String(threadId), ThreadType.User);
+
+            return {
+                success: true,
+                account_id: targetAccount.id,
+                result
             };
+        } finally {
+            // Dọn dẹp các file ảnh tạm sau khi gửi xong
+            for (const f of tempFiles) {
+                if (f.includes('temp_media') && fs.existsSync(f)) {
+                    try { fs.unlinkSync(f); } catch (e) {}
+                }
+            }
         }
-
-        const result = await targetAccount.api.sendMessage(payload, String(threadId), ThreadType.User);
-
-        return {
-            success: true,
-            account_id: targetAccount.id,
-            result
-        };
     }
 
     /**

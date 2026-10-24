@@ -74,19 +74,21 @@ class ZaloController {
                 $customerName   = trim($payload['customer_name'] ?? 'Khách Zalo');
                 $messageText    = trim($payload['message_text'] ?? '');
                 $customerAvatar = trim($payload['customer_avatar'] ?? '');
+                $attachmentUrl  = trim($payload['attachment_url'] ?? '');
 
-                if (empty($customerZaloId) || empty($messageText)) {
+                if (empty($customerZaloId) || (empty($messageText) && empty($attachmentUrl))) {
                     return ['success' => false, 'message' => 'Thiếu customer_zalo_id hoặc message_text'];
                 }
 
-                // Tự động tiếp nhận, gán nhân viên (Round-Robin) và tạo Conversation kênh ZALO
+                // Tự động tiếp nhận, gán nhân viên (Round-Robin) và tạo/cập nhật Conversation kênh ZALO
                 $result = $this->chatController->receiveCustomerMessage(
                     'ZALO',
                     $customerZaloId,
                     $customerName,
                     $messageText,
+                    $attachmentUrl ?: null,
                     null,
-                    null
+                    $customerAvatar ?: null
                 );
 
                 return [
@@ -120,7 +122,65 @@ class ZaloController {
         ];
 
         if (!empty($attachmentUrl)) {
-            $payload['attachments'] = [$attachmentUrl];
+            $urls = [];
+            $trimmed = trim((string)$attachmentUrl);
+            if (str_starts_with($trimmed, '[') && str_ends_with($trimmed, ']')) {
+                $decoded = json_decode($trimmed, true);
+                if (is_array($decoded)) {
+                    $urls = array_filter(array_map('trim', $decoded));
+                }
+            }
+            if (empty($urls)) {
+                $urls = array_filter(array_map('trim', explode(',', $trimmed)));
+            }
+
+            $attachments = [];
+            foreach ($urls as $u) {
+                $item = ['url' => $u];
+                // Thử đọc file cục bộ nếu URL thuộc về server này để gửi dạng Base64
+                // Giúp Gateway Render nhận ngay ảnh mà không bị rào cản Anti-bot aes.js của InfinityFree chặn
+                try {
+                    $parsedPath = parse_url($u, PHP_URL_PATH);
+                    if ($parsedPath) {
+                        $cleanPath = ltrim($parsedPath, '/');
+                        $candidates = [
+                            __DIR__ . '/../' . $cleanPath,
+                            dirname(__DIR__) . '/' . $cleanPath,
+                            __DIR__ . '/../public/' . preg_replace('#^public/#', '', $cleanPath)
+                        ];
+                        foreach ($candidates as $cand) {
+                            if (file_exists($cand) && !is_dir($cand) && filesize($cand) > 50) {
+                                $item['filename'] = basename($cand);
+                                $item['base64'] = base64_encode(file_get_contents($cand));
+                                break;
+                            }
+                        }
+                    }
+                } catch (Throwable $e) {}
+
+                // Nếu chưa có base64 và là link ngoài (Google Sheets / CDN), thử tải trực tiếp
+                if (empty($item['base64']) && (strpos($u, 'google') !== false || strpos($u, 'http') === 0)) {
+                    try {
+                        $chImg = curl_init($u);
+                        curl_setopt($chImg, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($chImg, CURLOPT_TIMEOUT, 6);
+                        curl_setopt($chImg, CURLOPT_FOLLOWLOCATION, true);
+                        curl_setopt($chImg, CURLOPT_SSL_VERIFYPEER, false);
+                        curl_setopt($chImg, CURLOPT_USERAGENT, 'Mozilla/5.0');
+                        $imgBin = curl_exec($chImg);
+                        $code = curl_getinfo($chImg, CURLINFO_HTTP_CODE);
+                        curl_close($chImg);
+                        if ($code === 200 && !empty($imgBin) && strlen($imgBin) > 50) {
+                            $item['filename'] = 'image_' . md5($u) . '.jpg';
+                            $item['base64'] = base64_encode($imgBin);
+                        }
+                    } catch (Throwable $e) {}
+                }
+
+                $attachments[] = $item;
+            }
+
+            $payload['attachments'] = $attachments;
         }
 
         $ch = curl_init($gatewayUrl . '/api/zalo/send');

@@ -22,6 +22,9 @@ class Conversation {
                 if (!in_array('customer_seen', $cols)) {
                     @$this->db->exec("ALTER TABLE conversations ADD COLUMN customer_seen TINYINT(1) DEFAULT 0 AFTER is_read");
                 }
+                if (!in_array('sender_avatar', $cols)) {
+                    @$this->db->exec("ALTER TABLE conversations ADD COLUMN sender_avatar TEXT NULL AFTER sender_name");
+                }
             } catch (Throwable $e) {}
         }
     }
@@ -35,16 +38,17 @@ class Conversation {
         return $stmt->fetch();
     }
 
-    public function create($channel, $externalSenderId, $senderName, $assignedUserId = null, $status = 'UNREPLIED', $tag = null) {
+    public function create($channel, $externalSenderId, $senderName, $assignedUserId = null, $status = 'UNREPLIED', $tag = null, $senderAvatar = null) {
         $now = date('Y-m-d H:i:s');
         $stmt = $this->db->prepare("
-            INSERT INTO conversations (channel, external_sender_id, sender_name, assigned_user_id, status, tag, last_message_at, created_at)
-            VALUES (:channel, :external_sender_id, :sender_name, :assigned_user_id, :status, :tag, :now, :now2)
+            INSERT INTO conversations (channel, external_sender_id, sender_name, sender_avatar, assigned_user_id, status, tag, last_message_at, created_at)
+            VALUES (:channel, :external_sender_id, :sender_name, :sender_avatar, :assigned_user_id, :status, :tag, :now, :now2)
         ");
         $stmt->execute([
             ':channel'            => $channel,
             ':external_sender_id' => $externalSenderId,
             ':sender_name'        => $senderName,
+            ':sender_avatar'      => $senderAvatar,
             ':assigned_user_id'   => $assignedUserId,
             ':status'             => $status,
             ':tag'                => $tag,
@@ -52,6 +56,11 @@ class Conversation {
             ':now2'               => $now
         ]);
         return (int)$this->db->lastInsertId();
+    }
+
+    public function updateSenderAvatar($id, $avatar) {
+        $stmt = $this->db->prepare("UPDATE conversations SET sender_avatar = :avatar WHERE id = :id");
+        return $stmt->execute([':avatar' => $avatar, ':id' => $id]);
     }
 
     public function getById($id) {

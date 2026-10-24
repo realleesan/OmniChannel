@@ -153,7 +153,7 @@ class ChatController {
      * UC1.1, UC2.1, UC2.3: Tiếp nhận tin nhắn từ khách (Webchat, Facebook, Zalo, Shopee)
      * Tự động chia tải và tự động đổi ca khi nhân viên phụ trách rời ca
      */
-    public function receiveCustomerMessage($channel, $externalSenderId, $senderName, $content, $attachmentUrl = null, $customerPhone = null) {
+    public function receiveCustomerMessage($channel, $externalSenderId, $senderName, $content, $attachmentUrl = null, $customerPhone = null, $senderAvatar = null) {
         try {
             $conv = $this->convModel->findByExternalSender($channel, $externalSenderId);
             $isNewConversation = false;
@@ -170,7 +170,8 @@ class ChatController {
                     $senderName,
                     $assignedUserId,
                     'UNREPLIED',
-                    null
+                    null,
+                    $senderAvatar
                 );
 
                 // Khởi tạo hồ sơ khách hàng ban đầu
@@ -185,6 +186,13 @@ class ChatController {
                 } catch (Throwable $e) {}
             } else {
                 $conversationId = $conv['id'];
+
+                // Cập nhật avatar nếu có avatar mới
+                if (!empty($senderAvatar) && (empty($conv['sender_avatar']) || $conv['sender_avatar'] !== $senderAvatar)) {
+                    try {
+                        $this->convModel->updateSenderAvatar($conversationId, $senderAvatar);
+                    } catch (Throwable $e) {}
+                }
 
                 // Nếu tên khách thay đổi (ví dụ trước là "Khách Web..." nay có họ tên thật từ Pre-chat form)
                 if (!empty($senderName) && $conv['sender_name'] !== $senderName) {
