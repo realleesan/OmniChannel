@@ -382,6 +382,23 @@
         }
 
         try {
+            // 1. Gọi trực tiếp sang Render Gateway để dừng listener ngay lập tức
+            try {
+                const gwUrl = getGatewayUrl();
+                const gwKey = getGatewayKey();
+                await fetch(`${gwUrl}/api/zalo/disconnect`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-Gateway-Key': gwKey 
+                    },
+                    body: JSON.stringify({ account_id: accountId, gateway_key: gwKey })
+                });
+            } catch (gwErr) {
+                console.warn('[ZaloChannel] Lỗi gọi ngắt kết nối Gateway trực tiếp:', gwErr);
+            }
+
+            // 2. Cập nhật trạng thái tài khoản trên CRM CSDL
             const formData = new FormData();
             formData.append('action', 'disconnect');
             formData.append('account_id', accountId);

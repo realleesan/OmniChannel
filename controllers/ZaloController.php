@@ -70,6 +70,7 @@ class ZaloController {
                 return ['success' => true, 'message' => 'Đã cập nhật trạng thái ngắt kết nối'];
 
             case 'inbound_message':
+                $accountId      = trim($payload['account_id'] ?? '');
                 $customerZaloId = trim($payload['customer_zalo_id'] ?? '');
                 $customerName   = trim($payload['customer_name'] ?? 'Khách Zalo');
                 $messageText    = trim($payload['message_text'] ?? '');
@@ -78,6 +79,32 @@ class ZaloController {
 
                 if (empty($customerZaloId) || (empty($messageText) && empty($attachmentUrl))) {
                     return ['success' => false, 'message' => 'Thiếu customer_zalo_id hoặc message_text'];
+                }
+
+                // Kiểm tra xem tài khoản nhận tin nhắn này có đang kết nối hay đã bị ngắt kết nối
+                if (!empty($accountId)) {
+                    $acc = $this->accountModel->getById($accountId);
+                    if ($acc && $acc['status'] !== 'CONNECTED') {
+                        return [
+                            'success' => false, 
+                            'message' => "Tài khoản Zalo [{$accountId}] đang ở trạng thái {$acc['status']}. Bỏ qua tiếp nhận tin nhắn."
+                        ];
+                    }
+                } else {
+                    $accounts = $this->accountModel->getAll();
+                    $hasConnected = false;
+                    foreach ($accounts as $a) {
+                        if (($a['status'] ?? '') === 'CONNECTED') {
+                            $hasConnected = true;
+                            break;
+                        }
+                    }
+                    if (!empty($accounts) && !$hasConnected) {
+                        return [
+                            'success' => false,
+                            'message' => 'Toàn bộ tài khoản Zalo đã ngắt kết nối. Bỏ qua tiếp nhận tin nhắn.'
+                        ];
+                    }
                 }
 
                 // Tự động tiếp nhận, gán nhân viên (Round-Robin) và tạo/cập nhật Conversation kênh ZALO

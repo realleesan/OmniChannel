@@ -405,6 +405,13 @@ class ZaloManager {
         // 1. Lắng nghe tin nhắn mới
         api.listener.on('message', async (message) => {
             try {
+                // RULE 0: Nếu tài khoản này đã bị ngắt kết nối hoặc không còn trong activeAccounts, bỏ qua ngay
+                const currentAcc = this.activeAccounts.get(String(accountId));
+                if (!currentAcc || currentAcc.status !== 'CONNECTED') {
+                    console.log(`[ZaloManager][${accountId}] Bỏ qua tin nhắn do tài khoản đã bị ngắt kết nối.`);
+                    return;
+                }
+
                 // RULE 1: Chỉ nhận tin nhắn cá nhân 1-1, bỏ qua chat nhóm
                 if (message.type !== ThreadType.User) {
                     return;
@@ -637,8 +644,30 @@ class ZaloManager {
         if (this.activeAccounts.has(id)) {
             const acc = this.activeAccounts.get(id);
             acc.status = 'DISCONNECTED';
+
+            // Dừng hoàn toàn listener nhận tin từ máy chủ Zalo
+            if (acc.api && acc.api.listener) {
+                try {
+                    acc.api.listener.stop();
+                    console.log(`[ZaloManager][${id}] Đã gọi api.listener.stop() thành công`);
+                } catch (e) {
+                    console.warn(`[ZaloManager][${id}] Lỗi khi stop listener:`, e.message);
+                }
+                try {
+                    acc.api.listener.removeAllListeners();
+                } catch (e) {}
+            }
+
             this.activeAccounts.delete(id);
-            console.log(`[ZaloManager] Đã ngắt kết nối tài khoản: ${id}`);
+            console.log(`[ZaloManager] Đã ngắt kết nối và giải phóng tài khoản: ${id}`);
+
+            // Đẩy sự kiện account_disconnected vào hàng đợi để CRM đồng bộ
+            this.addPendingEvent({
+                action: 'account_disconnected',
+                account_id: id,
+                reason: 'USER_DISCONNECTED'
+            });
+
             return true;
         }
         return false;
