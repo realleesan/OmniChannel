@@ -46,6 +46,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             jsonResponse(false, [], $res['message'], 200);
         }
+    } elseif ($postAction === 'delete_conversation') {
+        require_once __DIR__ . '/../controllers/ChatController.php';
+        $chatController = new ChatController();
+        $conversationId = (int)($jsonData['conversation_id'] ?? $_POST['conversation_id'] ?? 0);
+        $res = $chatController->deleteConversation($conversationId, $userId);
+        jsonResponse($res['success'], [], $res['message'], 200);
     } elseif ($postAction === 'toggle_shift') {
         require_once __DIR__ . '/../controllers/AuthController.php';
         $authController = new AuthController();

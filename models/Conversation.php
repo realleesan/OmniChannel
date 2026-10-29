@@ -25,8 +25,27 @@ class Conversation {
                 if (!in_array('sender_avatar', $cols)) {
                     @$this->db->exec("ALTER TABLE conversations ADD COLUMN sender_avatar TEXT NULL AFTER sender_name");
                 }
+                if (!in_array('is_deleted', $cols)) {
+                    @$this->db->exec("ALTER TABLE conversations ADD COLUMN is_deleted TINYINT(1) DEFAULT 0");
+                }
             } catch (Throwable $e) {}
         }
+    }
+
+    /**
+     * Xóa mềm cuộc hội thoại (Soft Delete)
+     */
+    public function softDelete($id) {
+        $stmt = $this->db->prepare("UPDATE conversations SET is_deleted = 1 WHERE id = :id");
+        return $stmt->execute([':id' => (int)$id]);
+    }
+
+    /**
+     * Khôi phục cuộc hội thoại đã xóa mềm (nếu khách nhắn tin lại)
+     */
+    public function restore($id) {
+        $stmt = $this->db->prepare("UPDATE conversations SET is_deleted = 0 WHERE id = :id");
+        return $stmt->execute([':id' => (int)$id]);
     }
 
     public function findByExternalSender($channel, $externalSenderId) {
@@ -99,7 +118,7 @@ class Conversation {
             FROM conversations c
             LEFT JOIN users u ON c.assigned_user_id = u.id
             LEFT JOIN customer_profiles cp ON c.id = cp.conversation_id
-            WHERE 1=1
+            WHERE (c.is_deleted = 0 OR c.is_deleted IS NULL)
         ";
         $params = [];
 

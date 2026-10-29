@@ -187,6 +187,13 @@ class ChatController {
             } else {
                 $conversationId = $conv['id'];
 
+                // Nếu hội thoại từng bị xóa mềm, tự động khôi phục khi khách nhắn tin lại
+                if (!empty($conv['is_deleted'])) {
+                    try {
+                        $this->convModel->restore($conversationId);
+                    } catch (Throwable $e) {}
+                }
+
                 // Cập nhật avatar nếu có avatar mới
                 if (!empty($senderAvatar) && (empty($conv['sender_avatar']) || $conv['sender_avatar'] !== $senderAvatar)) {
                     try {
@@ -238,6 +245,26 @@ class ChatController {
                 'message_id'          => null,
                 'is_new_conversation' => false
             ];
+        }
+    }
+
+    /**
+     * Xóa mềm cuộc hội thoại (Soft Delete)
+     */
+    public function deleteConversation($conversationId, $userId) {
+        try {
+            $conv = $this->convModel->getById($conversationId);
+            if (!$conv) {
+                return ['success' => false, 'message' => 'Hội thoại không tồn tại'];
+            }
+
+            $res = $this->convModel->softDelete($conversationId);
+            return [
+                'success' => (bool)$res,
+                'message' => $res ? 'Đã xóa cuộc hội thoại thành công' : 'Lỗi khi xóa cuộc hội thoại'
+            ];
+        } catch (Throwable $e) {
+            return ['success' => false, 'message' => 'Lỗi máy chủ khi xóa: ' . $e->getMessage()];
         }
     }
 }

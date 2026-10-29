@@ -55,6 +55,15 @@ switch ($action) {
         }
         break;
 
+    case 'delete_conversation':
+        $conversationId = (int)($jsonData['conversation_id'] ?? $_POST['conversation_id'] ?? $_GET['conversation_id'] ?? 0);
+        if ($conversationId <= 0) {
+            jsonResponse(false, [], 'Thiếu conversation_id');
+        }
+        $res = $chatController->deleteConversation($conversationId, $userId);
+        jsonResponse($res['success'], [], $res['message'], 200);
+        break;
+
     case 'toggle_shift':
         $newStatus = trim($_POST['status'] ?? 'ONLINE');
         $res = $authController->toggleStatus($newStatus);

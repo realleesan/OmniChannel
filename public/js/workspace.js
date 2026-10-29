@@ -378,10 +378,15 @@ function renderConversationsList(conversations) {
                 </div>
                 
                 <div class="card-content-block">
-                    <!-- Dòng 1: Tên khách (in đậm) & Thời gian chuẩn -->
+                    <!-- Dòng 1: Tên khách (in đậm) & Thời gian chuẩn kèm nút ... tùy chọn -->
                     <div class="card-header-line">
                         <span class="card-sender-name" title="${escapeHtml(conv.sender_name)}">${escapeHtml(conv.sender_name)}</span>
-                        <span class="card-time-ago">${conv.short_time || formatChatTime(conv.last_message_at) || ''}</span>
+                        <div class="card-header-right">
+                            <span class="card-time-ago">${conv.short_time || formatChatTime(conv.last_message_at) || ''}</span>
+                            <button type="button" class="card-more-btn" onclick="openConversationCardMenu(event, ${conv.id})" title="Tùy chọn cuộc trò chuyện">
+                                <i class="fa-solid fa-ellipsis"></i>
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Dòng 2: Nội dung trích đoạn chat (căn thẳng hàng trực tiếp với tên khách) -->
@@ -5054,3 +5059,231 @@ function showToast(message, type = 'info') {
         toast.style.opacity = '0';
     }, 3500);
 }
+
+// ========================================================
+// QUẢN LÝ TÙY CHỌN HỘI THOẠI (CARD MORE ACTIONS MENU)
+// ========================================================
+
+let activeConvCardMenuId = null;
+
+/**
+ * Khởi tạo hoặc lấy thẻ Dropdown Action Menu duy nhất (Singleton Pattern)
+ */
+function getOrCreateConvCardDropdown() {
+    let dropdown = document.getElementById('convActionDropdown');
+    if (!dropdown) {
+        dropdown = document.createElement('div');
+        dropdown.id = 'convActionDropdown';
+        dropdown.className = 'conv-action-dropdown';
+        document.body.appendChild(dropdown);
+
+        // Đóng menu khi click ra ngoài
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#convActionDropdown') && !e.target.closest('.card-more-btn')) {
+                closeConvCardMenu();
+            }
+        });
+
+        // Đóng menu khi cuộn danh sách hội thoại hoặc thay đổi kích thước cửa sổ
+        window.addEventListener('resize', closeConvCardMenu);
+        const convList = document.getElementById('conversationsList');
+        if (convList) {
+            convList.addEventListener('scroll', closeConvCardMenu, { passive: true });
+        }
+    }
+    return dropdown;
+}
+
+/**
+ * Mở Action Menu khi bấm nút ...
+ */
+function openConversationCardMenu(event, convId) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+
+    const btn = event.currentTarget || event.target.closest('.card-more-btn');
+    if (!btn) return;
+
+    const dropdown = getOrCreateConvCardDropdown();
+
+    // Nếu đang mở menu của chính card này thì toggle đóng
+    if (activeConvCardMenuId === convId && dropdown.style.display === 'block') {
+        closeConvCardMenu();
+        return;
+    }
+
+    // Đóng menu trước đó nếu có
+    closeConvCardMenu();
+
+    activeConvCardMenuId = convId;
+    btn.classList.add('is-active');
+
+    dropdown.innerHTML = `
+        <button type="button" class="conv-action-item is-danger" onclick="confirmDeleteConversation(${convId})">
+            <i class="fa-regular fa-trash-can"></i>
+            <span>Xóa cuộc trò chuyện</span>
+        </button>
+    `;
+
+    dropdown.style.display = 'block';
+
+    // Định vị vị trí menu nổi (Fixed)
+    const rect = btn.getBoundingClientRect();
+    const dropdownWidth = dropdown.offsetWidth || 175;
+    const dropdownHeight = dropdown.offsetHeight || 44;
+
+    // Căn mép phải của menu thẳng hàng với mép phải nút bấm
+    let left = rect.right - dropdownWidth;
+    if (left < 10) left = 10;
+
+    // Ưu tiên hiển thị phía dưới nút, nếu chạm đáy màn hình thì bật lên trên
+    let top = rect.bottom + 4;
+    if (top + dropdownHeight > window.innerHeight - 10) {
+        top = rect.top - dropdownHeight - 4;
+    }
+
+    dropdown.style.left = `${left}px`;
+    dropdown.style.top = `${top}px`;
+}
+
+/**
+ * Đóng Action Menu
+ */
+function closeConvCardMenu() {
+    activeConvCardMenuId = null;
+    const dropdown = document.getElementById('convActionDropdown');
+    if (dropdown) dropdown.style.display = 'none';
+    document.querySelectorAll('.card-more-btn.is-active').forEach(b => b.classList.remove('is-active'));
+}
+
+/**
+ * Xác nhận xóa cuộc trò chuyện
+ */
+async function confirmDeleteConversation(convId) {
+    closeConvCardMenu();
+
+    const conv = (AppState.cachedConversations ? AppState.cachedConversations[convId] : null) || {};
+    const custName = conv.sender_name || 'cuộc trò chuyện này';
+
+    const confirmed = confirm(`Bạn có chắc chắn muốn xóa cuộc trò chuyện với "${custName}"?\nCuộc hội thoại này sẽ được ẩn khỏi danh sách.`);
+    if (!confirmed) return;
+
+    await executeDeleteConversation(convId);
+}
+
+/**
+ * Thực thi xóa mềm (Soft delete) cuộc trò chuyện và cập nhật giao diện ngay lập tức
+ */
+async function executeDeleteConversation(convId) {
+    try {
+        const payload = {
+            action: 'delete_conversation',
+            conversation_id: convId
+        };
+
+        let res = null;
+        let data = null;
+
+        try {
+            res = await fetch('../../api/message_action.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            data = await res.json();
+        } catch (netErr) {}
+
+        // Fallback qua sync_polling nếu message_action bị chặn
+        if (!data || !data.success) {
+            try {
+                const fbRes = await fetch('../../api/sync_polling.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                data = await fbRes.json();
+            } catch (fbErr) {}
+        }
+
+        if (data && data.success) {
+            // 1. Dọn dẹp cache hội thoại
+            if (AppState.cachedConversations) delete AppState.cachedConversations[convId];
+            if (AppState.conversationsCache) delete AppState.conversationsCache[convId];
+
+            // 2. Hiệu ứng xóa mềm card khỏi DOM mượt mà
+            const cardEl = document.querySelector(`.conversation-card[data-conv-id="${convId}"]`);
+            if (cardEl) {
+                cardEl.style.transition = 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)';
+                cardEl.style.opacity = '0';
+                cardEl.style.transform = 'translateX(-20px)';
+                cardEl.style.maxHeight = `${cardEl.offsetHeight}px`;
+                setTimeout(() => {
+                    cardEl.style.maxHeight = '0';
+                    cardEl.style.paddingTop = '0';
+                    cardEl.style.paddingBottom = '0';
+                    cardEl.style.marginBottom = '0';
+                    cardEl.style.border = 'none';
+                    setTimeout(() => cardEl.remove(), 250);
+                }, 80);
+            }
+
+            // 3. Nếu đang mở chính cuộc trò chuyện này, chuyển sang cuộc trò chuyện khác hoặc reset về trống
+            if (AppState.activeConvId == convId) {
+                AppState.activeConvId = null;
+                AppState.activeConversation = null;
+
+                const remainingCards = Array.from(document.querySelectorAll('.conversation-card'))
+                    .filter(c => c.getAttribute('data-conv-id') != convId);
+
+                if (remainingCards.length > 0) {
+                    const nextId = remainingCards[0].getAttribute('data-conv-id');
+                    selectConversation(nextId);
+                } else {
+                    resetChatWorkspaceToEmpty();
+                }
+            }
+
+            if (typeof window.showToastNotification === 'function') {
+                window.showToastNotification('Đã xóa cuộc trò chuyện', 'success');
+            }
+        } else {
+            alert((data && data.message) ? data.message : 'Không thể xóa cuộc trò chuyện.');
+        }
+    } catch (err) {
+        console.error('[Delete Conversation Error]:', err);
+        alert('Lỗi kết nối khi xóa cuộc trò chuyện.');
+    }
+}
+
+/**
+ * Đưa giao diện khung chat giữa và sidebar phải về trạng thái trống (Empty State)
+ */
+function resetChatWorkspaceToEmpty() {
+    const chatHeader = document.getElementById('chatHeader');
+    if (chatHeader) chatHeader.style.display = 'none';
+
+    const chatInputArea = document.getElementById('chatInputArea');
+    if (chatInputArea) chatInputArea.style.display = 'none';
+
+    const rightSidebar = document.getElementById('rightSidebar');
+    if (rightSidebar) rightSidebar.style.display = 'none';
+
+    const lockBanner = document.getElementById('viewOnlyLockBanner');
+    if (lockBanner) lockBanner.style.display = 'none';
+
+    const viewport = document.getElementById('messagesViewport');
+    if (viewport) {
+        viewport.innerHTML = `
+            <div class="chat-empty-state" id="chatEmptyState">
+                <div class="empty-icon-circle">
+                    <i class="fa-regular fa-comments"></i>
+                </div>
+                <h3>Chọn cuộc trò chuyện để bắt đầu</h3>
+                <p>Tin nhắn đa kênh được tự động đồng bộ theo thời gian thực</p>
+            </div>
+        `;
+    }
+}
+

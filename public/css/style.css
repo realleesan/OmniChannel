@@ -746,8 +746,101 @@ body {
 /* Dòng 1: Tên khách hàng (Bold) & Thời gian ngắn gọn (Căn phải) */
 .card-header-line {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
+    gap: 6px;
+}
+
+.card-header-right {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+}
+
+.card-more-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: #94A3B8;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0;
+    transition: all 0.15s ease;
+    opacity: 0.5;
+}
+
+.conversation-card:hover .card-more-btn {
+    opacity: 1;
+    color: #475569;
+}
+
+.card-more-btn:hover,
+.card-more-btn.is-active {
+    background: #E2E8F0;
+    color: #0F172A;
+    opacity: 1;
+}
+
+/* Menu Dropdown Thao Tác Hội Thoại */
+.conv-action-dropdown {
+    position: fixed;
+    z-index: 99999;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+    min-width: 175px;
+    padding: 5px;
+    display: none;
+    animation: convMenuFadeIn 0.12s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes convMenuFadeIn {
+    from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.conv-action-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    text-align: left;
+}
+
+.conv-action-item:hover {
+    background: #F1F5F9;
+    color: #0F172A;
+}
+
+.conv-action-item.is-danger {
+    color: #DC2626;
+}
+
+.conv-action-item.is-danger:hover {
+    background: #FEE2E2;
+    color: #B91C1C;
+}
+
+.conv-action-item i {
+    font-size: 13px;
+    width: 16px;
+    text-align: center;
 }
 
 .card-sender-name {
